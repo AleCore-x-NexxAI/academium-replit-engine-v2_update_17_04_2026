@@ -363,16 +363,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  const updateRoleSchema = z.object({
+    role: z.enum(["student", "professor", "admin"]),
+  });
+
   app.post("/api/users/role", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { role } = req.body;
-
-      if (!["student", "professor"].includes(role)) {
-        return res.status(400).json({ message: "Invalid role" });
+      
+      const parseResult = updateRoleSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid role", errors: parseResult.error.errors });
       }
 
+      const { role } = parseResult.data;
       const user = await storage.updateUserRole(userId, role);
+      
+      console.log(`[DEMO] User ${userId} switched role to ${role}`);
       res.json(user);
     } catch (error) {
       console.error("Error updating role:", error);

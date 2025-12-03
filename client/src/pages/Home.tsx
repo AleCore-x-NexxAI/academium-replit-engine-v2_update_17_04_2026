@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
 import type { Scenario, SimulationSession } from "@shared/schema";
 
 const domainIcons: Record<string, React.ReactNode> = {
@@ -170,6 +171,8 @@ export default function Home() {
                 </Button>
               </>
             )}
+
+            <RoleSwitcher currentRole={user?.role || "student"} />
 
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
