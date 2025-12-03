@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
   ArrowLeft,
@@ -17,6 +17,8 @@ import {
   Edit,
   Eye,
   BookOpen,
+  X,
+  File,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -73,8 +75,194 @@ const DOMAINS = [
   "Operations",
 ];
 
+interface UploadedFile {
+  name: string;
+  url: string;
+  size: number;
+}
+
+function PDFUploader({
+  onUploadComplete,
+  uploadedFile,
+  onRemoveFile,
+}: {
+  onUploadComplete: (file: UploadedFile) => void;
+  uploadedFile?: UploadedFile;
+  onRemoveFile: () => void;
+}) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleUpload = async (file: globalThis.File) => {
+    if (file.type !== "application/pdf") {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Maximum file size is 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const response = await apiRequest("POST", "/api/upload/url");
+      const { uploadUrl } = (await response.json()) as { uploadUrl: string };
+
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const fileUrl = uploadUrl.split("?")[0];
+      
+      onUploadComplete({
+        name: file.name,
+        url: fileUrl,
+        size: file.size,
+      });
+
+      toast({
+        title: "Upload complete",
+        description: `${file.name} uploaded successfully`,
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleUpload(e.dataTransfer.files[0]);
+    }
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleUpload(e.target.files[0]);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
+  if (uploadedFile) {
+    return (
+      <div className="border rounded-lg p-4 bg-muted/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium text-sm truncate max-w-[200px]">
+                {uploadedFile.name}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {formatFileSize(uploadedFile.size)}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRemoveFile}
+            data-testid="button-remove-file"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`
+        border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
+        ${dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-muted-foreground/50"}
+        ${isUploading ? "pointer-events-none opacity-50" : ""}
+      `}
+      onDragEnter={handleDrag}
+      onDragLeave={handleDrag}
+      onDragOver={handleDrag}
+      onDrop={handleDrop}
+      onClick={() => inputRef.current?.click()}
+      data-testid="dropzone-pdf"
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        onChange={handleChange}
+        className="hidden"
+        data-testid="input-pdf-file"
+      />
+      {isUploading ? (
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Uploading...</p>
+        </div>
+      ) : (
+        <>
+          <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-sm font-medium mb-1">
+            Drop your PDF here or click to browse
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Maximum file size: 10MB
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<UploadedFile | undefined>();
   const { toast } = useToast();
 
   const form = useForm<ScenarioFormData>({
@@ -106,6 +294,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
             efficiency: 75,
             trust: 75,
           },
+          caseStudyUrl: uploadedFile?.url,
         },
         isPublished: true,
       });
@@ -114,6 +303,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
       toast({ title: "Success", description: "Scenario created successfully" });
       setOpen(false);
       form.reset();
+      setUploadedFile(undefined);
       onSuccess();
     },
     onError: (error) => {
@@ -270,6 +460,18 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 </FormItem>
               )}
             />
+
+            <div>
+              <FormLabel className="mb-2 block">Case Study PDF (Optional)</FormLabel>
+              <p className="text-sm text-muted-foreground mb-3">
+                Upload a PDF case study to provide context for the AI agents
+              </p>
+              <PDFUploader
+                onUploadComplete={setUploadedFile}
+                uploadedFile={uploadedFile}
+                onRemoveFile={() => setUploadedFile(undefined)}
+              />
+            </div>
 
             <div className="flex justify-end gap-3">
               <Button

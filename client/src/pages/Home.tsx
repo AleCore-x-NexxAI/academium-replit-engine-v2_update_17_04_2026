@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Loader2,
   Settings,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -154,12 +155,20 @@ export default function Home() {
 
           <div className="flex items-center gap-4">
             {isProfessor && (
-              <Button variant="outline" asChild data-testid="link-studio">
-                <Link href="/studio">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Authoring Studio
-                </Link>
-              </Button>
+              <>
+                <Button variant="outline" asChild data-testid="link-analytics">
+                  <Link href="/analytics">
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Analytics
+                  </Link>
+                </Button>
+                <Button variant="outline" asChild data-testid="link-studio">
+                  <Link href="/studio">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Authoring Studio
+                  </Link>
+                </Button>
+              </>
             )}
 
             <div className="flex items-center gap-3">

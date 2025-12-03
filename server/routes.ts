@@ -24,6 +24,7 @@ const createScenarioSchema = z.object({
       efficiency: z.number(),
       trust: z.number(),
     }),
+    caseStudyUrl: z.string().optional(),
   }),
   rubric: z.object({
     criteria: z.array(z.object({
@@ -292,18 +293,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         agentResponse: result,
       });
 
-      await storage.updateSimulationSession(sessionId, {
+      let sessionUpdate: any = {
         currentState: result.updatedState,
         status: result.isGameOver ? "completed" : "active",
-        ...(result.isGameOver && {
-          scoreSummary: {
-            finalKpis: result.updatedState.kpis,
-            competencies: result.competencyScores || {},
-            overallScore: result.feedback.score,
-            feedback: result.feedback.message,
-          },
-        }),
-      });
+      };
+
+      if (result.isGameOver) {
+        const competencies = result.competencyScores || {
+          strategicThinking: 3,
+          ethicalReasoning: 3,
+          decisionDecisiveness: 3,
+          stakeholderEmpathy: 3,
+        };
+        
+        const competencyValues = Object.values(competencies) as number[];
+        const avgCompetency = competencyValues.reduce((a, b) => a + b, 0) / competencyValues.length;
+        const overallScore = Math.round((avgCompetency / 5) * 100);
+
+        sessionUpdate.scoreSummary = {
+          finalKpis: result.updatedState.kpis,
+          competencies,
+          overallScore,
+          feedback: result.feedback.message,
+        };
+      }
+
+      await storage.updateSimulationSession(sessionId, sessionUpdate);
 
       res.json(result);
     } catch (error) {
@@ -362,6 +377,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Error updating role:", error);
       res.status(500).json({ message: "Failed to update role" });
+    }
+  });
+
+  app.post("/api/upload/url", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user || (user.role !== "professor" && user.role !== "admin")) {
+        return res.status(403).json({ message: "Not authorized to upload files" });
+      }
+
+      const objectStorageService = new ObjectStorageService();
+      const uploadUrl = await objectStorageService.getObjectEntityUploadURL();
+      
+      res.json({ uploadUrl });
+    } catch (error) {
+      console.error("Error generating upload URL:", error);
+      res.status(500).json({ message: "Failed to generate upload URL" });
+    }
+  });
+
+  app.get("/api/analytics", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user || (user.role !== "professor" && user.role !== "admin")) {
+        return res.status(403).json({ message: "Not authorized to view analytics" });
+      }
+
+      const analyticsData = await storage.getAnalytics();
+      res.json(analyticsData);
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      res.status(500).json({ message: "Failed to fetch analytics" });
     }
   });
 }

@@ -8,24 +8,35 @@ import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
 import Simulation from "@/pages/Simulation";
 import SimulationStart from "@/pages/SimulationStart";
+import SessionResults from "@/pages/SessionResults";
 import Studio from "@/pages/Studio";
+import Analytics from "@/pages/Analytics";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
+  if (isLoading) {
+    return null;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Switch>
+        <Route path="/" component={Landing} />
+        <Route component={Landing} />
+      </Switch>
+    );
+  }
+
   return (
     <Switch>
-      {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
-      ) : (
-        <>
-          <Route path="/" component={Home} />
-          <Route path="/simulation/start/:scenarioId" component={SimulationStart} />
-          <Route path="/simulation/:sessionId" component={Simulation} />
-          <Route path="/studio" component={Studio} />
-        </>
-      )}
+      <Route path="/" component={Home} />
+      <Route path="/simulation/start/:scenarioId" component={SimulationStart} />
+      <Route path="/simulation/:sessionId/results" component={SessionResults} />
+      <Route path="/simulation/:sessionId" component={Simulation} />
+      <Route path="/studio" component={Studio} />
+      <Route path="/analytics" component={Analytics} />
       <Route component={NotFound} />
     </Switch>
   );

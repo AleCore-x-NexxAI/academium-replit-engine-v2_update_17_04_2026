@@ -16,6 +16,15 @@ import {
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
 
+export interface AnalyticsData {
+  totalSessions: number;
+  completedSessions: number;
+  averageScore: number;
+  competencyAverages: Record<string, number>;
+  scenarioBreakdown: { name: string; count: number }[];
+  recentSessions: (SimulationSession & { scenario?: Scenario })[];
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -36,6 +45,8 @@ export interface IStorage {
 
   getTurnsBySession(sessionId: string): Promise<Turn[]>;
   createTurn(turn: InsertTurn): Promise<Turn>;
+
+  getAnalytics(): Promise<AnalyticsData>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -169,6 +180,74 @@ export class DatabaseStorage implements IStorage {
   async createTurn(turn: InsertTurn): Promise<Turn> {
     const [created] = await db.insert(turns).values(turn).returning();
     return created;
+  }
+
+  async getAnalytics(): Promise<AnalyticsData> {
+    const allSessions = await db
+      .select()
+      .from(simulationSessions)
+      .leftJoin(scenarios, eq(simulationSessions.scenarioId, scenarios.id))
+      .orderBy(desc(simulationSessions.updatedAt));
+
+    const totalSessions = allSessions.length;
+    const completedSessions = allSessions.filter(
+      (s) => s.simulation_sessions.status === "completed"
+    ).length;
+
+    const competencyTotals: Record<string, { sum: number; count: number }> = {
+      strategicThinking: { sum: 0, count: 0 },
+      ethicalReasoning: { sum: 0, count: 0 },
+      decisionDecisiveness: { sum: 0, count: 0 },
+      stakeholderEmpathy: { sum: 0, count: 0 },
+    };
+
+    let totalScore = 0;
+    let scoreCount = 0;
+
+    for (const session of allSessions) {
+      const scoreSummary = session.simulation_sessions.scoreSummary;
+      if (scoreSummary) {
+        totalScore += scoreSummary.overallScore;
+        scoreCount++;
+
+        const competencies = scoreSummary.competencies || {};
+        for (const [key, value] of Object.entries(competencies)) {
+          if (competencyTotals[key]) {
+            competencyTotals[key].sum += value as number;
+            competencyTotals[key].count++;
+          }
+        }
+      }
+    }
+
+    const competencyAverages: Record<string, number> = {};
+    for (const [key, data] of Object.entries(competencyTotals)) {
+      competencyAverages[key] = data.count > 0 ? data.sum / data.count : 0;
+    }
+
+    const scenarioCounts: Record<string, number> = {};
+    for (const session of allSessions) {
+      const scenarioTitle = session.scenarios?.title || "Unknown";
+      scenarioCounts[scenarioTitle] = (scenarioCounts[scenarioTitle] || 0) + 1;
+    }
+
+    const scenarioBreakdown = Object.entries(scenarioCounts).map(
+      ([name, count]) => ({ name, count })
+    );
+
+    const recentSessions = allSessions.slice(0, 10).map((r) => ({
+      ...r.simulation_sessions,
+      scenario: r.scenarios || undefined,
+    }));
+
+    return {
+      totalSessions,
+      completedSessions,
+      averageScore: scoreCount > 0 ? totalScore / scoreCount : 0,
+      competencyAverages,
+      scenarioBreakdown,
+      recentSessions,
+    };
   }
 }
 

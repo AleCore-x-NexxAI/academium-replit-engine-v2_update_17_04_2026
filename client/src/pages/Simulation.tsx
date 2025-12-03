@@ -100,7 +100,7 @@ export default function Simulation() {
       const response = await apiRequest("POST", `/api/simulations/${sessionId}/turn`, {
         input,
       });
-      return response as TurnResponse;
+      return (await response.json()) as TurnResponse;
     },
     onMutate: () => {
       setPreviousKpis({ ...kpis });
@@ -240,6 +240,7 @@ export default function Simulation() {
             options={options}
             isProcessing={isProcessing}
             isGameOver={isGameOver}
+            onViewResults={() => navigate(`/simulation/${sessionId}/results`)}
           />
         </main>
 

@@ -124,6 +124,7 @@ export interface InitialState {
   introText: string;
   role: string;
   objective: string;
+  caseStudyUrl?: string;
 }
 
 export interface RubricCriterion {

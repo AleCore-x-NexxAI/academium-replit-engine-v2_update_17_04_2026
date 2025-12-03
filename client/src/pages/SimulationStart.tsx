@@ -58,7 +58,7 @@ export default function SimulationStart() {
       const response = await apiRequest("POST", "/api/simulations/start", {
         scenarioId,
       });
-      return response as { sessionId: string };
+      return (await response.json()) as { sessionId: string };
     },
     onSuccess: (data) => {
       navigate(`/simulation/${data.sessionId}`);

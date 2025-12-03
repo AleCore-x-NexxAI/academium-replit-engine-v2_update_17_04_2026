@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import pLimit from "p-limit";
-import pRetry from "p-retry";
+import pRetry, { AbortError } from "p-retry";
 
 // Using Replit's AI Integrations service for OpenAI access
 // Does not require your own API key - charges are billed to your credits
@@ -33,7 +33,6 @@ export async function generateChatCompletion(
     pRetry(
       async () => {
         try {
-          // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
           const response = await openai.chat.completions.create({
             model: "gpt-4o",
             messages,
@@ -47,7 +46,7 @@ export async function generateChatCompletion(
           if (isRateLimitError(error)) {
             throw error;
           }
-          throw new pRetry.AbortError(error);
+          throw new AbortError(error.message || "API call failed");
         }
       },
       {

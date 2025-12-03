@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Lightbulb, BookOpen, Loader2 } from "lucide-react";
+import { Send, Lightbulb, BookOpen, Loader2, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ interface InputConsoleProps {
   options?: string[];
   isProcessing: boolean;
   isGameOver: boolean;
+  onViewResults?: () => void;
 }
 
 export function InputConsole({
@@ -19,6 +20,7 @@ export function InputConsole({
   options = [],
   isProcessing,
   isGameOver,
+  onViewResults,
 }: InputConsoleProps) {
   const [input, setInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -140,13 +142,21 @@ export function InputConsole({
       </div>
 
       {isGameOver && (
-        <motion.p
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-sm text-destructive mt-3 text-center"
+          className="mt-3 text-center space-y-3"
         >
-          The simulation has ended. Review your performance above.
-        </motion.p>
+          <p className="text-sm text-destructive">
+            The simulation has ended.
+          </p>
+          {onViewResults && (
+            <Button onClick={onViewResults} data-testid="button-view-results">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              View Full Results
+            </Button>
+          )}
+        </motion.div>
       )}
     </div>
   );
