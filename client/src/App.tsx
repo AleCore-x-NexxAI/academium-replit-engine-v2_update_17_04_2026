@@ -3,14 +3,29 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/useAuth";
+import Landing from "@/pages/Landing";
+import Home from "@/pages/Home";
+import Simulation from "@/pages/Simulation";
+import SimulationStart from "@/pages/SimulationStart";
+import Studio from "@/pages/Studio";
 import NotFound from "@/pages/not-found";
 
 function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return (
     <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
+      {isLoading || !isAuthenticated ? (
+        <Route path="/" component={Landing} />
+      ) : (
+        <>
+          <Route path="/" component={Home} />
+          <Route path="/simulation/start/:scenarioId" component={SimulationStart} />
+          <Route path="/simulation/:sessionId" component={Simulation} />
+          <Route path="/studio" component={Studio} />
+        </>
+      )}
       <Route component={NotFound} />
     </Switch>
   );
