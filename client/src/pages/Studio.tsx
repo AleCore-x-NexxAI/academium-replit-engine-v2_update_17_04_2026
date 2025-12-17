@@ -327,12 +327,36 @@ function PDFUploader({
   );
 }
 
+// Extended form schema for KPIs and rubric
+const extendedScenarioFormSchema = scenarioFormSchema.extend({
+  // Initial KPIs
+  kpiRevenue: z.coerce.number().min(0).default(100000),
+  kpiMorale: z.coerce.number().min(0).max(100).default(75),
+  kpiReputation: z.coerce.number().min(0).max(100).default(75),
+  kpiEfficiency: z.coerce.number().min(0).max(100).default(75),
+  kpiTrust: z.coerce.number().min(0).max(100).default(75),
+  // Rubric criteria as text
+  rubricCriteriaText: z.string().optional(),
+});
+
+type ExtendedScenarioFormData = z.infer<typeof extendedScenarioFormSchema>;
+
 function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | undefined>();
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "player"]));
   const { toast } = useToast();
 
-  const form = useForm<ScenarioFormData>({
-    resolver: zodResolver(scenarioFormSchema),
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  };
+
+  const form = useForm<ExtendedScenarioFormData>({
+    resolver: zodResolver(extendedScenarioFormSchema),
     defaultValues: {
       title: "",
       description: "",
@@ -355,16 +379,22 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
       keyConstraintsText: "",
       learningObjectivesText: "",
       ethicalDimensionsText: "",
+      kpiRevenue: 100000,
+      kpiMorale: 75,
+      kpiReputation: 75,
+      kpiEfficiency: 75,
+      kpiTrust: 75,
+      rubricCriteriaText: "",
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: ScenarioFormData) => {
+    mutationFn: async (data: ExtendedScenarioFormData) => {
       let stakeholders: Array<{name: string; role: string; interests: string; influence: "low" | "medium" | "high"}> = [];
       if (data.stakeholdersJson) {
         try {
           stakeholders = JSON.parse(data.stakeholdersJson);
-        } catch (e) {
+        } catch {
           stakeholders = data.stakeholdersJson.split("\n")
             .filter(line => line.trim())
             .map(line => {
@@ -382,6 +412,24 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
       const parseTextList = (text?: string) => 
         text?.split("\n").filter(line => line.trim()).map(line => line.trim()) || [];
       
+      // Parse rubric criteria
+      let rubric = null;
+      if (data.rubricCriteriaText) {
+        const criteria = data.rubricCriteriaText.split("\n")
+          .filter(line => line.trim())
+          .map(line => {
+            const parts = line.split("|").map(p => p.trim());
+            return {
+              name: parts[0] || "Criterion",
+              weight: parseInt(parts[1]) || 25,
+              description: parts[2] || "Description",
+            };
+          });
+        if (criteria.length > 0) {
+          rubric = { criteria };
+        }
+      }
+      
       return await apiRequest("POST", "/api/scenarios", {
         title: data.title,
         description: data.description,
@@ -391,11 +439,11 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
           objective: data.objective,
           introText: data.introText,
           kpis: {
-            revenue: 100000,
-            morale: 75,
-            reputation: 75,
-            efficiency: 75,
-            trust: 75,
+            revenue: data.kpiRevenue,
+            morale: data.kpiMorale,
+            reputation: data.kpiReputation,
+            efficiency: data.kpiEfficiency,
+            trust: data.kpiTrust,
           },
           caseStudyUrl: uploadedFile?.url,
           companyName: data.companyName || undefined,
@@ -414,6 +462,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
           learningObjectives: parseTextList(data.learningObjectivesText).length > 0 ? parseTextList(data.learningObjectivesText) : undefined,
           ethicalDimensions: parseTextList(data.ethicalDimensionsText).length > 0 ? parseTextList(data.ethicalDimensionsText) : undefined,
         },
+        rubric,
         isPublished: true,
       });
     },
@@ -433,106 +482,636 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
+  const SectionHeader = ({ id, title, isRequired }: { id: string; title: string; isRequired?: boolean }) => (
+    <button
+      type="button"
+      onClick={() => toggleSection(id)}
+      className="flex items-center justify-between w-full text-left py-2 border-b"
+    >
+      <h3 className="text-lg font-semibold flex items-center gap-2">
+        {title}
+        {isRequired && <Badge variant="secondary" className="text-xs">Required</Badge>}
+      </h3>
+      <motion.div
+        animate={{ rotate: expandedSections.has(id) ? 180 : 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </motion.div>
+    </button>
+  );
+
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((data) => createMutation.mutate(data))}
         className="space-y-6"
       >
+        {/* SECTION 1: Basic Information */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold border-b pb-2">Basic Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Scenario Title *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., The Data Breach Crisis" {...field} data-testid="input-scenario-title-manual" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="domain"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Domain *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-domain-manual">
-                        <SelectValue placeholder="Select a domain" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {DOMAINS.map((domain) => (
-                        <SelectItem key={domain} value={domain}>{domain}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Description *</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Brief overview of what students will experience..." className="min-h-20" {...field} data-testid="input-description-manual" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+          <SectionHeader id="basic" title="Basic Information" isRequired />
+          <AnimatePresence>
+            {expandedSections.has("basic") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Scenario Title *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., The Data Breach Crisis" {...field} data-testid="input-scenario-title-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="domain"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Domain *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-domain-manual">
+                              <SelectValue placeholder="Select a domain" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {DOMAINS.map((domain) => (
+                              <SelectItem key={domain} value={domain}>{domain}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="difficultyLevel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Difficulty Level</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-difficulty-manual">
+                            <SelectValue placeholder="Select difficulty" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {DIFFICULTY_LEVELS.map((level) => (
+                            <SelectItem key={level.value} value={level.value}>{level.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description *</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Brief overview of what students will experience..." className="min-h-20" {...field} data-testid="input-description-manual" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </motion.div>
             )}
-          />
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Player Role *</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., Chief Marketing Officer" {...field} data-testid="input-role-manual" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="objective"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Objective *</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="What must the player accomplish?" className="min-h-16" {...field} data-testid="input-objective-manual" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="introText"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Opening Narrative *</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="The immersive introduction students will read..." className="min-h-24" {...field} data-testid="input-intro-manual" />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          </AnimatePresence>
         </div>
 
-        <div className="flex justify-end gap-2">
+        {/* SECTION 2: Company Context */}
+        <div className="space-y-4">
+          <SectionHeader id="company" title="Company Context" />
+          <AnimatePresence>
+            {expandedSections.has("company") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <p className="text-sm text-muted-foreground">The more detail you provide, the more tailored the AI simulation will be.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="companyName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., TechFlow Inc." {...field} data-testid="input-company-name-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="industry"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Industry</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-industry-manual">
+                              <SelectValue placeholder="Select industry" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {INDUSTRIES.map((industry) => (
+                              <SelectItem key={industry} value={industry}>{industry}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="companySize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Size</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-company-size-manual">
+                              <SelectValue placeholder="Select size" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {COMPANY_SIZES.map((size) => (
+                              <SelectItem key={size.value} value={size.value}>{size.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="situationBackground"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Situation Background</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="What happened before the scenario begins? What events led to this crisis or challenge?"
+                          className="min-h-20" 
+                          {...field} 
+                          data-testid="input-situation-background-manual" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="industryContext"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Industry Dynamics</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Market trends, challenges, opportunities..." className="min-h-16" {...field} data-testid="input-industry-context-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="competitiveEnvironment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Competitive Environment</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Main competitors, competitive pressure..." className="min-h-16" {...field} data-testid="input-competitive-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 3: Player Role & Situation */}
+        <div className="space-y-4">
+          <SectionHeader id="player" title="Player Role & Situation" isRequired />
+          <AnimatePresence>
+            {expandedSections.has("player") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Player Role *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Chief Marketing Officer" {...field} data-testid="input-role-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="timelineContext"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Timeline Context</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Immediate crisis - 72 hours to respond" {...field} data-testid="input-timeline-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="objective"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Primary Objective *</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="What is the main goal the player must achieve?" className="min-h-16" {...field} data-testid="input-objective-manual" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="introText"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Opening Narrative *</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="The immersive story that sets the scene when the student starts. Write this as if narrating a story..."
+                          className="min-h-32" 
+                          {...field} 
+                          data-testid="input-intro-manual" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 4: Stakeholders */}
+        <div className="space-y-4">
+          <SectionHeader id="stakeholders" title="Key Stakeholders" />
+          <AnimatePresence>
+            {expandedSections.has("stakeholders") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <p className="text-sm text-muted-foreground">Define the key people the player will interact with. Format: Name - Role - Interests (one per line)</p>
+                <FormField
+                  control={form.control}
+                  name="stakeholdersJson"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stakeholders</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Sarah Chen - CEO - Wants quick resolution to protect stock price&#10;Marcus Williams - Head of PR - Concerned about media narrative&#10;Elena Rodriguez - Legal Counsel - Focused on regulatory compliance&#10;James Park - Employee Rep - Advocates for staff concerns"
+                          className="min-h-28 font-mono text-sm"
+                          {...field}
+                          data-testid="input-stakeholders-manual"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 5: Environment & Constraints */}
+        <div className="space-y-4">
+          <SectionHeader id="environment" title="Environment & Constraints" />
+          <AnimatePresence>
+            {expandedSections.has("environment") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="regulatoryEnvironment"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Regulatory Environment</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="What regulations, laws, or compliance requirements apply?" className="min-h-16" {...field} data-testid="input-regulatory-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="culturalContext"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cultural Context</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Cultural, geographical, or social factors..." className="min-h-16" {...field} data-testid="input-cultural-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="resourceConstraints"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Resource Constraints</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Budget limitations, staffing issues, time pressures, technical limitations..." className="min-h-16" {...field} data-testid="input-resources-manual" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="keyConstraintsText"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Key Constraints (one per line)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="$500,000 maximum budget&#10;Must maintain at least 80% workforce&#10;Cannot change product pricing"
+                          className="min-h-20 font-mono text-sm"
+                          {...field}
+                          data-testid="input-constraints-manual"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 6: Learning Objectives & Ethics */}
+        <div className="space-y-4">
+          <SectionHeader id="learning" title="Learning Objectives & Ethics" />
+          <AnimatePresence>
+            {expandedSections.has("learning") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <FormField
+                  control={form.control}
+                  name="learningObjectivesText"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Learning Objectives (one per line)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Understand crisis communication strategies&#10;Balance stakeholder interests under pressure&#10;Apply ethical decision-making frameworks"
+                          className="min-h-24 font-mono text-sm"
+                          {...field}
+                          data-testid="input-learning-objectives-manual"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="ethicalDimensionsText"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ethical Dimensions (one per line)</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Transparency vs. corporate protection&#10;Employee welfare vs. shareholder value&#10;Short-term profits vs. long-term sustainability"
+                          className="min-h-20 font-mono text-sm"
+                          {...field}
+                          data-testid="input-ethical-dimensions-manual"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 7: Initial KPIs */}
+        <div className="space-y-4">
+          <SectionHeader id="kpis" title="Initial KPIs" />
+          <AnimatePresence>
+            {expandedSections.has("kpis") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <p className="text-sm text-muted-foreground">Set the starting values for key performance indicators. Revenue is absolute; others are percentages (0-100).</p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="kpiRevenue"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Revenue ($)</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={0} step={1000} {...field} data-testid="input-kpi-revenue-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="kpiMorale"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Morale (%)</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-morale-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="kpiReputation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Reputation (%)</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-reputation-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="kpiEfficiency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Efficiency (%)</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-efficiency-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="kpiTrust"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Trust (%)</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-trust-manual" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 8: Rubric Criteria */}
+        <div className="space-y-4">
+          <SectionHeader id="rubric" title="Assessment Rubric" />
+          <AnimatePresence>
+            {expandedSections.has("rubric") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <p className="text-sm text-muted-foreground">Define how student decisions will be evaluated. Format: Criterion Name | Weight (%) | Description (one per line)</p>
+                <FormField
+                  control={form.control}
+                  name="rubricCriteriaText"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rubric Criteria</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Strategic Thinking | 30 | Long-term planning and foresight&#10;Ethical Reasoning | 25 | Considering moral implications&#10;Stakeholder Management | 25 | Balancing diverse interests&#10;Decision Decisiveness | 20 | Making clear, timely choices"
+                          className="min-h-28 font-mono text-sm"
+                          {...field}
+                          data-testid="input-rubric-manual"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 9: Supporting Materials */}
+        <div className="space-y-4">
+          <SectionHeader id="materials" title="Supporting Materials" />
+          <AnimatePresence>
+            {expandedSections.has("materials") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <div>
+                  <FormLabel className="mb-2 block">Case Study PDF (Optional)</FormLabel>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Upload a PDF case study to provide additional context for the AI agents
+                  </p>
+                  <PDFUploader
+                    onUploadComplete={setUploadedFile}
+                    uploadedFile={uploadedFile}
+                    onRemoveFile={() => setUploadedFile(undefined)}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4 border-t">
           <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-manual">
             {createMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
             Create Scenario
