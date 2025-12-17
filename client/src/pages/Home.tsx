@@ -44,9 +44,11 @@ interface ScenarioCardProps {
 }
 
 function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
-  const isProfessorAndAuthor = (userRole === "professor" || userRole === "admin") && scenario.authorId === userId;
+  const isAdmin = userRole === "admin";
+  const isProfessorAndAuthor = userRole === "professor" && scenario.authorId === userId;
+  const canManageScenario = isAdmin || isProfessorAndAuthor;
   
-  if (isProfessorAndAuthor) {
+  if (canManageScenario) {
     return (
       <Card
         className="p-6 h-full"
