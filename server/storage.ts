@@ -3,6 +3,7 @@ import {
   scenarios,
   simulationSessions,
   turns,
+  scenarioDrafts,
   type User,
   type UpsertUser,
   type Scenario,
@@ -12,6 +13,11 @@ import {
   type Turn,
   type InsertTurn,
   type SimulationState,
+  type ScenarioDraft,
+  type InsertScenarioDraft,
+  type DraftConversationMessage,
+  type ExtractedInsights,
+  type GeneratedScenarioData,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -47,6 +53,16 @@ export interface IStorage {
   createTurn(turn: InsertTurn): Promise<Turn>;
 
   getAnalytics(): Promise<AnalyticsData>;
+
+  // Scenario Draft operations
+  getScenarioDraft(id: string): Promise<ScenarioDraft | undefined>;
+  getScenarioDraftsByAuthor(authorId: string): Promise<ScenarioDraft[]>;
+  createScenarioDraft(draft: InsertScenarioDraft): Promise<ScenarioDraft>;
+  updateScenarioDraft(id: string, data: Partial<InsertScenarioDraft>): Promise<ScenarioDraft | undefined>;
+  addDraftMessage(id: string, message: DraftConversationMessage): Promise<ScenarioDraft | undefined>;
+  updateDraftInsights(id: string, insights: ExtractedInsights): Promise<ScenarioDraft | undefined>;
+  updateDraftGeneratedScenario(id: string, scenario: GeneratedScenarioData): Promise<ScenarioDraft | undefined>;
+  deleteScenarioDraft(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -248,6 +264,72 @@ export class DatabaseStorage implements IStorage {
       scenarioBreakdown,
       recentSessions,
     };
+  }
+
+  // Scenario Draft operations
+  async getScenarioDraft(id: string): Promise<ScenarioDraft | undefined> {
+    const [draft] = await db.select().from(scenarioDrafts).where(eq(scenarioDrafts.id, id));
+    return draft;
+  }
+
+  async getScenarioDraftsByAuthor(authorId: string): Promise<ScenarioDraft[]> {
+    return await db
+      .select()
+      .from(scenarioDrafts)
+      .where(eq(scenarioDrafts.authorId, authorId))
+      .orderBy(desc(scenarioDrafts.updatedAt));
+  }
+
+  async createScenarioDraft(draft: InsertScenarioDraft): Promise<ScenarioDraft> {
+    const [created] = await db.insert(scenarioDrafts).values(draft).returning();
+    return created;
+  }
+
+  async updateScenarioDraft(id: string, data: Partial<InsertScenarioDraft>): Promise<ScenarioDraft | undefined> {
+    const [updated] = await db
+      .update(scenarioDrafts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(scenarioDrafts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async addDraftMessage(id: string, message: DraftConversationMessage): Promise<ScenarioDraft | undefined> {
+    const draft = await this.getScenarioDraft(id);
+    if (!draft) return undefined;
+
+    const currentHistory = (draft.conversationHistory || []) as DraftConversationMessage[];
+    const [updated] = await db
+      .update(scenarioDrafts)
+      .set({
+        conversationHistory: [...currentHistory, message],
+        updatedAt: new Date(),
+      })
+      .where(eq(scenarioDrafts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateDraftInsights(id: string, insights: ExtractedInsights): Promise<ScenarioDraft | undefined> {
+    const [updated] = await db
+      .update(scenarioDrafts)
+      .set({ extractedInsights: insights, updatedAt: new Date() })
+      .where(eq(scenarioDrafts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateDraftGeneratedScenario(id: string, scenario: GeneratedScenarioData): Promise<ScenarioDraft | undefined> {
+    const [updated] = await db
+      .update(scenarioDrafts)
+      .set({ generatedScenario: scenario, status: "reviewing", updatedAt: new Date() })
+      .where(eq(scenarioDrafts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteScenarioDraft(id: string): Promise<void> {
+    await db.delete(scenarioDrafts).where(eq(scenarioDrafts.id, id));
   }
 }
 
