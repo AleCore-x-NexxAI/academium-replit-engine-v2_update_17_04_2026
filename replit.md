@@ -171,6 +171,14 @@ Google Cloud Storage integration via `@google-cloud/storage` for PDF case study 
 ## Recent Changes
 
 ### December 2025
+- **Enhanced Scenario Authoring with 15+ Rich Metadata Fields**: Extended InitialState schema and Studio form to capture comprehensive business context:
+  - Company context: companyName, industry, companySize, situationBackground
+  - Stakeholders: Structured array with name, role, interests, influence level
+  - Environment: industryContext, competitiveEnvironment, regulatoryEnvironment, culturalContext, resourceConstraints
+  - Pedagogy: learningObjectives, ethicalDimensions, difficultyLevel (beginner/intermediate/advanced)
+  - Timeline: timelineContext, keyConstraints
+- **AI Agents Now Use Enhanced Context**: All three agents (Narrator, Evaluator, DomainExpert) incorporate the rich scenario metadata in their prompts for more tailored, context-aware simulations
+- **Studio Form Reorganized**: Six logical sections (Basic Info, Company Context, Player Role, Stakeholders, Environment & Constraints, Learning Objectives) with comprehensive input fields
 - Added seed data system (3 sample business scenarios) for immediate testing
 - Implemented SessionResults page with final KPIs, competency radar chart, and decision replay
 - Added PDF upload functionality to Authoring Studio with Object Storage integration
