@@ -17,6 +17,7 @@ import { z } from "zod";
 export const userRoleEnum = pgEnum("user_role", ["student", "professor", "admin"]);
 export const sessionStatusEnum = pgEnum("session_status", ["active", "completed", "abandoned"]);
 export const narrativeMoodEnum = pgEnum("narrative_mood", ["neutral", "positive", "negative", "crisis"]);
+export const draftStatusEnum = pgEnum("draft_status", ["gathering", "generating", "reviewing", "published", "abandoned"]);
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -77,6 +78,21 @@ export const turns = pgTable("turns", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Scenario Drafts table - AI-assisted scenario creation
+export const scenarioDrafts = pgTable("scenario_drafts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  authorId: varchar("author_id").references(() => users.id).notNull(),
+  status: draftStatusEnum("status").default("gathering").notNull(),
+  sourceInput: text("source_input"), // Original text/prompt from professor
+  sourceFileUrl: varchar("source_file_url"), // URL to uploaded PDF/document
+  extractedInsights: jsonb("extracted_insights").$type<ExtractedInsights>(),
+  generatedScenario: jsonb("generated_scenario").$type<GeneratedScenarioData>(),
+  conversationHistory: jsonb("conversation_history").$type<DraftConversationMessage[]>().default([]),
+  publishedScenarioId: varchar("published_scenario_id").references(() => scenarios.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   scenarios: many(scenarios),
@@ -107,6 +123,17 @@ export const turnsRelations = relations(turns, ({ one }) => ({
   session: one(simulationSessions, {
     fields: [turns.sessionId],
     references: [simulationSessions.id],
+  }),
+}));
+
+export const scenarioDraftsRelations = relations(scenarioDrafts, ({ one }) => ({
+  author: one(users, {
+    fields: [scenarioDrafts.authorId],
+    references: [users.id],
+  }),
+  publishedScenario: one(scenarios, {
+    fields: [scenarioDrafts.publishedScenarioId],
+    references: [scenarios.id],
   }),
 }));
 
@@ -208,6 +235,37 @@ export interface ScoreSummary {
   feedback: string;
 }
 
+// AI Authoring Assistant types
+export interface ExtractedInsights {
+  summary: string;
+  businessContext: string;
+  keyCharacters: string[];
+  potentialChallenges: string[];
+  learningOpportunities: string[];
+  suggestedDomain: string;
+  suggestedDifficulty: "beginner" | "intermediate" | "advanced";
+}
+
+export interface GeneratedScenarioData {
+  title: string;
+  description: string;
+  domain: string;
+  initialState: InitialState;
+  rubric: Rubric;
+  isComplete: boolean;
+  confidence: number; // 0-100 - how confident the AI is about this scenario
+}
+
+export interface DraftConversationMessage {
+  role: "assistant" | "user";
+  content: string;
+  timestamp: string;
+  metadata?: {
+    type: "question" | "refinement" | "preview" | "confirmation";
+    fieldContext?: string; // Which field this relates to
+  };
+}
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -232,6 +290,12 @@ export const insertTurnSchema = createInsertSchema(turns).omit({
   createdAt: true,
 });
 
+export const insertScenarioDraftSchema = createInsertSchema(scenarioDrafts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -241,3 +305,5 @@ export type InsertSimulationSession = z.infer<typeof insertSimulationSessionSche
 export type SimulationSession = typeof simulationSessions.$inferSelect;
 export type InsertTurn = z.infer<typeof insertTurnSchema>;
 export type Turn = typeof turns.$inferSelect;
+export type InsertScenarioDraft = z.infer<typeof insertScenarioDraftSchema>;
+export type ScenarioDraft = typeof scenarioDrafts.$inferSelect;
