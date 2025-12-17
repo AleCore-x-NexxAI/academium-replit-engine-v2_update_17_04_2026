@@ -7,7 +7,13 @@ import { processStudentTurn } from "./agents/director";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import type { AgentContext } from "./agents/types";
-import type { HistoryEntry, InsertScenario, InitialState } from "@shared/schema";
+import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage } from "@shared/schema";
+import { 
+  extractInsights, 
+  generateScenario, 
+  handleRefinement, 
+  generateInitialGreeting 
+} from "./agents/authoringAssistant";
 
 const createScenarioSchema = z.object({
   title: z.string().min(3),
@@ -521,6 +527,280 @@ Be constructive and educational, not judgmental.`;
     } catch (error) {
       console.error("Error fetching analytics:", error);
       res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // ==========================================
+  // AI-Assisted Scenario Authoring Endpoints
+  // ==========================================
+
+  app.get("/api/drafts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user || (user.role !== "professor" && user.role !== "admin")) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const drafts = await storage.getScenarioDraftsByAuthor(userId);
+      res.json(drafts);
+    } catch (error) {
+      console.error("Error fetching drafts:", error);
+      res.status(500).json({ message: "Failed to fetch drafts" });
+    }
+  });
+
+  app.get("/api/drafts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const draft = await storage.getScenarioDraft(req.params.id);
+
+      if (!draft) {
+        return res.status(404).json({ message: "Draft not found" });
+      }
+
+      if (draft.authorId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      res.json(draft);
+    } catch (error) {
+      console.error("Error fetching draft:", error);
+      res.status(500).json({ message: "Failed to fetch draft" });
+    }
+  });
+
+  const createDraftSchema = z.object({
+    sourceInput: z.string().optional(),
+    sourceFileUrl: z.string().optional(),
+  });
+
+  app.post("/api/drafts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user || (user.role !== "professor" && user.role !== "admin")) {
+        return res.status(403).json({ message: "Not authorized to create drafts" });
+      }
+
+      const parseResult = createDraftSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid data", errors: parseResult.error.errors });
+      }
+
+      const { sourceInput, sourceFileUrl } = parseResult.data;
+
+      let extractedInsightsData = undefined;
+      let initialGreeting: string;
+
+      if (sourceInput && sourceInput.trim().length > 50) {
+        try {
+          extractedInsightsData = await extractInsights(sourceInput);
+          initialGreeting = await generateInitialGreeting(extractedInsightsData);
+        } catch (aiError) {
+          console.error("AI extraction error:", aiError);
+          initialGreeting = await generateInitialGreeting();
+        }
+      } else {
+        initialGreeting = await generateInitialGreeting();
+      }
+
+      const initialMessage: DraftConversationMessage = {
+        role: "assistant",
+        content: initialGreeting,
+        timestamp: new Date().toISOString(),
+        metadata: { type: "question" },
+      };
+
+      const draft = await storage.createScenarioDraft({
+        authorId: userId,
+        status: "gathering",
+        sourceInput: sourceInput || null,
+        sourceFileUrl: sourceFileUrl || null,
+        extractedInsights: extractedInsightsData || null,
+        conversationHistory: [initialMessage],
+      });
+
+      res.status(201).json(draft);
+    } catch (error) {
+      console.error("Error creating draft:", error);
+      res.status(500).json({ message: "Failed to create draft" });
+    }
+  });
+
+  const chatMessageSchema = z.object({
+    message: z.string().min(1),
+  });
+
+  app.post("/api/drafts/:id/chat", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const draftId = req.params.id;
+      const draft = await storage.getScenarioDraft(draftId);
+
+      if (!draft) {
+        return res.status(404).json({ message: "Draft not found" });
+      }
+
+      if (draft.authorId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const parseResult = chatMessageSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid message" });
+      }
+
+      const { message } = parseResult.data;
+
+      const userMessage: DraftConversationMessage = {
+        role: "user",
+        content: message,
+        timestamp: new Date().toISOString(),
+      };
+
+      await storage.addDraftMessage(draftId, userMessage);
+
+      const currentHistory = (draft.conversationHistory || []) as DraftConversationMessage[];
+      const updatedHistory = [...currentHistory, userMessage];
+
+      let assistantResponse: string;
+      let updatedScenario = draft.generatedScenario;
+
+      if (draft.generatedScenario) {
+        const refinementResult = await handleRefinement(
+          message,
+          draft.generatedScenario,
+          updatedHistory
+        );
+
+        assistantResponse = refinementResult.response;
+
+        if (refinementResult.needsFullRegeneration && draft.extractedInsights) {
+          updatedScenario = await generateScenario(draft.extractedInsights, message);
+          await storage.updateDraftGeneratedScenario(draftId, updatedScenario);
+          assistantResponse = `I've regenerated the scenario with your feedback.\n\n**New Title:** ${updatedScenario.title}\n\n${updatedScenario.description}\n\nWould you like to review the details or make any adjustments?`;
+        } else if (refinementResult.updatedScenario) {
+          updatedScenario = refinementResult.updatedScenario;
+          await storage.updateDraftGeneratedScenario(draftId, updatedScenario);
+        }
+      } else if (message.toLowerCase().includes("generate") || 
+                 message.toLowerCase().includes("create") ||
+                 message.toLowerCase().includes("yes") ||
+                 message.toLowerCase().includes("go ahead")) {
+        
+        let insights = draft.extractedInsights;
+        
+        if (!insights && draft.sourceInput) {
+          insights = await extractInsights(draft.sourceInput);
+          await storage.updateDraftInsights(draftId, insights);
+        }
+
+        if (!insights) {
+          insights = await extractInsights(message);
+          await storage.updateDraftInsights(draftId, insights);
+        }
+
+        await storage.updateScenarioDraft(draftId, { status: "generating" });
+        
+        updatedScenario = await generateScenario(insights, message);
+        await storage.updateDraftGeneratedScenario(draftId, updatedScenario);
+
+        assistantResponse = `I've created an immersive scenario for you!\n\n**${updatedScenario.title}**\n\n${updatedScenario.description}\n\n**Domain:** ${updatedScenario.domain}\n**Difficulty:** ${updatedScenario.initialState.difficultyLevel || "intermediate"}\n\n**Opening:**\n"${updatedScenario.initialState.introText.substring(0, 300)}..."\n\nThis scenario includes ${updatedScenario.initialState.stakeholders?.length || 0} stakeholders and ${updatedScenario.rubric.criteria.length} assessment criteria.\n\nWould you like to:\n- **Review** the full details\n- **Modify** any specific aspect\n- **Publish** this scenario`;
+      } else {
+        if (!draft.extractedInsights && message.length > 50) {
+          const insights = await extractInsights(message);
+          await storage.updateDraftInsights(draftId, insights);
+          
+          assistantResponse = `Excellent! I've analyzed your input and identified these key elements:\n\n**Summary:** ${insights.summary}\n\n**Potential Challenges:**\n${insights.potentialChallenges.map(c => `- ${c}`).join("\n")}\n\n**Learning Opportunities:**\n${insights.learningOpportunities.map(l => `- ${l}`).join("\n")}\n\nShall I generate a full scenario based on this? Or would you like to add more context first?`;
+        } else {
+          assistantResponse = `I'm ready to help! To create a great scenario, I need:\n\n1. **A business situation** - What challenge should students face?\n2. **Learning objectives** - What skills should they develop?\n3. **Context** - What industry, company size, or constraints?\n\nYou can share a case study, describe a situation, or tell me what you'd like to teach. What would you like to explore?`;
+        }
+      }
+
+      const assistantMessage: DraftConversationMessage = {
+        role: "assistant",
+        content: assistantResponse,
+        timestamp: new Date().toISOString(),
+        metadata: { 
+          type: updatedScenario ? "preview" : "question",
+          fieldContext: updatedScenario ? "generatedScenario" : undefined,
+        },
+      };
+
+      const finalDraft = await storage.addDraftMessage(draftId, assistantMessage);
+
+      res.json({
+        draft: finalDraft,
+        assistantMessage: assistantResponse,
+        generatedScenario: updatedScenario,
+      });
+    } catch (error) {
+      console.error("Error processing chat:", error);
+      res.status(500).json({ message: "Failed to process message" });
+    }
+  });
+
+  app.post("/api/drafts/:id/publish", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const draft = await storage.getScenarioDraft(req.params.id);
+
+      if (!draft) {
+        return res.status(404).json({ message: "Draft not found" });
+      }
+
+      if (draft.authorId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      if (!draft.generatedScenario) {
+        return res.status(400).json({ message: "No scenario to publish" });
+      }
+
+      const scenario = await storage.createScenario({
+        authorId: userId,
+        title: draft.generatedScenario.title,
+        description: draft.generatedScenario.description,
+        domain: draft.generatedScenario.domain,
+        initialState: draft.generatedScenario.initialState,
+        rubric: draft.generatedScenario.rubric,
+        isPublished: true,
+      });
+
+      await storage.updateScenarioDraft(draft.id, {
+        status: "published",
+        publishedScenarioId: scenario.id,
+      });
+
+      res.json({ scenario, draftId: draft.id });
+    } catch (error) {
+      console.error("Error publishing draft:", error);
+      res.status(500).json({ message: "Failed to publish scenario" });
+    }
+  });
+
+  app.delete("/api/drafts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const draft = await storage.getScenarioDraft(req.params.id);
+
+      if (!draft) {
+        return res.status(404).json({ message: "Draft not found" });
+      }
+
+      if (draft.authorId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      await storage.deleteScenarioDraft(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting draft:", error);
+      res.status(500).json({ message: "Failed to delete draft" });
     }
   });
 }
