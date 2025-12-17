@@ -171,6 +171,12 @@ Google Cloud Storage integration via `@google-cloud/storage` for PDF case study 
 ## Recent Changes
 
 ### December 2025
+- **AI-Assisted Scenario Authoring**: Dual-mode authoring in Studio - professors can either manually create scenarios or use AI assistance:
+  - `ScenarioDraft` schema tracks drafts with conversation history, source artifacts, and generated scenarios
+  - AI Authoring Assistant agent (`server/agents/authoringAssistant.ts`) handles insight extraction, scenario generation, and refinement
+  - Chat-based interface (`AIAuthoringChat.tsx`) with file upload support and real-time scenario preview
+  - Three-phase workflow: extraction (understand professor's intent) → generation (create comprehensive scenario) → refinement (iterate on feedback)
+  - Draft endpoints: `POST /api/drafts`, `GET /api/drafts/:id`, `POST /api/drafts/:id/chat`, `POST /api/drafts/:id/publish`, `DELETE /api/drafts/:id`
 - **Enhanced Scenario Authoring with 15+ Rich Metadata Fields**: Extended InitialState schema and Studio form to capture comprehensive business context:
   - Company context: companyName, industry, companySize, situationBackground
   - Stakeholders: Structured array with name, role, interests, influence level
