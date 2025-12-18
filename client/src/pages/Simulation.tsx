@@ -83,8 +83,13 @@ export default function Simulation() {
     }
   }, [sessionError, toast]);
 
+  // Only initialize the session once when first loaded, not on every refetch
+  // This preserves currentFeedback after turns are submitted
+  const initializedRef = useRef(false);
+  
   useEffect(() => {
-    if (session) {
+    if (session && !initializedRef.current) {
+      initializedRef.current = true;
       initializeSession(
         session.id,
         session.currentState.kpis,
@@ -92,8 +97,11 @@ export default function Simulation() {
         "guided"
       );
     }
-    return () => resetStore();
-  }, [session, initializeSession, resetStore]);
+    return () => {
+      initializedRef.current = false;
+      resetStore();
+    };
+  }, [session?.id, initializeSession, resetStore]);
 
   const submitMutation = useMutation({
     mutationFn: async (input: string) => {
