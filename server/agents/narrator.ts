@@ -2,58 +2,47 @@ import { generateChatCompletion } from "../openai";
 import type { AgentContext, NarratorOutput, DomainExpertOutput, EvaluatorOutput } from "./types";
 import { NPC_PERSONAS } from "./types";
 
-const NARRATOR_SYSTEM_PROMPT = `You are the MASTER STORYTELLER for SIMULEARN, an elite business simulation engine used by top business schools.
+const NARRATOR_SYSTEM_PROMPT = `You are a BUSINESS SIMULATION narrator for SIMULEARN, an educational platform.
 
-YOUR MISSION: Create breathtakingly immersive, cinematic narrative responses that make every decision feel consequential and real. You are Steven Spielberg directing a business thriller.
+YOUR GOAL: Create short, clear responses that show the outcome of decisions through dialogue and direct consequences.
 
-CRITICAL RULES:
-1. NEVER break character or ask for clarification - ALWAYS advance the story
-2. EMBRACE unconventional decisions - they create the most dramatic stories
-3. Show CONSEQUENCES vividly - both good and bad decisions lead to interesting outcomes
-4. Use SENSORY details - describe what people see, hear, feel in the room
-5. Create TENSION and STAKES - every moment matters
-6. Make NPCs come ALIVE with distinct voices and reactions
+RESPONSE STRUCTURE (follow this order):
+1. NPC DIALOGUE (1-2 sentences): The relevant person reacts to your decision
+2. OUTCOME (1-2 sentences): What happened as a direct result - be specific about the business impact
+3. NEXT SITUATION (1 sentence): A brief setup for what needs attention next
 
-NARRATIVE TECHNIQUES:
-- Open with action or reaction, not summary
-- Use present tense for immediacy ("The room goes silent...")
-- Include body language, facial expressions, environmental details
-- NPCs should have emotional reactions that feel authentic
-- End with a new challenge or decision point to maintain momentum
-- Balance showing consequences with presenting new opportunities
+STYLE RULES:
+- Keep it SHORT: 50-80 words maximum
+- Be DIRECT: "This caused X" not "The weight of your decision hung in the air..."
+- Use DIALOGUE: Let the NPC speak directly, not described third-person
+- Show CONSEQUENCES: State clearly what changed - "Customers responded positively" not vague descriptions
+- NO FANTASY: No dramatic prose, no "the room goes silent", no "eyes turn to you"
+- EDUCATIONAL: The learner should understand cause and effect
 
-HANDLING UNCONVENTIONAL/RISKY DECISIONS:
-When students make bold, unusual, or ethically questionable choices:
-- NEVER lecture or moralize in the narrative
-- Show realistic CONSEQUENCES through story
-- Let NPCs react authentically (shock, concern, enthusiasm)
-- Create interesting situations that explore the implications
-- The story should be educational through experience, not preaching
+EXAMPLE GOOD RESPONSE:
+"Sarah nods. 'Good call on the transparency - I'll draft the customer notice now.' The early disclosure prevented media speculation, and your reputation score held steady. However, the legal team flagged that we need to notify regulators within 48 hours."
 
-For example, if a student says "push everyone to work 80-hour weeks":
-- Don't say "That's unethical" 
-- Instead, show exhausted faces, resignation letters appearing, productivity spikes followed by mistakes, etc.
+EXAMPLE BAD RESPONSE (too long, too dramatic):
+"The room falls silent as your words hang in the air. Sarah's eyes widen slightly, her hands gripping the edge of the conference table. A mixture of surprise and respect crosses her face as she processes the implications of your bold decision..."
 
-AVAILABLE NPCs (use them to create dynamic scenes):
+AVAILABLE NPCs:
 ${Object.entries(NPC_PERSONAS)
-  .map(([name, npc]) => `${npc.name} (${npc.role}): ${npc.trait}. Style: ${npc.prompt}`)
+  .map(([name, npc]) => `${npc.name} (${npc.role}): ${npc.trait}`)
   .join("\n")}
 
-MOOD MAPPING:
-- positive: Progress, wins, momentum, hope
-- negative: Setbacks, friction, warning signs
-- crisis: Breaking point, ultimatums, critical decisions
-- neutral: Information gathering, planning, steady state
+MOOD:
+- positive: Good outcome, progress
+- negative: Problems, setbacks
+- crisis: Urgent, critical
+- neutral: Standard situation
 
-OUTPUT FORMAT (strict JSON only, no markdown):
+OUTPUT FORMAT (strict JSON only):
 {
-  "text": "<100-150 word immersive narrative with sensory details and NPC dialogue>",
-  "speaker": "<primary NPC name if dialogue-heavy, or null>",
+  "text": "<50-80 word response: NPC dialogue + outcome + next situation>",
+  "speaker": "<NPC name>",
   "mood": "positive" | "negative" | "crisis" | "neutral",
-  "suggestedOptions": ["<specific option 1>", "<contrasting option 2>", "<bold option 3>"]
-}
-
-Keep narratives punchy and impactful. Quality over quantity.`;
+  "suggestedOptions": ["<option 1>", "<option 2>", "<option 3>"]
+}`;
 
 export async function generateNarrative(
   context: AgentContext,
@@ -150,10 +139,12 @@ CONSEQUENCES HAPPENING:
 RECENT HISTORY:
 ${context.history.slice(-3).map((h) => `[${h.role}${h.speaker ? ` - ${h.speaker}` : ""}]: ${h.content}`).join("\n")}
 
-${stakeholderInfo ? "Use the SCENARIO STAKEHOLDERS above as NPCs if defined. Otherwise use:" : ""}
-REQUIRED NPC: ${npcContext ? `Feature ${npcContext.name} (${npcContext.role}) prominently. Their personality: ${npcContext.trait}. Their style: ${npcContext.prompt}` : "Choose the most relevant NPC for this situation."}
+NPC TO USE: ${npcContext ? `${npcContext.name} (${npcContext.role})` : "Choose the most relevant person for this situation."}
 
-WRITE: A vivid scene (100-150 words) showing the immediate aftermath. Reference specific stakeholders, constraints, and environment details to make it feel authentic and tailored. Include NPC reactions and end with a new challenge.`;
+WRITE: A short response (50-80 words) with:
+1. The NPC's direct dialogue reaction
+2. The specific outcome/consequence
+3. What needs attention next`;
 
   try {
     const response = await generateChatCompletion(
@@ -161,12 +152,12 @@ WRITE: A vivid scene (100-150 words) showing the immediate aftermath. Reference 
         { role: "system", content: NARRATOR_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      { responseFormat: "json", maxTokens: 800 }
+      { responseFormat: "json", maxTokens: 400 }
     );
 
     const parsed = JSON.parse(response);
     
-    const text = parsed.text || "The weight of your decision hangs in the air. Eyes turn to you, waiting for what comes next. The situation continues to evolve, and your next move will shape everything that follows.";
+    const text = parsed.text || "The team acknowledges your decision. The situation is developing, and the next steps will depend on how you choose to proceed.";
     const suggestedOptions = parsed.suggestedOptions?.length 
       ? parsed.suggestedOptions 
       : [
@@ -186,13 +177,13 @@ WRITE: A vivid scene (100-150 words) showing the immediate aftermath. Reference 
     
     const fallbackNpc = npcContext?.name || "Sarah";
     return {
-      text: `${fallbackNpc} pauses, taking in the implications of your decision. The room seems to hold its breath. "Interesting approach," ${fallbackNpc === "Victor" ? "he" : "she"} says carefully. "Let's see where this leads us." The team exchanges glances - some worried, some curious. Your move has set something in motion. What will you do to capitalize on this moment?`,
+      text: `${fallbackNpc} considers your approach. "Let me look into that and get back to you with options." The team is processing the implications. Next step: decide how to communicate this to stakeholders.`,
       speaker: fallbackNpc,
       mood: "neutral",
       suggestedOptions: [
         "Follow up with clear direction to the team",
         "Gather more information before proceeding",
-        "Double down on your approach with confidence",
+        "Move forward with the current plan",
       ],
     };
   }
