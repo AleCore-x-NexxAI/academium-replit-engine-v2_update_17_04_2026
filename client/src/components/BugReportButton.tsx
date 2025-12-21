@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Bug, Send, Loader2, Camera, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,27 +28,34 @@ export function BugReportButton() {
   const captureScreenshot = async () => {
     setCapturingScreenshot(true);
     try {
-      // Temporarily hide the dialog to capture the page
-      const dialogElement = document.querySelector('[role="dialog"]');
-      if (dialogElement) {
-        (dialogElement as HTMLElement).style.visibility = 'hidden';
+      // Hide the dialog overlay and content
+      const dialogOverlay = document.querySelector('[data-radix-portal]');
+      if (dialogOverlay) {
+        (dialogOverlay as HTMLElement).style.display = 'none';
       }
       
       // Small delay to ensure dialog is hidden
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
+      // Capture only the visible area
       const canvas = await html2canvas(document.body, {
         useCORS: true,
+        allowTaint: true,
         logging: false,
-        scale: 0.5, // Reduce size to keep base64 manageable
+        scale: 0.5,
+        ignoreElements: (element) => {
+          // Ignore any dialog-related elements
+          return element.hasAttribute('data-radix-portal') || 
+                 element.getAttribute('role') === 'dialog';
+        },
       });
       
       // Show dialog again
-      if (dialogElement) {
-        (dialogElement as HTMLElement).style.visibility = 'visible';
+      if (dialogOverlay) {
+        (dialogOverlay as HTMLElement).style.display = '';
       }
       
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
       setScreenshot(dataUrl);
       toast({
         title: "Screenshot captured",
@@ -56,9 +63,14 @@ export function BugReportButton() {
       });
     } catch (error) {
       console.error("Failed to capture screenshot:", error);
+      // Ensure dialog is visible again on error
+      const dialogOverlay = document.querySelector('[data-radix-portal]');
+      if (dialogOverlay) {
+        (dialogOverlay as HTMLElement).style.display = '';
+      }
       toast({
         title: "Screenshot failed",
-        description: "Could not capture screenshot, but you can still submit the report.",
+        description: "Could not capture screenshot. You can still submit the report without one.",
         variant: "destructive",
       });
     } finally {
@@ -122,10 +134,10 @@ export function BugReportButton() {
       <DialogTrigger asChild>
         <Button
           size="icon"
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50"
+          className="fixed bottom-4 right-4 h-12 w-12 rounded-full shadow-lg z-50"
           data-testid="button-bug-report"
         >
-          <Bug className="h-6 w-6" />
+          <Bug className="h-5 w-5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">

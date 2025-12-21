@@ -17,6 +17,7 @@ import {
   BarChart3,
   LayoutDashboard,
   Pencil,
+  Bug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -238,6 +239,14 @@ export default function Home() {
             )}
 
             {showRoleSwitcher && user && <RoleSwitcher user={user} />}
+
+            {user?.isSuperAdmin && (
+              <Button variant="outline" size="icon" asChild data-testid="link-bug-reports">
+                <Link href="/bug-reports">
+                  <Bug className="w-4 h-4" />
+                </Link>
+              </Button>
+            )}
 
             <div className="flex items-center gap-3">
               <div className="text-right hidden sm:block">
