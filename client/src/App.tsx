@@ -40,7 +40,7 @@ function AuthenticatedApp() {
         <Route path="/bug-reports" component={BugReports} />
         <Route component={NotFound} />
       </Switch>
-      <BugReportButton />
+      {user?.isSuperAdmin && <BugReportButton />}
       {user && <OnboardingModal user={user} />}
     </>
   );
