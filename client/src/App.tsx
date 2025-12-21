@@ -1,6 +1,6 @@
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,34 @@ import ProfessorDashboard from "@/pages/ProfessorDashboard";
 import ScenarioEdit from "@/pages/ScenarioEdit";
 import ScenarioAnalytics from "@/pages/ScenarioAnalytics";
 import NotFound from "@/pages/not-found";
+import { BugReportButton } from "@/components/BugReportButton";
+import { OnboardingModal } from "@/components/OnboardingModal";
+import type { User } from "@shared/schema";
+
+function AuthenticatedApp() {
+  const { data: user } = useQuery<User>({
+    queryKey: ["/api/auth/user"],
+  });
+
+  return (
+    <>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/simulation/start/:scenarioId" component={SimulationStart} />
+        <Route path="/simulation/:sessionId/results" component={SessionResults} />
+        <Route path="/simulation/:sessionId" component={Simulation} />
+        <Route path="/studio" component={Studio} />
+        <Route path="/analytics" component={Analytics} />
+        <Route path="/professor" component={ProfessorDashboard} />
+        <Route path="/scenarios/:scenarioId/edit" component={ScenarioEdit} />
+        <Route path="/scenarios/:scenarioId/analytics" component={ScenarioAnalytics} />
+        <Route component={NotFound} />
+      </Switch>
+      <BugReportButton />
+      {user && <OnboardingModal user={user} />}
+    </>
+  );
+}
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -32,20 +60,7 @@ function Router() {
     );
   }
 
-  return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/simulation/start/:scenarioId" component={SimulationStart} />
-      <Route path="/simulation/:sessionId/results" component={SessionResults} />
-      <Route path="/simulation/:sessionId" component={Simulation} />
-      <Route path="/studio" component={Studio} />
-      <Route path="/analytics" component={Analytics} />
-      <Route path="/professor" component={ProfessorDashboard} />
-      <Route path="/scenarios/:scenarioId/edit" component={ScenarioEdit} />
-      <Route path="/scenarios/:scenarioId/analytics" component={ScenarioAnalytics} />
-      <Route component={NotFound} />
-    </Switch>
-  );
+  return <AuthenticatedApp />;
 }
 
 function App() {
