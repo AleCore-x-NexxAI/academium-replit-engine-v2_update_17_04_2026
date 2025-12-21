@@ -18,6 +18,7 @@ export const userRoleEnum = pgEnum("user_role", ["student", "professor", "admin"
 export const sessionStatusEnum = pgEnum("session_status", ["active", "completed", "abandoned"]);
 export const narrativeMoodEnum = pgEnum("narrative_mood", ["neutral", "positive", "negative", "crisis"]);
 export const draftStatusEnum = pgEnum("draft_status", ["gathering", "generating", "reviewing", "published", "abandoned"]);
+export const bugReportStatusEnum = pgEnum("bug_report_status", ["new", "reviewed", "resolved", "dismissed"]);
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -95,10 +96,30 @@ export const scenarioDrafts = pgTable("scenario_drafts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Bug Reports table - MVP feedback collection
+export const bugReports = pgTable("bug_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  pageUrl: varchar("page_url"),
+  browserInfo: varchar("browser_info"),
+  status: bugReportStatusEnum("status").default("new").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   scenarios: many(scenarios),
   simulationSessions: many(simulationSessions),
+  bugReports: many(bugReports),
+}));
+
+export const bugReportsRelations = relations(bugReports, ({ one }) => ({
+  user: one(users, {
+    fields: [bugReports.userId],
+    references: [users.id],
+  }),
 }));
 
 export const scenariosRelations = relations(scenarios, ({ one, many }) => ({
@@ -315,6 +336,11 @@ export const insertScenarioDraftSchema = createInsertSchema(scenarioDrafts).omit
   updatedAt: true,
 });
 
+export const insertBugReportSchema = createInsertSchema(bugReports).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -326,3 +352,5 @@ export type InsertTurn = z.infer<typeof insertTurnSchema>;
 export type Turn = typeof turns.$inferSelect;
 export type InsertScenarioDraft = z.infer<typeof insertScenarioDraftSchema>;
 export type ScenarioDraft = typeof scenarioDrafts.$inferSelect;
+export type InsertBugReport = z.infer<typeof insertBugReportSchema>;
+export type BugReport = typeof bugReports.$inferSelect;

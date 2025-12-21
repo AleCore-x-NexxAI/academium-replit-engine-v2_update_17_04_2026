@@ -4,6 +4,7 @@ import {
   simulationSessions,
   turns,
   scenarioDrafts,
+  bugReports,
   type User,
   type UpsertUser,
   type Scenario,
@@ -18,6 +19,8 @@ import {
   type DraftConversationMessage,
   type ExtractedInsights,
   type GeneratedScenarioData,
+  type BugReport,
+  type InsertBugReport,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";
@@ -85,6 +88,11 @@ export interface IStorage {
   deleteSimulationSession(sessionId: string): Promise<void>;
   updateSessionStatus(sessionId: string, status: "active" | "completed" | "abandoned"): Promise<SimulationSession | undefined>;
   deleteScenarioWithSessions(scenarioId: string): Promise<void>;
+
+  // Bug Report operations
+  createBugReport(report: InsertBugReport): Promise<BugReport>;
+  getBugReports(): Promise<(BugReport & { user?: User })[]>;
+  updateBugReportStatus(id: string, status: "new" | "reviewed" | "resolved" | "dismissed"): Promise<BugReport | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -94,13 +102,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // MVP Phase: Check if user exists first
+    const existingUser = await this.getUser(userData.id as string);
+    
+    // For NEW users during MVP phase: make them superadmins by default
+    const insertData = existingUser ? userData : {
+      ...userData,
+      role: "admin" as const,
+      isSuperAdmin: true,
+    };
+    
     const [user] = await db
       .insert(users)
-      .values(userData)
+      .values(insertData)
       .onConflictDoUpdate({
         target: users.id,
         set: {
-          ...userData,
+          ...userData, // Only update basic profile info, don't change role/superadmin on existing users
           updatedAt: new Date(),
         },
       })
@@ -489,6 +507,34 @@ export class DatabaseStorage implements IStorage {
       // Finally delete the scenario
       await tx.delete(scenarios).where(eq(scenarios.id, scenarioId));
     });
+  }
+
+  // Bug Report operations
+  async createBugReport(report: InsertBugReport): Promise<BugReport> {
+    const [created] = await db.insert(bugReports).values(report).returning();
+    return created;
+  }
+
+  async getBugReports(): Promise<(BugReport & { user?: User })[]> {
+    const results = await db
+      .select()
+      .from(bugReports)
+      .leftJoin(users, eq(bugReports.userId, users.id))
+      .orderBy(desc(bugReports.createdAt));
+
+    return results.map((r) => ({
+      ...r.bug_reports,
+      user: r.users || undefined,
+    }));
+  }
+
+  async updateBugReportStatus(id: string, status: "new" | "reviewed" | "resolved" | "dismissed"): Promise<BugReport | undefined> {
+    const [updated] = await db
+      .update(bugReports)
+      .set({ status })
+      .where(eq(bugReports.id, id))
+      .returning();
+    return updated;
   }
 }
 

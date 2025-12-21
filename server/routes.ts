@@ -528,6 +528,54 @@ Be constructive and educational, not judgmental.`;
     }
   });
 
+  // Bug Report routes
+  const createBugReportSchema = z.object({
+    title: z.string().min(3, "Title must be at least 3 characters"),
+    description: z.string().min(10, "Description must be at least 10 characters"),
+    pageUrl: z.string().optional(),
+    browserInfo: z.string().optional(),
+  });
+
+  app.post("/api/bug-reports", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const parseResult = createBugReportSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid bug report", errors: parseResult.error.errors });
+      }
+
+      const report = await storage.createBugReport({
+        ...parseResult.data,
+        userId,
+      });
+
+      console.log(`[BUG REPORT] New bug report from ${userId}: ${report.title}`);
+      res.status(201).json(report);
+    } catch (error) {
+      console.error("Error creating bug report:", error);
+      res.status(500).json({ message: "Failed to create bug report" });
+    }
+  });
+
+  app.get("/api/bug-reports", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // Only admins and superadmins can view all bug reports
+      if (!user || (user.role !== "admin" && !user.isSuperAdmin)) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const reports = await storage.getBugReports();
+      res.json(reports);
+    } catch (error) {
+      console.error("Error fetching bug reports:", error);
+      res.status(500).json({ message: "Failed to fetch bug reports" });
+    }
+  });
+
   app.post("/api/upload/url", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
