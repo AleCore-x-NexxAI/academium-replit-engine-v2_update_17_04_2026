@@ -3,9 +3,9 @@ import type { KPIs, SimulationState, TurnResponse, HistoryEntry } from "@shared/
 import { evaluateDecision } from "./evaluator";
 import { calculateKPIImpact } from "./domainExpert";
 import { generateNarrative } from "./narrator";
-import { generateChatCompletion } from "../openai";
+import { generateChatCompletion, SupportedModel } from "../openai";
 
-const INTENT_INTERPRETER_PROMPT = `You are an INTENT INTERPRETER for an immersive business simulation game.
+export const DEFAULT_DIRECTOR_PROMPT = `You are an INTENT INTERPRETER for an immersive business simulation game.
 
 YOUR CRITICAL MISSION: Accept and interpret virtually ANYTHING the student says as a valid decision or action within the simulation context. You are NOT a gatekeeper - you are a creative interpreter.
 
@@ -51,14 +51,16 @@ Remember: A creative business simulation should be able to handle ANY decision a
 async function interpretIntent(
   input: string,
   history: HistoryEntry[],
-  scenario: { title: string; context: string }
+  scenario: { title: string; context: string },
+  options?: { customPrompt?: string; model?: SupportedModel }
 ): Promise<{ isValid: boolean; interpretedAction?: string; helpfulPrompt?: string }> {
   try {
     const recentContext = history.slice(-4).map(h => `${h.role}: ${h.content}`).join("\n");
+    const systemPrompt = options?.customPrompt || DEFAULT_DIRECTOR_PROMPT;
     
     const response = await generateChatCompletion(
       [
-        { role: "system", content: INTENT_INTERPRETER_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: `
 SCENARIO: ${scenario.title}
 SCENARIO CONTEXT: ${scenario.context}
@@ -70,7 +72,7 @@ STUDENT'S LATEST INPUT: "${input}"
 
 Interpret this input as a simulation action. Find the business decision in their words.` },
       ],
-      { responseFormat: "json", maxTokens: 256 }
+      { responseFormat: "json", maxTokens: 256, model: options?.model }
     );
     
     const parsed = JSON.parse(response);
@@ -124,7 +126,8 @@ export async function processStudentTurn(context: AgentContext): Promise<Directo
   const intentResult = await interpretIntent(
     context.studentInput,
     context.history as HistoryEntry[],
-    { title: context.scenario.title, context: `${context.scenario.domain} - ${context.scenario.objective}` }
+    { title: context.scenario.title, context: `${context.scenario.domain} - ${context.scenario.objective}` },
+    { customPrompt: context.agentPrompts?.director, model: context.llmModel }
   );
 
   if (!intentResult.isValid) {

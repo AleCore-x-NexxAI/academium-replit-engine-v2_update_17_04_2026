@@ -1,8 +1,8 @@
-import { generateChatCompletion } from "../openai";
+import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, EvaluatorOutput } from "./types";
 import { COMPETENCY_DEFINITIONS } from "./types";
 
-const EVALUATOR_SYSTEM_PROMPT = `You are an ELITE BUSINESS EDUCATOR evaluating decisions in a business simulation.
+export const DEFAULT_EVALUATOR_PROMPT = `You are an ELITE BUSINESS EDUCATOR evaluating decisions in a business simulation.
 
 YOUR MISSION: Provide insightful, nuanced evaluation that helps students LEARN from every decision - including unconventional, risky, or questionable ones. You are a mentor, not a judge.
 
@@ -124,13 +124,16 @@ Assess this decision across all four competencies. Remember:
 
 Provide your comprehensive evaluation.`;
 
+  // Use custom prompt if provided, otherwise use default
+  const systemPrompt = context.agentPrompts?.evaluator || DEFAULT_EVALUATOR_PROMPT;
+  
   try {
     const response = await generateChatCompletion(
       [
-        { role: "system", content: EVALUATOR_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      { responseFormat: "json", maxTokens: 1024 }
+      { responseFormat: "json", maxTokens: 1024, model: context.llmModel }
     );
 
     const parsed = JSON.parse(response);

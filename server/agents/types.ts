@@ -1,4 +1,5 @@
-import type { KPIs, TurnResponse, SimulationState, Rubric, RubricCriterion } from "@shared/schema";
+import type { KPIs, TurnResponse, SimulationState, Rubric, RubricCriterion, AgentPrompts, LLMModel } from "@shared/schema";
+import type { SupportedModel } from "../openai";
 
 export interface AgentContext {
   sessionId: string;
@@ -7,6 +8,9 @@ export interface AgentContext {
   history: { role: string; content: string; speaker?: string }[];
   studentInput: string;
   rubric?: Rubric;
+  // Per-scenario LLM configuration
+  llmModel?: SupportedModel;
+  agentPrompts?: AgentPrompts;
   scenario: {
     title: string;
     domain: string;

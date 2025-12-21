@@ -1,8 +1,8 @@
-import { generateChatCompletion } from "../openai";
+import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, NarratorOutput, DomainExpertOutput, EvaluatorOutput } from "./types";
 import { NPC_PERSONAS } from "./types";
 
-const NARRATOR_SYSTEM_PROMPT = `You are a BUSINESS SIMULATION narrator for SIMULEARN, an educational platform.
+export const DEFAULT_NARRATOR_PROMPT = `You are a BUSINESS SIMULATION narrator for SIMULEARN, an educational platform.
 
 YOUR GOAL: Create short, clear responses that show the outcome of decisions through dialogue and direct consequences.
 
@@ -146,13 +146,16 @@ WRITE: A short response (50-80 words) with:
 2. The specific outcome/consequence
 3. What needs attention next`;
 
+  // Use custom prompt if provided, otherwise use default
+  const systemPrompt = context.agentPrompts?.narrator || DEFAULT_NARRATOR_PROMPT;
+  
   try {
     const response = await generateChatCompletion(
       [
-        { role: "system", content: NARRATOR_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      { responseFormat: "json", maxTokens: 400 }
+      { responseFormat: "json", maxTokens: 400, model: context.llmModel }
     );
 
     const parsed = JSON.parse(response);

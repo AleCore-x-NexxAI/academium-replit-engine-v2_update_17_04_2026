@@ -21,20 +21,27 @@ function isRateLimitError(error: any): boolean {
 
 const limit = pLimit(2);
 
+// Supported models for per-scenario configuration
+export const SUPPORTED_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"] as const;
+export type SupportedModel = typeof SUPPORTED_MODELS[number];
+
 export async function generateChatCompletion(
   messages: { role: "system" | "user" | "assistant"; content: string }[],
   options?: {
     temperature?: number;
     maxTokens?: number;
     responseFormat?: "json" | "text";
+    model?: SupportedModel; // Allow per-scenario model selection
   }
 ): Promise<string> {
+  const model = options?.model || "gpt-4o"; // Default to gpt-4o
+  
   return limit(() =>
     pRetry(
       async () => {
         try {
           const response = await openai.chat.completions.create({
-            model: "gpt-4o",
+            model,
             messages,
             max_completion_tokens: options?.maxTokens || 4096,
             ...(options?.responseFormat === "json" && {

@@ -1,8 +1,8 @@
-import { generateChatCompletion } from "../openai";
+import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, DomainExpertOutput } from "./types";
 import { CAUSE_EFFECT_RULES } from "./types";
 
-const DOMAIN_EXPERT_SYSTEM_PROMPT = `You are a BUSINESS SIMULATION ENGINE calculating realistic consequences of management decisions.
+export const DEFAULT_DOMAIN_EXPERT_PROMPT = `You are a BUSINESS SIMULATION ENGINE calculating realistic consequences of management decisions.
 
 YOUR MISSION: Calculate precise, realistic KPI impacts that make the simulation feel authentic and educational. Every decision should have meaningful, logical consequences.
 
@@ -145,13 +145,16 @@ TASK: Calculate the realistic business impact of this decision. Consider:
 
 Provide your KPI calculations with clear business reasoning that references the specific context.`;
 
+  // Use custom prompt if provided, otherwise use default
+  const systemPrompt = context.agentPrompts?.domainExpert || DEFAULT_DOMAIN_EXPERT_PROMPT;
+  
   try {
     const response = await generateChatCompletion(
       [
-        { role: "system", content: DOMAIN_EXPERT_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      { responseFormat: "json", maxTokens: 768 }
+      { responseFormat: "json", maxTokens: 768, model: context.llmModel }
     );
 
     const parsed = JSON.parse(response);

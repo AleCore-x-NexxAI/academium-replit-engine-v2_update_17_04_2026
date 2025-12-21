@@ -45,6 +45,17 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Supported LLM models
+export type LLMModel = "gpt-4o" | "gpt-4o-mini" | "gpt-3.5-turbo";
+
+// Agent prompts configuration per scenario
+export interface AgentPrompts {
+  narrator?: string;       // Custom narrator system prompt
+  evaluator?: string;      // Custom evaluator system prompt
+  domainExpert?: string;   // Custom domain expert system prompt
+  director?: string;       // Custom director/intent interpreter prompt
+}
+
 // Scenarios table - The Blueprints created by professors
 export const scenarios = pgTable("scenarios", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -54,6 +65,8 @@ export const scenarios = pgTable("scenarios", {
   domain: varchar("domain", { length: 100 }).notNull(), // e.g., 'Marketing', 'Ethics', 'HR'
   initialState: jsonb("initial_state").$type<InitialState>().notNull(),
   rubric: jsonb("rubric").$type<Rubric>(),
+  llmModel: varchar("llm_model", { length: 50 }).default("gpt-4o"), // LLM model for this scenario
+  agentPrompts: jsonb("agent_prompts").$type<AgentPrompts>(), // Custom agent prompts (optional)
   isPublished: boolean("is_published").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

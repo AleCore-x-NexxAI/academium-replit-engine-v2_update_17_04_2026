@@ -300,6 +300,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const initialState = session.scenario?.initialState;
+      const scenarioLlmModel = session.scenario?.llmModel as import("./openai").SupportedModel | undefined;
+      const scenarioAgentPrompts = session.scenario?.agentPrompts as import("@shared/schema").AgentPrompts | undefined;
+      
       const context: AgentContext = {
         sessionId,
         turnCount: session.currentState.turnCount,
@@ -307,6 +310,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         history: session.currentState.history,
         studentInput: input,
         rubric: session.scenario?.rubric || undefined,
+        // Per-scenario LLM configuration
+        llmModel: scenarioLlmModel,
+        agentPrompts: scenarioAgentPrompts,
         scenario: {
           title: session.scenario?.title || "Business Simulation",
           domain: session.scenario?.domain || "General",
