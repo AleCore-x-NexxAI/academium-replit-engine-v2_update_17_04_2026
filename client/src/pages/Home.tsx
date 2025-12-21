@@ -46,10 +46,12 @@ interface ScenarioCardProps {
 
 function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
   const isAdmin = userRole === "admin";
-  const isProfessorAndAuthor = userRole === "professor" && scenario.authorId === userId;
-  const canManageScenario = isAdmin || isProfessorAndAuthor;
+  const isProfessor = userRole === "professor";
+  const isProfessorAndAuthor = isProfessor && scenario.authorId === userId;
+  const canEditScenario = isAdmin || isProfessorAndAuthor;
+  const canViewAnalytics = isAdmin || isProfessor;
   
-  if (canManageScenario) {
+  if (canEditScenario || canViewAnalytics) {
     return (
       <Card
         className="p-6 h-full"
@@ -75,18 +77,22 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
             </Button>
           </Link>
           <div className="flex gap-2">
-            <Link href={`/scenarios/${scenario.id}/edit`} className="flex-1">
-              <Button variant="outline" className="w-full" data-testid={`button-edit-${scenario.id}`}>
-                <Pencil className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-            </Link>
-            <Link href={`/scenarios/${scenario.id}/analytics`} className="flex-1">
-              <Button variant="outline" className="w-full" data-testid={`button-analytics-${scenario.id}`}>
-                <BarChart3 className="w-4 h-4 mr-2" />
-                Analytics
-              </Button>
-            </Link>
+            {canEditScenario && (
+              <Link href={`/scenarios/${scenario.id}/edit`} className="flex-1">
+                <Button variant="outline" className="w-full" data-testid={`button-edit-${scenario.id}`}>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+              </Link>
+            )}
+            {canViewAnalytics && (
+              <Link href={`/scenarios/${scenario.id}/analytics`} className={canEditScenario ? "flex-1" : "w-full"}>
+                <Button variant="outline" className="w-full" data-testid={`button-analytics-${scenario.id}`}>
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  Analytics
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </Card>
