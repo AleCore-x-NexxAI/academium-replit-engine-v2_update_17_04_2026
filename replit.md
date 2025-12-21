@@ -211,6 +211,17 @@ Google Cloud Storage integration via `@google-cloud/storage` for PDF case study 
   - Structure: NPC dialogue + outcome + next situation
   - Clear cause-and-effect explanations instead of dramatic storytelling
 - **Fixed Feedback Panel Persistence**: Feedback panel now stays visible after making decisions (fixed reinitialization bug)
+- **Per-Scenario LLM Model Configuration**: Each scenario can now specify which AI model to use:
+  - `llmModel` field on scenarios table supporting "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"
+  - Authors can change the model via the ScenarioEdit page's AI Configuration section
+  - Agents automatically use the scenario-specified model with fallback to gpt-4o
+  - `SUPPORTED_MODELS` export from `server/openai.ts` for validation
+- **Customizable Agent Prompts (Superadmin Only)**: Superadmins can override default system prompts for each agent per scenario:
+  - `agentPrompts` JSONB field on scenarios with optional narrator, evaluator, domainExpert, director prompts
+  - Each agent exports its DEFAULT_*_PROMPT for reference
+  - ScenarioEdit page shows collapsible prompt editors for superadmins
+  - Prompts saved via PUT /api/scenarios/:id/config endpoint
+  - New endpoints: GET /api/agents/default-prompts (superadmin), GET/PUT /api/scenarios/:id/config (author/superadmin)
 
 ## Key Routes
 
