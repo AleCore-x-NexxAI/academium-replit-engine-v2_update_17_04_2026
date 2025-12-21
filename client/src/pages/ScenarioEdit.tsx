@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -12,9 +12,15 @@ import {
   Users,
   Target,
   BookOpen,
+  Brain,
+  Settings2,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -33,11 +39,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Scenario } from "@shared/schema";
+import type { Scenario, AgentPrompts } from "@shared/schema";
+
+interface ScenarioConfig {
+  llmModel: string;
+  agentPrompts: AgentPrompts;
+  supportedModels: string[];
+  defaultPrompts?: {
+    director: string;
+    narrator: string;
+    evaluator: string;
+    domainExpert: string;
+  };
+}
+
+const LLM_MODEL_LABELS: Record<string, string> = {
+  "gpt-4o": "GPT-4o (Most capable)",
+  "gpt-4o-mini": "GPT-4o-mini (Faster, cheaper)",
+  "gpt-3.5-turbo": "GPT-3.5 Turbo (Budget)",
+};
 
 const scenarioFormSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -80,11 +109,30 @@ export default function ScenarioEdit() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  
+  // AI Configuration state
+  const [llmModel, setLlmModel] = useState("gpt-4o");
+  const [agentPrompts, setAgentPrompts] = useState<AgentPrompts>({});
+  const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>({});
 
   const { data: scenario, isLoading: scenarioLoading, error: scenarioError } = useQuery<Scenario>({
     queryKey: ["/api/scenarios", scenarioId],
     enabled: !!scenarioId && !!user,
   });
+  
+  // Fetch scenario AI config (for authorized users)
+  const { data: configData, isLoading: configLoading } = useQuery<ScenarioConfig>({
+    queryKey: ["/api/scenarios", scenarioId, "config"],
+    enabled: !!scenarioId && !!user,
+  });
+  
+  // Update config state when data loads
+  useEffect(() => {
+    if (configData) {
+      setLlmModel(configData.llmModel);
+      setAgentPrompts(configData.agentPrompts || {});
+    }
+  }, [configData]);
 
   const form = useForm<ScenarioFormData>({
     resolver: zodResolver(scenarioFormSchema),
@@ -181,6 +229,42 @@ export default function ScenarioEdit() {
       toast({ title: "Failed to update scenario", description: error.message, variant: "destructive" });
     },
   });
+  
+  // Mutation for updating AI configuration
+  const configMutation = useMutation({
+    mutationFn: async (config: { llmModel?: string; agentPrompts?: AgentPrompts }) => {
+      const response = await apiRequest("PUT", `/api/scenarios/${scenarioId}/config`, config);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId, "config"] });
+      toast({ title: "AI configuration updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update AI configuration", description: error.message, variant: "destructive" });
+    },
+  });
+  
+  const handleLlmModelChange = (model: string) => {
+    setLlmModel(model);
+    configMutation.mutate({ llmModel: model });
+  };
+  
+  const handleAgentPromptChange = (agent: keyof AgentPrompts, prompt: string) => {
+    const updatedPrompts = { ...agentPrompts, [agent]: prompt };
+    setAgentPrompts(updatedPrompts);
+  };
+  
+  const handleSaveAgentPrompts = () => {
+    configMutation.mutate({ agentPrompts });
+  };
+  
+  const handleResetAgentPrompt = (agent: keyof AgentPrompts) => {
+    const updatedPrompts = { ...agentPrompts };
+    delete updatedPrompts[agent];
+    setAgentPrompts(updatedPrompts);
+    configMutation.mutate({ agentPrompts: updatedPrompts });
+  };
 
   useEffect(() => {
     if (scenarioError && isUnauthorizedError(scenarioError as Error)) {
@@ -490,6 +574,154 @@ export default function ScenarioEdit() {
                 />
               </div>
             </Card>
+            
+            {/* AI Configuration Section */}
+            {configData && (
+              <Card className="p-6">
+                <div className="flex items-center gap-2 mb-6">
+                  <Brain className="w-5 h-5 text-primary" />
+                  <h2 className="text-lg font-semibold">AI Configuration</h2>
+                  {configMutation.isPending && (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                
+                <div className="grid gap-6">
+                  {/* LLM Model Selection */}
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">AI Model</label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Choose the AI model used for generating narratives and evaluations
+                    </p>
+                    <Select value={llmModel} onValueChange={handleLlmModelChange}>
+                      <SelectTrigger className="w-full max-w-md" data-testid="select-llm-model">
+                        <SelectValue placeholder="Select AI model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(configData.supportedModels || ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]).map((model) => (
+                          <SelectItem key={model} value={model}>
+                            {LLM_MODEL_LABELS[model] || model}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Agent Prompts Section - Superadmin Only */}
+                  {user?.isSuperAdmin && configData.defaultPrompts && (
+                    <div className="border-t pt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <Settings2 className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium">Agent Prompts</span>
+                          <Badge variant="outline" className="text-xs">Superadmin</Badge>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleSaveAgentPrompts}
+                          disabled={configMutation.isPending}
+                          data-testid="button-save-prompts"
+                        >
+                          <Save className="w-3 h-3 mr-1" />
+                          Save Prompts
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        Customize the system prompts for each AI agent. Leave empty to use defaults.
+                      </p>
+                      
+                      <div className="space-y-3">
+                        {(["narrator", "evaluator", "domainExpert", "director"] as const).map((agent) => {
+                          const agentLabels: Record<string, string> = {
+                            narrator: "Narrator Agent",
+                            evaluator: "Evaluator Agent", 
+                            domainExpert: "Domain Expert Agent",
+                            director: "Director Agent",
+                          };
+                          const agentDescriptions: Record<string, string> = {
+                            narrator: "Generates immersive business narratives and NPC dialogue",
+                            evaluator: "Scores decisions against rubric criteria",
+                            domainExpert: "Calculates KPI impacts based on business logic",
+                            director: "Orchestrates all agents and validates student input",
+                          };
+                          const isExpanded = expandedAgents[agent] || false;
+                          const hasCustomPrompt = !!agentPrompts[agent];
+                          
+                          return (
+                            <Collapsible
+                              key={agent}
+                              open={isExpanded}
+                              onOpenChange={(open) => setExpandedAgents({ ...expandedAgents, [agent]: open })}
+                            >
+                              <CollapsibleTrigger className="w-full">
+                                <div className="flex items-center justify-between p-3 border rounded-lg hover-elevate transition-colors">
+                                  <div className="flex items-center gap-2">
+                                    <Brain className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium text-sm">{agentLabels[agent]}</span>
+                                    {hasCustomPrompt && (
+                                      <Badge variant="secondary" className="text-xs">Custom</Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                                      {agentDescriptions[agent]}
+                                    </span>
+                                    {isExpanded ? (
+                                      <ChevronUp className="w-4 h-4" />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4" />
+                                    )}
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="p-3 border border-t-0 rounded-b-lg space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">
+                                      {hasCustomPrompt ? "Using custom prompt" : "Using default prompt"}
+                                    </span>
+                                    {hasCustomPrompt && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleResetAgentPrompt(agent)}
+                                        data-testid={`button-reset-${agent}`}
+                                      >
+                                        <RefreshCw className="w-3 h-3 mr-1" />
+                                        Reset to Default
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <Textarea
+                                    placeholder={configData.defaultPrompts?.[agent] || "Enter custom prompt..."}
+                                    value={agentPrompts[agent] || ""}
+                                    onChange={(e) => handleAgentPromptChange(agent, e.target.value)}
+                                    rows={8}
+                                    className="font-mono text-xs"
+                                    data-testid={`textarea-prompt-${agent}`}
+                                  />
+                                  {!hasCustomPrompt && (
+                                    <details className="text-xs">
+                                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                        View default prompt
+                                      </summary>
+                                      <pre className="mt-2 p-2 bg-muted rounded text-xs whitespace-pre-wrap max-h-48 overflow-auto">
+                                        {configData.defaultPrompts?.[agent]}
+                                      </pre>
+                                    </details>
+                                  )}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
           </form>
         </Form>
       </main>
