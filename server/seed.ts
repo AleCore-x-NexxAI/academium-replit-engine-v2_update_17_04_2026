@@ -3,7 +3,72 @@ import { scenarios, users, simulationSessions, turns } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import type { InitialState, SimulationState, TurnResponse, HistoryEntry, ScoreSummary } from "@shared/schema";
 
-const SAMPLE_SCENARIOS = [
+// POC Spanish scenario for Universidad de Boyacá
+const POC_SCENARIO = {
+  title: "Crisis de Lanzamiento de Producto",
+  description: "Simulación POC: Gestiona una crisis de lanzamiento de producto tecnológico con decisiones estructuradas y reflexión.",
+  domain: "Gestión de Crisis",
+  initialState: {
+    role: "Director/a de Lanzamiento de Producto",
+    objective: "Navegar una crisis de lanzamiento de producto tecnológico tomando decisiones estratégicas bajo presión.",
+    introText: "Eres el/la Director/a de Lanzamiento de Producto en TechVentures, una startup de tecnología. Tu producto insignia, una aplicación de productividad llamada 'FlowMaster', está programado para lanzarse en 2 semanas. Sin embargo, acabas de recibir un informe crítico del equipo de desarrollo: han descubierto un bug importante que afecta la sincronización de datos entre dispositivos.\n\nEl equipo de marketing ya ha invertido $150,000 en la campaña de lanzamiento. Los inversores esperan resultados este trimestre. Tu equipo de desarrollo está agotado después de meses de trabajo intenso.\n\n¿Cómo manejarás esta situación?",
+    kpis: {
+      revenue: 100000,
+      morale: 70,
+      reputation: 75,
+      efficiency: 65,
+      trust: 80,
+    },
+    indicators: {
+      teamMorale: 70,
+      budgetImpact: 0,
+      operationalRisk: 50,
+      strategicAlignment: 75,
+      timePressure: 80,
+    },
+    totalDecisions: 3,
+    decisionPoints: [
+      {
+        id: 1,
+        type: "multiple_choice" as const,
+        prompt: "Primera decisión: ¿Cuál es tu respuesta inmediata a la noticia del bug crítico?",
+        options: [
+          "A. Retrasar el lanzamiento hasta resolver completamente el problema",
+          "B. Lanzar según lo programado con el bug conocido, planificando un parche posterior",
+          "C. Buscar una solución temporal (workaround) que permita lanzar a tiempo",
+          "D. Convocar una reunión de emergencia con todos los stakeholders para decidir juntos"
+        ],
+        requiresJustification: true,
+      },
+      {
+        id: 2,
+        type: "written" as const,
+        prompt: "Segunda decisión: Después de tu decisión inicial, el equipo de desarrollo te informa que necesitan claridad sobre prioridades. ¿Cómo comunicas y justificas tu estrategia al equipo?",
+        requiresJustification: true,
+      },
+      {
+        id: 3,
+        type: "reflection" as const,
+        prompt: "Tercera decisión: Reflexión final. Considerando todo lo que ha pasado, ¿qué has aprendido sobre la gestión de crisis y qué harías diferente la próxima vez?",
+        requiresJustification: true,
+      }
+    ],
+    subjectMatterContext: "Gestión de productos tecnológicos, metodologías ágiles, gestión de stakeholders, comunicación de crisis en startups. Conceptos clave: MVP (Producto Mínimo Viable), deuda técnica, gestión de expectativas, balance entre velocidad y calidad.",
+  } as InitialState,
+  rubric: {
+    criteria: [
+      { name: "Pensamiento Estratégico", description: "Capacidad de evaluar opciones y consecuencias a largo plazo", weight: 25 },
+      { name: "Gestión de Stakeholders", description: "Consideración de las necesidades de diferentes partes interesadas", weight: 25 },
+      { name: "Comunicación", description: "Claridad y efectividad en la comunicación de decisiones", weight: 25 },
+      { name: "Reflexión y Aprendizaje", description: "Capacidad de reflexionar y extraer lecciones", weight: 25 },
+    ],
+  },
+  isPublished: true,
+};
+
+// Sample scenarios disabled - using POC scenario only
+const SAMPLE_SCENARIOS: any[] = [
+  /* Disabled for POC
   {
     title: "The Data Breach Crisis",
     description: "A major data breach has exposed customer information. As the newly appointed Crisis Manager, you must navigate the fallout while balancing stakeholder interests, legal obligations, and company reputation.",
@@ -82,11 +147,48 @@ const SAMPLE_SCENARIOS = [
     },
     isPublished: true,
   },
+  */
 ];
 
-export async function seedSampleScenarios() {
-  console.log("Checking for existing sample scenarios...");
+async function ensureSystemUser() {
+  let systemUser = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, "system"));
 
+  if (systemUser.length === 0) {
+    await db.insert(users).values({
+      id: "system",
+      email: "system@simulearn.edu",
+      firstName: "SIMULEARN",
+      lastName: "System",
+      role: "admin",
+    });
+    console.log("Created system user for seed scenarios");
+  }
+}
+
+export async function seedSampleScenarios() {
+  console.log("Checking for existing scenarios...");
+
+  // Ensure POC scenario exists
+  const existingPoc = await db
+    .select()
+    .from(scenarios)
+    .where(eq(scenarios.title, POC_SCENARIO.title));
+
+  if (existingPoc.length === 0) {
+    await ensureSystemUser();
+    await db.insert(scenarios).values({
+      ...POC_SCENARIO,
+      authorId: "system",
+    });
+    console.log(`Created POC scenario: ${POC_SCENARIO.title}`);
+  } else {
+    console.log(`POC scenario already exists: ${POC_SCENARIO.title}`);
+  }
+
+  // Sample scenarios disabled for POC
   for (const scenarioData of SAMPLE_SCENARIOS) {
     const existing = await db
       .select()
@@ -94,22 +196,7 @@ export async function seedSampleScenarios() {
       .where(eq(scenarios.title, scenarioData.title));
 
     if (existing.length === 0) {
-      let systemUser = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, "system"));
-
-      if (systemUser.length === 0) {
-        await db.insert(users).values({
-          id: "system",
-          email: "system@simulearn.edu",
-          firstName: "SIMULEARN",
-          lastName: "System",
-          role: "admin",
-        });
-        console.log("Created system user for seed scenarios");
-      }
-
+      await ensureSystemUser();
       await db.insert(scenarios).values({
         ...scenarioData,
         authorId: "system",

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { KPIs, HistoryEntry, TurnResponse } from "@shared/schema";
+import type { KPIs, HistoryEntry, TurnResponse, Indicator, DecisionPoint } from "@shared/schema";
 
 interface ThinkingStep {
   message: string;
@@ -10,6 +10,8 @@ interface SimulationStore {
   sessionId: string | null;
   history: HistoryEntry[];
   kpis: KPIs;
+  indicators: Indicator[];
+  previousIndicators: Indicator[];
   isProcessing: boolean;
   thinkingSteps: ThinkingStep[];
   competencyScores: Record<string, number>;
@@ -21,6 +23,9 @@ interface SimulationStore {
   isGameOver: boolean;
   mode: "guided" | "assessment";
   options: string[];
+  currentDecision: number;
+  totalDecisions: number;
+  decisionPoints: DecisionPoint[];
 
   setSessionId: (id: string | null) => void;
   addTurn: (userInput: string, response: TurnResponse) => void;
@@ -36,7 +41,10 @@ interface SimulationStore {
     sessionId: string,
     initialKpis: KPIs,
     history: HistoryEntry[],
-    mode?: "guided" | "assessment"
+    mode?: "guided" | "assessment",
+    indicators?: Indicator[],
+    totalDecisions?: number,
+    decisionPoints?: DecisionPoint[]
   ) => void;
   resetStore: () => void;
 }
@@ -53,6 +61,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   sessionId: null,
   history: [],
   kpis: defaultKPIs,
+  indicators: [],
+  previousIndicators: [],
   isProcessing: false,
   thinkingSteps: [],
   competencyScores: {},
@@ -60,6 +70,9 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   isGameOver: false,
   mode: "guided",
   options: [],
+  currentDecision: 1,
+  totalDecisions: 0,
+  decisionPoints: [],
 
   setSessionId: (id) => set({ sessionId: id }),
 
@@ -87,13 +100,18 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
         }
       });
 
+      const newDecision = state.currentDecision + 1;
+      const isComplete = state.totalDecisions > 0 && newDecision > state.totalDecisions;
+
       return {
         history: newHistory,
         kpis: newKpis,
+        previousIndicators: state.indicators,
         currentFeedback: response.feedback,
-        isGameOver: response.isGameOver,
+        isGameOver: response.isGameOver || isComplete,
         competencyScores: response.competencyScores || state.competencyScores,
         options: response.options || [],
+        currentDecision: newDecision,
       };
     }),
 
@@ -129,7 +147,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
 
   setOptions: (options) => set({ options }),
 
-  initializeSession: (sessionId, initialKpis, history, mode = "guided") =>
+  initializeSession: (sessionId, initialKpis, history, mode = "guided", indicators = [], totalDecisions = 0, decisionPoints = []) =>
     set({
       sessionId,
       kpis: initialKpis,
@@ -139,6 +157,11 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       currentFeedback: null,
       competencyScores: {},
       options: [],
+      indicators,
+      previousIndicators: [],
+      totalDecisions,
+      decisionPoints,
+      currentDecision: history.filter(h => h.role === "user").length + 1,
     }),
 
   resetStore: () =>
@@ -146,6 +169,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       sessionId: null,
       history: [],
       kpis: defaultKPIs,
+      indicators: [],
+      previousIndicators: [],
       isProcessing: false,
       thinkingSteps: [],
       competencyScores: {},
@@ -153,5 +178,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       isGameOver: false,
       mode: "guided",
       options: [],
+      currentDecision: 1,
+      totalDecisions: 0,
+      decisionPoints: [],
     }),
 }));

@@ -112,14 +112,25 @@ function applyKPIDeltas(currentKpis: KPIs, deltas: Record<string, number>): KPIs
   return newKpis;
 }
 
-function checkGameOver(kpis: KPIs): boolean {
-  return (
+function checkGameOver(kpis: KPIs, context?: AgentContext): boolean {
+  // Check for KPI-based game over
+  const kpiGameOver = (
     kpis.morale < 20 ||
     kpis.reputation < 20 ||
     kpis.efficiency < 20 ||
     kpis.trust < 20 ||
     kpis.revenue < 10000
   );
+  
+  // Check for POC-style decision limit
+  if (context?.totalDecisions && context.totalDecisions > 0) {
+    const nextDecision = (context.currentDecision || 1) + 1;
+    if (nextDecision > context.totalDecisions) {
+      return true; // All decisions made
+    }
+  }
+  
+  return kpiGameOver;
 }
 
 export async function processStudentTurn(context: AgentContext): Promise<DirectorOutput> {
@@ -187,7 +198,7 @@ export async function processStudentTurn(context: AgentContext): Promise<Directo
   };
   const narrative = await generateNarrative(narrativeContext, kpiImpact, evaluation);
 
-  const isGameOver = checkGameOver(newKpis);
+  const isGameOver = checkGameOver(newKpis, interpretedContext);
 
   const kpiUpdates: Record<string, { value: number; delta: number }> = {};
   const kpiKeys: (keyof KPIs)[] = ["revenue", "morale", "reputation", "efficiency", "trust"];
@@ -215,12 +226,20 @@ export async function processStudentTurn(context: AgentContext): Promise<Directo
     },
   ];
 
+  const currentDecisionNum = context.currentDecision || context.turnCount + 1;
+  const nextDecision = currentDecisionNum + 1;
+  const totalDecisions = context.totalDecisions || 0;
+  const simulationComplete = totalDecisions > 0 && nextDecision > totalDecisions;
+
   const updatedState: SimulationState = {
     turnCount: context.turnCount + 1,
     kpis: newKpis,
+    indicators: context.indicators, // Preserve indicators (updated by frontend for now)
     history: newHistory,
     flags: [...(context.history as any).flags || [], ...evaluation.flags],
     rubricScores: evaluation.competencyScores,
+    currentDecision: simulationComplete ? totalDecisions : nextDecision,
+    isComplete: simulationComplete || isGameOver,
   };
 
   return {

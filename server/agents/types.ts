@@ -1,16 +1,21 @@
-import type { KPIs, TurnResponse, SimulationState, Rubric, RubricCriterion, AgentPrompts, LLMModel } from "@shared/schema";
+import type { KPIs, TurnResponse, SimulationState, Rubric, RubricCriterion, AgentPrompts, LLMModel, Indicator, DecisionPoint } from "@shared/schema";
 import type { SupportedModel } from "../openai";
 
 export interface AgentContext {
   sessionId: string;
   turnCount: number;
   currentKpis: KPIs;
+  indicators?: Indicator[]; // POC-style indicators
   history: { role: string; content: string; speaker?: string }[];
   studentInput: string;
   rubric?: Rubric;
   // Per-scenario LLM configuration
   llmModel?: SupportedModel;
   agentPrompts?: AgentPrompts;
+  // Decision structure
+  totalDecisions?: number;
+  currentDecision?: number;
+  decisionPoints?: DecisionPoint[];
   scenario: {
     title: string;
     domain: string;
@@ -32,6 +37,7 @@ export interface AgentContext {
     resourceConstraints?: string;
     culturalContext?: string;
     regulatoryEnvironment?: string;
+    subjectMatterContext?: string; // Expert knowledge context
   };
 }
 
@@ -47,7 +53,9 @@ export interface EvaluatorOutput {
 
 export interface DomainExpertOutput {
   kpiDeltas: Record<string, number>;
+  indicatorDeltas?: Record<string, number>; // POC-style indicator changes
   reasoning: string;
+  expertInsight?: string; // Subject matter expert context
 }
 
 export interface NarratorOutput {

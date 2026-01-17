@@ -2,101 +2,67 @@ import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, DomainExpertOutput } from "./types";
 import { CAUSE_EFFECT_RULES } from "./types";
 
-export const DEFAULT_DOMAIN_EXPERT_PROMPT = `You are a BUSINESS SIMULATION ENGINE calculating realistic consequences of management decisions.
+export const DEFAULT_DOMAIN_EXPERT_PROMPT = `You are a SUBJECT MATTER EXPERT and BUSINESS ANALYST for SIMULEARN, an educational decision-training platform.
 
-YOUR MISSION: Calculate precise, realistic KPI impacts that make the simulation feel authentic and educational. Every decision should have meaningful, logical consequences.
+YOUR DUAL ROLE:
+1. **Subject Matter Expert**: You have deep expertise in the scenario's domain. You understand the real-world implications, industry standards, and best practices.
+2. **Impact Analyst**: You calculate realistic consequences of decisions on key indicators.
 
-THE 5 CORE KPIs:
-1. **revenue** - Company financial health (in dollars, typically $100K-$500K range)
-   - Affected by: sales, costs, efficiency, reputation
-   - Typical deltas: -50000 to +30000 per decision
+CRITICAL RULES:
+- ALWAYS justify your analysis with real-world reasoning
+- CITE where your knowledge comes from (industry practice, research, common business logic)
+- NEVER make arbitrary judgments - every impact must be explainable
+- You are an EXPERT, not a judge - explain cause and effect, not "good" or "bad"
 
-2. **morale** - Team emotional state and engagement (0-100%)
-   - Affected by: workload, recognition, leadership, fairness
-   - Typical deltas: -20 to +15 per decision
-   - CRITICAL: Below 20% triggers game over
+THE 5 POC INDICATORS (adjust impacts based on scenario context):
+1. **teamMorale** (0-100) - Team emotional state and engagement
+   - Affected by: workload, recognition, leadership decisions, fairness
+   - Real-world basis: Employee satisfaction studies, organizational psychology
 
-3. **reputation** - Brand and market perception (0-100%)
-   - Affected by: public actions, quality, ethical behavior
-   - Typical deltas: -25 to +10 per decision
-   - CRITICAL: Below 20% triggers game over
+2. **budgetImpact** (0-100) - Financial health and resource availability
+   - Affected by: spending decisions, revenue implications, cost management
+   - Real-world basis: Business finance principles, budget management best practices
 
-4. **efficiency** - Operational productivity (0-100%)
-   - Affected by: processes, resources, team health, tools
-   - Typical deltas: -15 to +10 per decision
-   - CRITICAL: Below 20% triggers game over
+3. **operationalRisk** (0-100) - Level of operational uncertainty/danger
+   - Affected by: process changes, compliance issues, execution challenges
+   - Real-world basis: Risk management frameworks, operational excellence standards
 
-5. **trust** - Stakeholder confidence (0-100%)
-   - Affected by: transparency, follow-through, consistency
-   - Typical deltas: -20 to +10 per decision
-   - CRITICAL: Below 20% triggers game over
+4. **strategicAlignment** (0-100) - How well decisions align with organizational goals
+   - Affected by: decision consistency, long-term thinking, stakeholder alignment
+   - Real-world basis: Strategic management theory, corporate governance
+
+5. **timePressure** (0-100) - Urgency and deadline stress
+   - Affected by: schedule decisions, scope changes, resource allocation
+   - Real-world basis: Project management principles, time-to-market dynamics
 
 IMPACT CALCULATION PRINCIPLES:
-
-1. **Logical Causation**: Every impact must make business sense
-   - Overtime → short-term efficiency UP, morale DOWN
-   - Cost cuts → revenue UP, morale/efficiency at RISK
-   - Transparency → trust UP, possible short-term costs
-
-2. **Cascading Effects**: Major impacts cause ripples
-   - Severely damaged morale → efficiency also drops
-   - Loss of trust → reputation also suffers
-   - Poor reputation → revenue affected
-
-3. **Proportional Response**: Match impact to decision severity
-   - Minor adjustments: ±2-5 points
-   - Significant changes: ±5-12 points
-   - Major/risky decisions: ±10-25 points
-
-4. **Trade-offs Are Real**: Good decisions still have costs
-   - Investing in team = short-term cost, long-term gain
-   - Aggressive deadlines = short-term results, team burnout risk
-   - Transparency = trust building but may expose vulnerabilities
-
-5. **Unconventional Decisions**: Calculate real-world impacts
-   - If someone suggests extreme measures, show realistic consequences
-   - Don't prevent "bad" decisions - let consequences teach
-   - Even well-intentioned risky moves should show realistic effects
-
-COMMON PATTERNS:
-${JSON.stringify(CAUSE_EFFECT_RULES, null, 2)}
+1. **Logical Causation**: Every impact must make real-world sense
+2. **Trade-offs Are Real**: Good decisions still have costs
+3. **Proportional Response**: Match impact to decision severity (±2-5 minor, ±5-12 significant, ±10-25 major)
+4. **Source Your Reasoning**: Explain WHY based on business/industry knowledge
 
 OUTPUT FORMAT (strict JSON only):
 {
-  "kpiDeltas": {
-    "revenue": <number in dollars, e.g., -15000 or 10000>,
-    "morale": <percentage points change, e.g., -10 or 5>,
-    "reputation": <percentage points change>,
-    "efficiency": <percentage points change>,
-    "trust": <percentage points change>
+  "indicatorDeltas": {
+    "teamMorale": <number -25 to +25>,
+    "budgetImpact": <number -25 to +25>,
+    "operationalRisk": <number -25 to +25>,
+    "strategicAlignment": <number -25 to +25>,
+    "timePressure": <number -25 to +25>
   },
-  "reasoning": "<2-3 sentences explaining WHY these specific changes occur, connecting decision to consequences logically>"
+  "reasoning": "<2-3 sentences explaining WHY these changes occur, with real-world justification>",
+  "expertInsight": "<1-2 sentences of domain expertise context - what a real professional would know about this situation>"
 }
 
-EXAMPLES:
-
-Decision: "Push the team to work overtime to meet the deadline"
+EXAMPLE:
+Decision: "Delay the product launch by 2 weeks to fix quality issues"
 {
-  "kpiDeltas": {"revenue": 5000, "morale": -12, "reputation": 2, "efficiency": 8, "trust": -3},
-  "reasoning": "The overtime push delivers short-term results and impresses stakeholders, but the team feels the strain. Some employees are quietly updating their LinkedIn profiles. Efficiency spikes temporarily but burnout risks are mounting."
-}
-
-Decision: "Be transparent with customers about the delay"
-{
-  "kpiDeltas": {"revenue": -8000, "morale": 5, "reputation": 8, "efficiency": 0, "trust": 12},
-  "reasoning": "Some customers cancel, causing revenue loss, but the honest communication builds lasting trust. The team respects the ethical choice, boosting morale. Industry observers note the integrity."
-}
-
-Decision: "Give everyone coffee and a 2 month vacation"
-{
-  "kpiDeltas": {"revenue": -45000, "morale": 20, "reputation": 5, "efficiency": -30, "trust": -10},
-  "reasoning": "The generous gesture dramatically boosts team happiness, but operations grind to a halt during the extended break. Stakeholders question the fiscal responsibility. The business loses momentum while competitors advance."
-}
-
-Remember: Your job is to make decisions FEEL consequential and realistic, not to punish or reward. Show cause and effect.`;
+  "indicatorDeltas": {"teamMorale": 5, "budgetImpact": -8, "operationalRisk": -15, "strategicAlignment": 10, "timePressure": -10},
+  "reasoning": "Quality-focused delays typically reduce operational risk significantly (based on software industry post-mortems showing 3x cost of fixing issues after launch). Budget takes a hit from extended development costs, but team morale improves when quality is prioritized over rush.",
+  "expertInsight": "In product management, the '1-10-100 rule' suggests fixing a defect in design costs $1, in development $10, and post-release $100. This decision follows established quality management principles."
+}`;
 
 export async function calculateKPIImpact(context: AgentContext): Promise<DomainExpertOutput> {
-  // Build rich context from enhanced scenario data
   const industryInfo = [];
   if (context.scenario.industry) industryInfo.push(`Industry: ${context.scenario.industry}`);
   if (context.scenario.companySize) industryInfo.push(`Company Size: ${context.scenario.companySize}`);
@@ -112,6 +78,14 @@ export async function calculateKPIImpact(context: AgentContext): Promise<DomainE
     ? `CONSTRAINTS: ${context.scenario.keyConstraints.join("; ")}`
     : "";
 
+  const subjectMatterInfo = context.scenario.subjectMatterContext
+    ? `SUBJECT MATTER CONTEXT:\n${context.scenario.subjectMatterContext}`
+    : "";
+
+  const currentIndicators = context.indicators
+    ? `CURRENT INDICATORS:\n${context.indicators.map(i => `- ${i.label}: ${i.value}`).join("\n")}`
+    : `CURRENT INDICATORS:\n- Team Morale: ${context.currentKpis.morale}\n- Budget Impact: 50\n- Operational Risk: 50\n- Strategic Alignment: 50\n- Time Pressure: 50`;
+
   const userPrompt = `
 SIMULATION CONTEXT:
 Scenario: "${context.scenario.title}"
@@ -122,66 +96,53 @@ Difficulty: ${context.scenario.difficultyLevel || "intermediate"}
 
 ${environmentInfo.length > 0 ? `BUSINESS ENVIRONMENT:\n${environmentInfo.join("\n")}\n` : ""}
 ${constraintsInfo}
+${subjectMatterInfo}
 
-CURRENT KPI STATE:
-- Revenue: $${context.currentKpis.revenue.toLocaleString()}
-- Morale: ${context.currentKpis.morale}%
-- Reputation: ${context.currentKpis.reputation}%
-- Efficiency: ${context.currentKpis.efficiency}%
-- Trust: ${context.currentKpis.trust}%
+${currentIndicators}
 
-STUDENT'S DECISION: "${context.studentInput}"
+DECISION NUMBER: ${context.turnCount + 1}${context.totalDecisions ? ` of ${context.totalDecisions}` : ""}
 
-RECENT CONTEXT:
-${context.history.slice(-4).map((h) => `[${h.role}${h.speaker ? ` - ${h.speaker}` : ""}]: ${h.content}`).join("\n")}
+STUDENT'S DECISION:
+"${context.studentInput}"
 
-TASK: Calculate the realistic business impact of this decision. Consider:
-1. What would ACTUALLY happen in THIS specific industry/company context?
-2. How do the BUSINESS ENVIRONMENT factors affect the impact?
-3. What are the immediate effects on each KPI?
-4. Are there cascading effects (e.g., morale affecting efficiency)?
-5. Does this violate any CONSTRAINTS and what are the consequences?
-6. Scale impacts to the ${context.scenario.difficultyLevel || "intermediate"} difficulty level
+As the Subject Matter Expert, analyze this decision and calculate indicator impacts with real-world justification.
+Return ONLY valid JSON matching the specified format.`;
 
-Provide your KPI calculations with clear business reasoning that references the specific context.`;
-
-  // Use custom prompt if provided, otherwise use default
   const systemPrompt = context.agentPrompts?.domainExpert || DEFAULT_DOMAIN_EXPERT_PROMPT;
-  
-  try {
-    const response = await generateChatCompletion(
-      [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      { responseFormat: "json", maxTokens: 768, model: context.llmModel }
-    );
 
+  const response = await generateChatCompletion(
+    [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    { responseFormat: "json", model: context.llmModel }
+  );
+
+  try {
     const parsed = JSON.parse(response);
     
+    // Map new indicator format to legacy KPI format for backward compatibility
+    const indicatorDeltas = parsed.indicatorDeltas || {};
     const kpiDeltas = {
-      revenue: typeof parsed.kpiDeltas?.revenue === 'number' ? parsed.kpiDeltas.revenue : 0,
-      morale: typeof parsed.kpiDeltas?.morale === 'number' ? Math.max(-30, Math.min(25, parsed.kpiDeltas.morale)) : 0,
-      reputation: typeof parsed.kpiDeltas?.reputation === 'number' ? Math.max(-30, Math.min(15, parsed.kpiDeltas.reputation)) : 0,
-      efficiency: typeof parsed.kpiDeltas?.efficiency === 'number' ? Math.max(-25, Math.min(15, parsed.kpiDeltas.efficiency)) : 0,
-      trust: typeof parsed.kpiDeltas?.trust === 'number' ? Math.max(-25, Math.min(15, parsed.kpiDeltas.trust)) : 0,
+      revenue: indicatorDeltas.budgetImpact ? indicatorDeltas.budgetImpact * 1000 : 0,
+      morale: indicatorDeltas.teamMorale || 0,
+      reputation: indicatorDeltas.strategicAlignment || 0,
+      efficiency: -(indicatorDeltas.operationalRisk || 0),
+      trust: indicatorDeltas.strategicAlignment || 0,
     };
 
     return {
       kpiDeltas,
-      reasoning: parsed.reasoning || "The decision creates ripples across the organization, with effects varying by department and stakeholder group.",
+      indicatorDeltas,
+      reasoning: parsed.reasoning || "Impact calculated based on decision analysis.",
+      expertInsight: parsed.expertInsight || "",
     };
-  } catch (error) {
-    console.error("Domain expert agent error:", error);
+  } catch {
     return {
-      kpiDeltas: {
-        revenue: -3000,
-        morale: -2,
-        reputation: -1,
-        efficiency: -2,
-        trust: -1,
-      },
-      reasoning: "The situation continues to evolve. While no major immediate impacts are apparent, the team is watching closely to see what happens next.",
+      kpiDeltas: { revenue: 0, morale: 0, reputation: 0, efficiency: 0, trust: 0 },
+      indicatorDeltas: {},
+      reasoning: "Unable to calculate precise impact. Decision noted.",
+      expertInsight: "",
     };
   }
 }

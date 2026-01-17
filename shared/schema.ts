@@ -198,13 +198,39 @@ export interface KPIs {
   trust: number;
 }
 
+// Decision point configuration for structured simulations
+export interface DecisionPoint {
+  number: number; // 1, 2, 3, etc.
+  format: "multiple_choice" | "written"; // Input format
+  prompt: string; // The decision prompt/question
+  options?: string[]; // For multiple_choice format
+  requiresJustification: boolean; // Whether student must explain their reasoning
+  includesReflection: boolean; // Whether to prompt for reflection after consequences
+}
+
+// POC Indicator - simpler than full KPI
+export interface Indicator {
+  id: string;
+  label: string;
+  value: number; // 0-100 or absolute
+  description?: string;
+}
+
 export interface InitialState {
-  kpis: KPIs;
+  // POC KPI Configuration - use indicators instead of legacy KPIs
+  indicators?: Indicator[]; // New POC-style indicators (team morale, budget impact, etc.)
+  kpis: KPIs; // Legacy - kept for backward compatibility
   customKpis?: CustomKPI[]; // Optional additional KPIs beyond the 5 defaults
+  
+  // Decision structure configuration
+  decisionPoints?: DecisionPoint[]; // Configurable decision sequence
+  totalDecisions?: number; // Default: 3 for POC
+  
   introText: string;
   role: string;
   objective: string;
   caseStudyUrl?: string;
+  
   // Enhanced scenario context for AI tailoring
   companyName?: string;
   industry?: string;
@@ -221,6 +247,9 @@ export interface InitialState {
   resourceConstraints?: string;
   culturalContext?: string;
   regulatoryEnvironment?: string;
+  
+  // Subject matter context for Domain Expert
+  subjectMatterContext?: string; // Expert knowledge context for this scenario
 }
 
 export interface Stakeholder {
@@ -266,9 +295,12 @@ export interface HistoryEntry {
 export interface SimulationState {
   turnCount: number;
   kpis: KPIs;
+  indicators?: Indicator[]; // POC-style indicators
   history: HistoryEntry[];
   flags: string[];
   rubricScores: Record<string, number>;
+  currentDecision?: number; // Which decision point we're on (1, 2, 3, etc.)
+  isComplete?: boolean; // Whether all decisions have been made
 }
 
 export interface NarrativeResponse {

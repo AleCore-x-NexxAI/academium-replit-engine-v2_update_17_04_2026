@@ -441,6 +441,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         history: session.currentState.history,
         studentInput: input,
         rubric: session.scenario?.rubric || undefined,
+        // POC: Decision tracking
+        indicators: session.currentState.indicators || initialState?.indicators,
+        totalDecisions: initialState?.totalDecisions || 0,
+        currentDecision: session.currentState.currentDecision || 1,
+        decisionPoints: initialState?.decisionPoints,
         // Per-scenario LLM configuration
         llmModel: scenarioLlmModel,
         agentPrompts: scenarioAgentPrompts,
@@ -465,6 +470,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           resourceConstraints: initialState?.resourceConstraints,
           culturalContext: initialState?.culturalContext,
           regulatoryEnvironment: initialState?.regulatoryEnvironment,
+          subjectMatterContext: initialState?.subjectMatterContext,
         },
       };
 

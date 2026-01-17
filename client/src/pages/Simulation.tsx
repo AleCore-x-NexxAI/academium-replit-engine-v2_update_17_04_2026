@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { SimulationSession, Scenario, TurnResponse, KPIs } from "@shared/schema";
+import type { SimulationSession, Scenario, TurnResponse, KPIs, Indicator, DecisionPoint } from "@shared/schema";
 
 const THINKING_STEPS = [
   { message: "Analyzing your decision...", completed: false },
@@ -33,6 +33,8 @@ export default function Simulation() {
   const {
     history,
     kpis,
+    indicators,
+    previousIndicators,
     isProcessing,
     thinkingSteps,
     competencyScores,
@@ -40,6 +42,9 @@ export default function Simulation() {
     isGameOver,
     mode,
     options,
+    currentDecision,
+    totalDecisions,
+    decisionPoints,
     setProcessing,
     setThinkingSteps,
     updateThinkingStep,
@@ -90,11 +95,15 @@ export default function Simulation() {
   useEffect(() => {
     if (session && !initializedRef.current) {
       initializedRef.current = true;
+      const initialState = session.scenario?.initialState;
       initializeSession(
         session.id,
         session.currentState.kpis,
         session.currentState.history,
-        "guided"
+        "guided",
+        initialState?.indicators || [],
+        initialState?.totalDecisions || 0,
+        initialState?.decisionPoints || []
       );
     }
     return () => {
@@ -218,10 +227,12 @@ export default function Simulation() {
 
         <div className="text-center">
           <p className="text-sm font-medium" data-testid="text-simulation-title">
-            {session.scenario?.title || "Simulation"}
+            {session.scenario?.title || "Simulación"}
           </p>
           <p className="text-xs text-muted-foreground">
-            Turn {session.currentState.turnCount + 1}
+            {totalDecisions > 0
+              ? `Decisión ${currentDecision} de ${totalDecisions}`
+              : `Turno ${session.currentState.turnCount + 1}`}
           </p>
         </div>
 
@@ -237,9 +248,13 @@ export default function Simulation() {
           <KPIDashboard
             kpis={kpis}
             previousKpis={previousKpis}
+            indicators={indicators}
+            previousIndicators={previousIndicators}
             scenarioTitle={session.scenario?.title}
             role={session.scenario?.initialState?.role}
             objective={session.scenario?.initialState?.objective}
+            currentDecision={currentDecision}
+            totalDecisions={totalDecisions}
           />
         </motion.aside>
 
@@ -266,6 +281,9 @@ export default function Simulation() {
               const data = await response.json();
               return data.hint;
             }}
+            currentDecisionPoint={decisionPoints[currentDecision - 1]}
+            decisionNumber={currentDecision}
+            totalDecisions={totalDecisions}
           />
         </main>
 
