@@ -146,7 +146,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
         ...state.history,
         {
           role: "system",
-          content: response.revisionPrompt || response.narrative.text,
+          content: response.revisionPrompt || response.narrative?.text || "",
           timestamp: new Date().toISOString(),
         },
       ];
@@ -155,12 +155,12 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
         history: newHistory,
         pendingRevision: true,
         revisionPrompt: response.revisionPrompt || null,
-        revisionAttempts: response.revisionAttempt || state.revisionAttempts + 1,
+        revisionAttempts: response.revisionAttempts || state.revisionAttempts + 1,
         maxRevisions: response.maxRevisions || 2,
-        currentFeedback: {
+        currentFeedback: response.feedback ? {
           score: 0,
           message: response.feedback.message,
-        },
+        } : state.currentFeedback,
       };
     }),
 
