@@ -69,6 +69,13 @@ export interface DirectorOutput extends TurnResponse {
   updatedState: SimulationState;
 }
 
+export interface DepthEvaluatorOutput {
+  isDeepEnough: boolean;
+  revisionPrompt?: string;
+  missingConsiderations?: string[];
+  strengthsAcknowledged?: string;
+}
+
 export const NPC_PERSONAS = {
   Marcus: {
     name: "Marcus",

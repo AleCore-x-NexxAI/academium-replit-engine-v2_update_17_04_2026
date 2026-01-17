@@ -301,6 +301,10 @@ export interface SimulationState {
   rubricScores: Record<string, number>;
   currentDecision?: number; // Which decision point we're on (1, 2, 3, etc.)
   isComplete?: boolean; // Whether all decisions have been made
+  // Weak answer revision tracking
+  pendingRevision?: boolean; // Whether we're waiting for a revision
+  revisionAttempts?: number; // How many times student has revised current decision
+  lastStudentInput?: string; // Original input before revision
 }
 
 export interface NarrativeResponse {
@@ -328,6 +332,11 @@ export interface TurnResponse {
   options?: string[];
   isGameOver: boolean;
   competencyScores?: Record<string, number>;
+  // Weak answer handling
+  requiresRevision?: boolean;
+  revisionPrompt?: string;
+  revisionAttempt?: number;
+  maxRevisions?: number;
 }
 
 export interface ScoreSummary {
