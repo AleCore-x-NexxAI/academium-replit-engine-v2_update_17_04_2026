@@ -1,14 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  ResponsiveContainer,
-} from "recharts";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Lightbulb, Award, AlertTriangle } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 
 interface FeedbackPanelProps {
   feedback: {
@@ -20,71 +12,15 @@ interface FeedbackPanelProps {
   isGameOver: boolean;
 }
 
-const competencyLabels: Record<string, string> = {
-  strategicThinking: "Pensamiento Estratégico",
-  ethicalReasoning: "Razonamiento Ético",
-  decisionDecisiveness: "Capacidad de Decisión",
-  stakeholderEmpathy: "Empatía",
-};
-
 export function FeedbackPanel({
   feedback,
-  competencyScores,
   isGameOver,
 }: FeedbackPanelProps) {
-  const radarData = Object.entries(competencyScores).map(([key, value]) => ({
-    subject: competencyLabels[key] || key,
-    value: value * 20,
-    fullMark: 100,
-  }));
-
-  const hasCompetencyData = radarData.length > 0;
-
-  const getScoreBadge = (score: number) => {
-    if (score >= 80) return { label: "Excelente", variant: "default" as const };
-    if (score >= 60) return { label: "Bueno", variant: "secondary" as const };
-    if (score >= 40) return { label: "Aceptable", variant: "outline" as const };
-    return { label: "Necesita Mejorar", variant: "destructive" as const };
-  };
-
   return (
     <div className="h-full flex flex-col p-6 overflow-y-auto">
       <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-6">
-        Análisis de Desempeño
+        Observaciones
       </h3>
-
-      {hasCompetencyData && (
-        <Card className="p-4 mb-6">
-          <h4 className="text-sm font-medium mb-4 text-center">
-            Perfil de Competencias
-          </h4>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
-                <PolarGrid
-                  stroke="hsl(var(--border))"
-                  strokeDasharray="3 3"
-                />
-                <PolarAngleAxis
-                  dataKey="subject"
-                  tick={{
-                    fill: "hsl(var(--muted-foreground))",
-                    fontSize: 10,
-                  }}
-                />
-                <Radar
-                  name="Competency"
-                  dataKey="value"
-                  stroke="hsl(var(--primary))"
-                  fill="hsl(var(--primary))"
-                  fillOpacity={0.3}
-                  strokeWidth={2}
-                />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
 
       <AnimatePresence mode="wait">
         {feedback && (
@@ -96,65 +32,32 @@ export function FeedbackPanel({
             data-testid="feedback-card"
           >
             <Card className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-chart-4" />
-                  <span className="font-medium">Retroalimentación</span>
-                </div>
-                <Badge variant={getScoreBadge(feedback.score).variant}>
-                  {getScoreBadge(feedback.score).label}
-                </Badge>
+              <div className="flex items-center gap-2 mb-4">
+                <MessageSquare className="w-5 h-5 text-primary" />
+                <span className="font-medium">Nota del Mentor</span>
               </div>
 
-              <p className="text-sm leading-relaxed text-foreground mb-4">
+              <p className="text-sm leading-relaxed text-foreground">
                 {feedback.message}
               </p>
-
-              {feedback.hint && (
-                <div className="flex gap-2 p-3 bg-muted/50 rounded-lg">
-                  <Lightbulb className="w-4 h-4 text-chart-4 shrink-0 mt-0.5" />
-                  <p className="text-sm text-muted-foreground italic">
-                    {feedback.hint}
-                  </p>
-                </div>
-              )}
             </Card>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isGameOver && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mt-6"
-          >
-            <Card className="p-6 border-destructive bg-destructive/5">
-              <div className="flex items-center gap-3 mb-4">
-                <AlertTriangle className="w-6 h-6 text-destructive" />
-                <h4 className="text-lg font-semibold text-destructive">
-                  Simulación Terminada
-                </h4>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Se alcanzó un umbral crítico. Revisa tus decisiones para
-                entender qué llevó a este resultado.
-              </p>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {!feedback && !isGameOver && (
-        <div className="flex-1 flex items-center justify-center text-center">
-          <div className="p-6">
-            <Award className="w-10 h-10 mx-auto mb-3 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">
-              Toma una decisión para recibir retroalimentación
+      {isGameOver && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mt-6"
+        >
+          <Card className="p-6 bg-muted/30">
+            <p className="text-sm text-center text-muted-foreground">
+              Has completado esta simulación. Revisa tu línea de decisiones para reflexionar sobre tu experiencia.
             </p>
-          </div>
-        </div>
+          </Card>
+        </motion.div>
       )}
     </div>
   );

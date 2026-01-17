@@ -5,9 +5,7 @@ import { motion } from "framer-motion";
 import {
   Brain,
   ArrowLeft,
-  Award,
   Target,
-  Trophy,
   TrendingUp,
   TrendingDown,
   Users,
@@ -17,29 +15,18 @@ import {
   MessageSquare,
   Clock,
   BarChart3,
+  CheckCircle2,
+  AlertTriangle,
+  Gauge,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import {
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-} from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import type { SimulationSession, Scenario, Turn } from "@shared/schema";
+import type { SimulationSession, Scenario, Turn, Indicator } from "@shared/schema";
 
 const KPI_ICONS: Record<string, React.ElementType> = {
   revenue: DollarSign,
@@ -50,32 +37,32 @@ const KPI_ICONS: Record<string, React.ElementType> = {
 };
 
 const KPI_LABELS: Record<string, string> = {
-  revenue: "Revenue",
-  morale: "Morale",
-  reputation: "Reputation",
-  efficiency: "Efficiency",
-  trust: "Trust",
+  revenue: "Ingresos",
+  morale: "Moral",
+  reputation: "Reputación",
+  efficiency: "Eficiencia",
+  trust: "Confianza",
 };
 
-const COMPETENCY_LABELS: Record<string, string> = {
-  strategicThinking: "Strategic Thinking",
-  ethicalReasoning: "Ethical Reasoning",
-  decisionDecisiveness: "Decisiveness",
-  stakeholderEmpathy: "Empathy",
+const INDICATOR_ICONS: Record<string, React.ElementType> = {
+  teamMorale: Users,
+  budgetImpact: DollarSign,
+  operationalRisk: AlertTriangle,
+  strategicAlignment: Target,
+  timePressure: Clock,
 };
 
-function getScoreGrade(score: number): { label: string; color: string } {
-  if (score >= 90) return { label: "Outstanding", color: "text-green-600" };
-  if (score >= 80) return { label: "Excellent", color: "text-green-500" };
-  if (score >= 70) return { label: "Good", color: "text-chart-4" };
-  if (score >= 60) return { label: "Satisfactory", color: "text-yellow-500" };
-  if (score >= 50) return { label: "Needs Improvement", color: "text-orange-500" };
-  return { label: "Unsatisfactory", color: "text-destructive" };
-}
+const INDICATOR_LABELS: Record<string, string> = {
+  teamMorale: "Moral del Equipo",
+  budgetImpact: "Impacto Presupuestario",
+  operationalRisk: "Riesgo Operacional",
+  strategicAlignment: "Alineación Estratégica",
+  timePressure: "Presión de Tiempo",
+};
 
 function formatKpiValue(key: string, value: number): string {
   if (key === "revenue") {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("es-MX", {
       style: "currency",
       currency: "USD",
       notation: "compact",
@@ -106,8 +93,8 @@ export default function SessionResults() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       toast({
-        title: "Please sign in",
-        description: "You need to be signed in to view results.",
+        title: "Iniciar sesión requerido",
+        description: "Necesitas iniciar sesión para ver los resultados.",
         variant: "destructive",
       });
       setTimeout(() => {
@@ -135,11 +122,11 @@ export default function SessionResults() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Brain className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-xl font-semibold mb-2">Session Not Found</h2>
+          <h2 className="text-xl font-semibold mb-2">Sesión No Encontrada</h2>
           <p className="text-muted-foreground mb-6">
-            This session may have been deleted.
+            Esta sesión puede haber sido eliminada.
           </p>
-          <Button onClick={() => navigate("/")}>Return Home</Button>
+          <Button onClick={() => navigate("/")}>Volver al Inicio</Button>
         </div>
       </div>
     );
@@ -149,15 +136,9 @@ export default function SessionResults() {
   const scenario = session.scenario;
   const finalKpis = scoreSummary?.finalKpis || session.currentState.kpis;
   const initialKpis = scenario?.initialState?.kpis;
-  const competencies = scoreSummary?.competencies || {};
-  const overallScore = scoreSummary?.overallScore || 0;
-  const grade = getScoreGrade(overallScore);
-
-  const radarData = Object.entries(competencies).map(([key, value]) => ({
-    subject: COMPETENCY_LABELS[key] || key,
-    value: (value as number) * 20,
-    fullMark: 100,
-  }));
+  const finalIndicators = session.currentState.indicators as Indicator[] | undefined;
+  const initialIndicators = scenario?.initialState?.indicators as Indicator[] | undefined;
+  const useIndicators = finalIndicators && finalIndicators.length > 0;
 
   const kpiComparison = Object.entries(finalKpis).map(([key, value]) => {
     const initial = initialKpis?.[key as keyof typeof initialKpis] || 0;
@@ -171,6 +152,19 @@ export default function SessionResults() {
       Icon: KPI_ICONS[key] || Target,
     };
   });
+
+  const indicatorComparison = finalIndicators?.map((indicator) => {
+    const initial = initialIndicators?.find((i) => i.id === indicator.id);
+    const delta = initial ? indicator.value - initial.value : 0;
+    return {
+      key: indicator.id,
+      label: INDICATOR_LABELS[indicator.id] || indicator.label,
+      initial: initial?.value || indicator.value,
+      final: indicator.value,
+      delta,
+      Icon: INDICATOR_ICONS[indicator.id] || Gauge,
+    };
+  }) || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -190,192 +184,127 @@ export default function SessionResults() {
           </div>
         </div>
         <div className="text-center">
-          <p className="text-sm font-medium">Simulation Results</p>
+          <p className="text-sm font-medium">Resumen de Simulación</p>
         </div>
         <div className="w-20" />
       </header>
 
-      <main className="max-w-6xl mx-auto p-6 space-y-8">
+      <main className="max-w-4xl mx-auto p-6 space-y-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center"
         >
           <Badge className="mb-4" variant="outline">
-            Simulation Complete
+            Simulación Completada
           </Badge>
           <h1
             className="text-3xl font-bold mb-2"
             data-testid="text-scenario-title"
           >
-            {scenario?.title || "Business Simulation"}
+            {scenario?.title || "Simulación de Negocios"}
           </h1>
           <p className="text-muted-foreground mb-6">
-            {scenario?.domain} Challenge
+            Has completado todas las decisiones de este escenario
           </p>
 
-          <Card className="inline-block p-8">
-            <div className="flex items-center justify-center gap-4">
-              <Trophy className={`w-12 h-12 ${grade.color}`} />
+          <Card className="inline-block p-6">
+            <div className="flex items-center justify-center gap-3">
+              <CheckCircle2 className="w-10 h-10 text-primary" />
               <div className="text-left">
-                <p className="text-4xl font-bold" data-testid="text-overall-score">
-                  {overallScore}
+                <p className="text-lg font-semibold">Experiencia Completada</p>
+                <p className="text-sm text-muted-foreground">
+                  {turns?.length || 0} decisiones tomadas
                 </p>
-                <p className={`font-semibold ${grade.color}`}>{grade.label}</p>
               </div>
             </div>
           </Card>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-6">
-                <Award className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Competency Profile</h2>
-              </div>
-              {radarData.length > 0 ? (
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart
-                      data={radarData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius="70%"
-                    >
-                      <PolarGrid
-                        stroke="hsl(var(--border))"
-                        strokeDasharray="3 3"
-                      />
-                      <PolarAngleAxis
-                        dataKey="subject"
-                        tick={{
-                          fill: "hsl(var(--muted-foreground))",
-                          fontSize: 11,
-                        }}
-                      />
-                      <Radar
-                        name="Score"
-                        dataKey="value"
-                        stroke="hsl(var(--primary))"
-                        fill="hsl(var(--primary))"
-                        fillOpacity={0.3}
-                        strokeWidth={2}
-                      />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="h-64 flex items-center justify-center text-muted-foreground">
-                  <p>No competency data available</p>
-                </div>
-              )}
-              <div className="mt-4 space-y-2">
-                {Object.entries(competencies).map(([key, value]) => (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold">
+                {useIndicators ? "Evolución de Indicadores" : "Evolución de la Situación"}
+              </h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Estos son los cambios que resultaron de tus decisiones durante la simulación:
+            </p>
+            <div className="space-y-4">
+              {(useIndicators ? indicatorComparison : kpiComparison).map(
+                ({ key, label, initial, final, delta, Icon }) => (
                   <div
                     key={key}
-                    className="flex items-center justify-between text-sm"
-                    data-testid={`competency-${key}`}
+                    className="flex items-center gap-4"
+                    data-testid={`indicator-${key}`}
                   >
-                    <span className="text-muted-foreground">
-                      {COMPETENCY_LABELS[key] || key}
-                    </span>
-                    <span className="font-medium">
-                      {((value as number) * 20).toFixed(0)}/100
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-6">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">KPI Summary</h2>
-              </div>
-              <div className="space-y-4">
-                {kpiComparison.map(
-                  ({ key, label, initial, final, delta, Icon }) => (
-                    <div
-                      key={key}
-                      className="flex items-center gap-4"
-                      data-testid={`kpi-${key}`}
-                    >
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium">{label}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">
-                              {formatKpiValue(key, initial)}
-                            </span>
-                            <span className="text-muted-foreground">→</span>
-                            <span className="text-sm font-semibold">
-                              {formatKpiValue(key, final)}
-                            </span>
-                          </div>
-                        </div>
+                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                      <Icon className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium">{label}</span>
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-primary rounded-full transition-all"
-                              style={{
-                                width: `${Math.min(
-                                  100,
-                                  key === "revenue"
-                                    ? (final / (initial || 100000)) * 50
-                                    : final
-                                )}%`,
-                              }}
-                            />
-                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {useIndicators ? initial : formatKpiValue(key, initial)}
+                          </span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className="text-sm font-semibold">
+                            {useIndicators ? final : formatKpiValue(key, final)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                           <div
-                            className={`flex items-center gap-1 text-xs font-medium ${
-                              delta >= 0 ? "text-green-600" : "text-destructive"
-                            }`}
-                          >
-                            {delta >= 0 ? (
-                              <TrendingUp className="w-3 h-3" />
-                            ) : (
-                              <TrendingDown className="w-3 h-3" />
-                            )}
-                            {delta >= 0 ? "+" : ""}
-                            {key === "revenue"
-                              ? `$${Math.abs(delta).toLocaleString()}`
-                              : `${delta}%`}
-                          </div>
+                            className="h-full bg-primary/70 rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, useIndicators ? final : (key === "revenue" ? (final / (initial || 100000)) * 50 : final))}%`,
+                            }}
+                          />
+                        </div>
+                        <div
+                          className={`flex items-center gap-1 text-xs font-medium ${
+                            delta >= 0 ? "text-chart-2" : "text-chart-4"
+                          }`}
+                        >
+                          {delta >= 0 ? (
+                            <TrendingUp className="w-3 h-3" />
+                          ) : (
+                            <TrendingDown className="w-3 h-3" />
+                          )}
+                          {delta >= 0 ? "+" : ""}
+                          {useIndicators
+                            ? delta
+                            : key === "revenue"
+                            ? `$${Math.abs(delta).toLocaleString()}`
+                            : `${delta}%`}
                         </div>
                       </div>
                     </div>
-                  )
-                )}
-              </div>
-            </Card>
-          </motion.div>
-        </div>
+                  </div>
+                )
+              )}
+            </div>
+          </Card>
+        </motion.div>
 
         {scoreSummary?.feedback && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.2 }}
           >
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-4">
                 <MessageSquare className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Final Feedback</h2>
+                <h2 className="text-lg font-semibold">Observaciones Finales</h2>
               </div>
               <p
                 className="text-muted-foreground leading-relaxed"
@@ -391,12 +320,12 @@ export default function SessionResults() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+            transition={{ delay: 0.3 }}
           >
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Clock className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Decision Timeline</h2>
+                <h2 className="text-lg font-semibold">Línea de Decisiones</h2>
               </div>
               <ScrollArea className="h-96">
                 <div className="space-y-4 pr-4">
@@ -407,24 +336,19 @@ export default function SessionResults() {
                         <div className="absolute left-[5px] top-5 w-0.5 h-full bg-border" />
                       )}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline">Turn {turn.turnNumber}</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            Score: {turn.agentResponse.feedback.score}
-                          </span>
-                        </div>
+                        <Badge variant="outline">Decisión {turn.turnNumber}</Badge>
                         <div className="p-3 bg-muted/50 rounded-lg">
                           <p className="text-sm font-medium mb-1">
-                            Your Decision:
+                            Tu Decisión:
                           </p>
                           <p className="text-sm text-muted-foreground">
                             {turn.studentInput}
                           </p>
                         </div>
                         <div className="p-3 bg-card border rounded-lg">
-                          <p className="text-sm font-medium mb-1">Feedback:</p>
+                          <p className="text-sm font-medium mb-1">Consecuencia:</p>
                           <p className="text-sm text-muted-foreground">
-                            {turn.agentResponse.feedback.message}
+                            {turn.agentResponse.narrative?.text || turn.agentResponse.feedback?.message}
                           </p>
                         </div>
                       </div>
@@ -438,14 +362,14 @@ export default function SessionResults() {
 
         <div className="flex justify-center gap-4 pt-4">
           <Button variant="outline" onClick={() => navigate("/")}>
-            Return Home
+            Volver al Inicio
           </Button>
           {scenario && (
             <Button
               onClick={() => navigate(`/simulation/start/${scenario.id}`)}
               data-testid="button-try-again"
             >
-              Try Again
+              Intentar de Nuevo
             </Button>
           )}
         </div>
