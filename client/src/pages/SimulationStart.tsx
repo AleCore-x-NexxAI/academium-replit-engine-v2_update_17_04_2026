@@ -30,8 +30,8 @@ export default function SimulationStart() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       toast({
-        title: "Please sign in",
-        description: "You need to be signed in to start a simulation.",
+        title: "Por favor inicia sesión",
+        description: "Necesitas iniciar sesión para comenzar una simulación.",
         variant: "destructive",
       });
       setTimeout(() => {
@@ -43,8 +43,8 @@ export default function SimulationStart() {
   useEffect(() => {
     if (scenarioError && isUnauthorizedError(scenarioError as Error)) {
       toast({
-        title: "Session Expired",
-        description: "Please sign in again.",
+        title: "Sesión Expirada",
+        description: "Por favor inicia sesión nuevamente.",
         variant: "destructive",
       });
       setTimeout(() => {
@@ -66,8 +66,8 @@ export default function SimulationStart() {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({
-          title: "Session Expired",
-          description: "Please sign in again.",
+          title: "Sesión Expirada",
+          description: "Por favor inicia sesión nuevamente.",
           variant: "destructive",
         });
         setTimeout(() => {
@@ -77,7 +77,7 @@ export default function SimulationStart() {
       }
       toast({
         title: "Error",
-        description: "Failed to start simulation. Please try again.",
+        description: "No se pudo iniciar la simulación. Por favor intenta de nuevo.",
         variant: "destructive",
       });
     },
@@ -88,7 +88,7 @@ export default function SimulationStart() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading scenario...</p>
+          <p className="text-muted-foreground">Cargando escenario...</p>
         </div>
       </div>
     );
@@ -99,11 +99,11 @@ export default function SimulationStart() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Brain className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-xl font-semibold mb-2">Scenario Not Found</h2>
+          <h2 className="text-xl font-semibold mb-2">Escenario No Encontrado</h2>
           <p className="text-muted-foreground mb-6">
-            This scenario may have been deleted or is not available.
+            Este escenario puede haber sido eliminado o no está disponible.
           </p>
-          <Button onClick={() => navigate("/")}>Return Home</Button>
+          <Button onClick={() => navigate("/")}>Volver al Inicio</Button>
         </div>
       </div>
     );
@@ -147,10 +147,10 @@ export default function SimulationStart() {
                 <div className="w-10 h-10 rounded-lg bg-chart-1/10 text-chart-1 flex items-center justify-center">
                   <Target className="w-5 h-5" />
                 </div>
-                <h3 className="font-semibold">Your Role</h3>
+                <h3 className="font-semibold">Tu Rol</h3>
               </div>
               <p className="text-sm text-muted-foreground">
-                {scenario.initialState?.role || "Business Leader"}
+                {scenario.initialState?.role || "Líder de Negocios"}
               </p>
             </Card>
 
@@ -159,24 +159,24 @@ export default function SimulationStart() {
                 <div className="w-10 h-10 rounded-lg bg-chart-2/10 text-chart-2 flex items-center justify-center">
                   <Users className="w-5 h-5" />
                 </div>
-                <h3 className="font-semibold">Objective</h3>
+                <h3 className="font-semibold">Objetivo</h3>
               </div>
               <p className="text-sm text-muted-foreground">
                 {scenario.initialState?.objective ||
-                  "Navigate the business challenge and maintain key performance indicators."}
+                  "Navega el desafío empresarial y mantén los indicadores clave de desempeño."}
               </p>
             </Card>
           </div>
 
           <Card className="p-6 mb-12">
-            <h3 className="font-semibold mb-4">Starting Conditions</h3>
+            <h3 className="font-semibold mb-4">Condiciones Iniciales</h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {[
-                { label: "Revenue", value: `$${(scenario.initialState?.kpis?.revenue || 100000).toLocaleString()}` },
-                { label: "Team Morale", value: `${scenario.initialState?.kpis?.morale || 75}%` },
-                { label: "Reputation", value: `${scenario.initialState?.kpis?.reputation || 75}%` },
-                { label: "Efficiency", value: `${scenario.initialState?.kpis?.efficiency || 75}%` },
-                { label: "Trust", value: `${scenario.initialState?.kpis?.trust || 75}%` },
+                { label: "Moral del Equipo", value: `${scenario.initialState?.kpis?.morale || 75}%` },
+                { label: "Impacto Presupuestario", value: `${scenario.initialState?.kpis?.reputation || 75}%` },
+                { label: "Riesgo Operacional", value: `${scenario.initialState?.kpis?.efficiency || 75}%` },
+                { label: "Alineación Estratégica", value: `${scenario.initialState?.kpis?.trust || 75}%` },
+                { label: "Presión de Tiempo", value: `${scenario.initialState?.kpis?.revenue ? Math.round(scenario.initialState.kpis.revenue / 10000) : 50}%` },
               ].map((kpi) => (
                 <div key={kpi.label} className="text-center p-3 bg-muted/50 rounded-lg">
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
@@ -198,17 +198,17 @@ export default function SimulationStart() {
               {startMutation.isPending ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Starting...
+                  Iniciando...
                 </>
               ) : (
                 <>
                   <Play className="w-5 h-5 mr-2" />
-                  Begin Simulation
+                  Comenzar Simulación
                 </>
               )}
             </Button>
             <p className="text-sm text-muted-foreground mt-4">
-              Your decisions will affect the outcome. Think carefully.
+              Tus decisiones afectarán el resultado. Piensa cuidadosamente.
             </p>
           </div>
         </motion.div>
