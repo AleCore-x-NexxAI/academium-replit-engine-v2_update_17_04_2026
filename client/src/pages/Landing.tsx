@@ -25,7 +25,7 @@ export default function Landing() {
           </div>
           <Button asChild data-testid="button-login">
             <a href="/api/login">
-              Sign In
+              Iniciar Sesión
               <ArrowRight className="w-4 h-4 ml-2" />
             </a>
           </Button>
@@ -42,30 +42,30 @@ export default function Landing() {
             >
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
                 <Zap className="w-4 h-4" />
-                AI-Powered Business Simulations
+                Simulaciones de Negocios con IA
               </div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-                Learn to Lead Through
-                <span className="text-primary"> Real Decisions</span>
+                Aprende a Liderar con
+                <span className="text-primary"> Decisiones Reales</span>
               </h1>
 
               <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-                Experience immersive business scenarios powered by AI. Make critical
-                decisions, face real consequences, and develop leadership skills in
-                a safe environment.
+                Experimenta escenarios empresariales inmersivos impulsados por IA. Toma
+                decisiones críticas, enfrenta consecuencias reales y desarrolla
+                habilidades de liderazgo en un ambiente seguro.
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button size="lg" asChild data-testid="button-get-started">
                   <a href="/api/login">
                     <Play className="w-5 h-5 mr-2" />
-                    Start Your First Simulation
+                    Inicia Tu Primera Simulación
                   </a>
                 </Button>
                 <Button size="lg" variant="outline" data-testid="button-learn-more">
                   <GraduationCap className="w-5 h-5 mr-2" />
-                  For Educators
+                  Para Educadores
                 </Button>
               </div>
             </motion.div>
@@ -82,11 +82,11 @@ export default function Landing() {
               className="text-center mb-16"
             >
               <h2 className="text-3xl font-bold mb-4">
-                How SIMULEARN Works
+                Cómo Funciona SIMULEARN
               </h2>
               <p className="text-muted-foreground max-w-xl mx-auto">
-                Our multi-agent AI system creates dynamic, personalized learning
-                experiences that adapt to your decisions.
+                Nuestro sistema de IA multi-agente crea experiencias de aprendizaje
+                dinámicas y personalizadas que se adaptan a tus decisiones.
               </p>
             </motion.div>
 
@@ -94,21 +94,21 @@ export default function Landing() {
               {[
                 {
                   icon: <Target className="w-6 h-6" />,
-                  title: "Choose Your Scenario",
+                  title: "Elige Tu Escenario",
                   description:
-                    "Select from a library of business challenges: crisis management, team leadership, ethical dilemmas, and more.",
+                    "Selecciona de una biblioteca de desafíos empresariales: gestión de crisis, liderazgo de equipos, dilemas éticos y más.",
                 },
                 {
                   icon: <Brain className="w-6 h-6" />,
-                  title: "Make Decisions",
+                  title: "Toma Decisiones",
                   description:
-                    "Engage with realistic NPCs, analyze data, and make critical choices that shape the narrative.",
+                    "Interactúa con personajes realistas, analiza datos y toma decisiones críticas que dan forma a la narrativa.",
                 },
                 {
                   icon: <BarChart3 className="w-6 h-6" />,
-                  title: "Track Your Growth",
+                  title: "Mide Tu Progreso",
                   description:
-                    "Receive instant feedback, competency assessments, and track your development over time.",
+                    "Recibe retroalimentación instantánea, evaluaciones de competencias y realiza seguimiento de tu desarrollo.",
                 },
               ].map((feature, index) => (
                 <motion.div
@@ -142,20 +142,20 @@ export default function Landing() {
               className="text-center mb-16"
             >
               <h2 className="text-3xl font-bold mb-4">
-                Key Performance Indicators
+                Indicadores Clave de Desempeño
               </h2>
               <p className="text-muted-foreground max-w-xl mx-auto">
-                Every decision impacts five core metrics that determine your success.
+                Cada decisión impacta cinco métricas fundamentales que determinan tu éxito.
               </p>
             </motion.div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {[
-                { label: "Revenue", color: "bg-chart-1" },
-                { label: "Team Morale", color: "bg-chart-2" },
-                { label: "Reputation", color: "bg-chart-3" },
-                { label: "Efficiency", color: "bg-chart-4" },
-                { label: "Trust", color: "bg-chart-5" },
+                { label: "Moral del Equipo", color: "bg-chart-1" },
+                { label: "Impacto Presupuestario", color: "bg-chart-2" },
+                { label: "Riesgo Operacional", color: "bg-chart-3" },
+                { label: "Alineación Estratégica", color: "bg-chart-4" },
+                { label: "Presión de Tiempo", color: "bg-chart-5" },
               ].map((kpi, index) => (
                 <motion.div
                   key={index}
@@ -185,11 +185,12 @@ export default function Landing() {
             >
               <Users className="w-12 h-12 mx-auto mb-6 opacity-80" />
               <h2 className="text-3xl font-bold mb-4">
-                Ready to Transform Your Learning?
+                ¿Listo para Transformar Tu Aprendizaje?
               </h2>
               <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">
-                Join thousands of students and professionals developing real-world
-                leadership skills through immersive AI simulations.
+                Únete a miles de estudiantes y profesionales que desarrollan
+                habilidades de liderazgo del mundo real a través de simulaciones
+                inmersivas con IA.
               </p>
               <Button
                 size="lg"
@@ -198,7 +199,7 @@ export default function Landing() {
                 data-testid="button-start-now"
               >
                 <a href="/api/login">
-                  Get Started for Free
+                  Comenzar Gratis
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </a>
               </Button>
@@ -214,7 +215,7 @@ export default function Landing() {
             <span className="font-semibold">SIMULEARN</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            AI-powered experiential learning platform
+            Plataforma de aprendizaje experiencial impulsada por IA
           </p>
         </div>
       </footer>
