@@ -1,10 +1,20 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Brain, ArrowLeft, Loader2 } from "lucide-react";
+import { Brain, ArrowLeft, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { KPIDashboard } from "@/components/KPIDashboard";
 import { SimulationFeed } from "@/components/SimulationFeed";
 import { FeedbackPanel } from "@/components/FeedbackPanel";
@@ -29,6 +39,7 @@ export default function Simulation() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [previousKpis, setPreviousKpis] = useState<KPIs | undefined>();
+  const [showExitDialog, setShowExitDialog] = useState(false);
 
   const {
     history,
@@ -116,6 +127,34 @@ export default function Simulation() {
       resetStore();
     };
   }, [session?.id, initializeSession, resetStore]);
+
+  // Prevent accidental navigation away - warn about losing progress
+  useEffect(() => {
+    if (isGameOver) return; // Don't warn if simulation is complete
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Si sales ahora, perderás todo el progreso de esta simulación. ¿Estás seguro?";
+      return e.returnValue;
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isGameOver]);
+
+  // Handle back button click with confirmation
+  const handleBackClick = useCallback(() => {
+    if (isGameOver) {
+      navigate("/");
+    } else {
+      setShowExitDialog(true);
+    }
+  }, [isGameOver, navigate]);
+
+  const confirmExit = useCallback(() => {
+    setShowExitDialog(false);
+    navigate("/");
+  }, [navigate]);
 
   const submitMutation = useMutation({
     mutationFn: async (input: string) => {
@@ -225,7 +264,7 @@ export default function Simulation() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/")}
+            onClick={handleBackClick}
             data-testid="button-back-home"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -318,6 +357,35 @@ export default function Simulation() {
           />
         </motion.aside>
       </div>
+
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              ¿Salir de la simulación?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left">
+              Si sales ahora, <strong>perderás todo el progreso</strong> de esta simulación. 
+              En el mundo empresarial real, las decisiones no pueden deshacerse una vez tomadas.
+              <br /><br />
+              Esta simulación quedará marcada como abandonada y no podrás continuarla.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-exit">
+              Continuar simulación
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmExit}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-exit"
+            >
+              Salir y perder progreso
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
