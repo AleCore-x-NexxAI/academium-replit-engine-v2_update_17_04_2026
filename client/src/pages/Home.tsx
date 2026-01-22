@@ -128,31 +128,9 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
 }
 
 function SessionCard({ session }: { session: SimulationSession & { scenario?: Scenario } }) {
-  const statusConfig = {
-    active: { 
-      color: "bg-chart-2", 
-      label: "En Progreso",
-      action: "Continuar",
-      link: `/simulation/${session.id}`
-    },
-    completed: { 
-      color: "bg-chart-1", 
-      label: "Completada",
-      action: "Ver Resultados",
-      link: `/simulation/${session.id}/results`
-    },
-    abandoned: { 
-      color: "bg-muted", 
-      label: "Abandonada",
-      action: "Ver Detalles",
-      link: `/simulation/${session.id}/results`
-    },
-  };
-
-  const config = statusConfig[session.status];
-
+  // Only completed sessions are shown to students
   return (
-    <Link href={config.link}>
+    <Link href={`/simulation/${session.id}/results`}>
       <Card
         className="p-4 hover-elevate cursor-pointer"
         data-testid={`card-session-${session.id}`}
@@ -170,8 +148,8 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
                 {session.scenario?.title || "Simulation"}
               </h4>
               <Badge variant="secondary" className="text-xs shrink-0">
-                <div className={`w-2 h-2 rounded-full ${config.color} mr-1`} />
-                {config.label}
+                <div className="w-2 h-2 rounded-full bg-chart-1 mr-1" />
+                Completada
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -180,8 +158,7 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
           </div>
 
           <div className="flex items-center gap-1 text-sm text-primary font-medium shrink-0">
-            {session.status === "active" && <Play className="w-4 h-4" />}
-            {config.action}
+            Ver Resultados
             <ChevronRight className="w-4 h-4" />
           </div>
         </div>
@@ -225,9 +202,13 @@ export default function Home() {
     }
   }, [scenariosError, toast]);
 
-  const activeSessions = sessions?.filter((s) => s.status === "active") || [];
-  
   const effectiveRole = user?.viewingAs || user?.role || "student";
+  const isProfessorOrAdmin = effectiveRole === "professor" || effectiveRole === "admin";
+  
+  // For students: only show completed sessions (they can review results)
+  // For professors: show all sessions (for analytics)
+  const completedSessions = sessions?.filter((s) => s.status === "completed") || [];
+  // Professors also see abandoned sessions in analytics, but students don't see them
   const isProfessor = effectiveRole === "professor" || effectiveRole === "admin";
   const showRoleSwitcher = user?.isSuperAdmin || user?.role === "admin";
 
@@ -323,15 +304,15 @@ export default function Home() {
             Bienvenido/a, {user?.firstName || ""}
           </h1>
           <p className="text-muted-foreground">
-            Continúa tu experiencia de aprendizaje o inicia una nueva simulación.
+            Inicia una nueva simulación o revisa tus resultados anteriores.
           </p>
         </motion.div>
 
-        {activeSessions.length > 0 && (
+        {completedSessions.length > 0 && (
           <section className="mb-12">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">Simulaciones Activas</h2>
-              <Badge variant="secondary">{activeSessions.length} en progreso</Badge>
+              <h2 className="text-xl font-semibold">Mis Simulaciones Completadas</h2>
+              <Badge variant="secondary">{completedSessions.length} completadas</Badge>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -340,7 +321,7 @@ export default function Home() {
                   <Skeleton key={i} className="h-20 rounded-lg" />
                 ))
               ) : (
-                activeSessions.map((session) => (
+                completedSessions.map((session) => (
                   <SessionCard key={session.id} session={session} />
                 ))
               )}

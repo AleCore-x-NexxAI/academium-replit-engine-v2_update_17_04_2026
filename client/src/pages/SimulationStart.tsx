@@ -1,21 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Play, Brain, Target, Users, Clock, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { Play, Brain, Target, Users, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -24,8 +14,6 @@ import type { Scenario } from "@shared/schema";
 
 interface StartResponse {
   sessionId: string;
-  isResume?: boolean;
-  message?: string;
 }
 
 export default function SimulationStart() {
@@ -33,8 +21,6 @@ export default function SimulationStart() {
   const [, navigate] = useLocation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [showResumeDialog, setShowResumeDialog] = useState(false);
-  const [existingSessionId, setExistingSessionId] = useState<string | null>(null);
 
   const {
     data: scenario,
@@ -79,13 +65,7 @@ export default function SimulationStart() {
       return (await response.json()) as StartResponse;
     },
     onSuccess: (data) => {
-      if (data.isResume) {
-        // Show resume dialog
-        setExistingSessionId(data.sessionId);
-        setShowResumeDialog(true);
-      } else {
-        navigate(`/simulation/${data.sessionId}`);
-      }
+      navigate(`/simulation/${data.sessionId}`);
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
@@ -106,43 +86,6 @@ export default function SimulationStart() {
       });
     },
   });
-
-  // Abandon current session and start fresh
-  const abandonAndRestartMutation = useMutation({
-    mutationFn: async () => {
-      // First abandon the existing session
-      if (existingSessionId) {
-        await apiRequest("POST", `/api/simulations/${existingSessionId}/abandon`);
-      }
-      // Then create a new session
-      const response = await apiRequest("POST", "/api/simulations/start", {
-        scenarioId,
-      });
-      return (await response.json()) as StartResponse;
-    },
-    onSuccess: (data) => {
-      setShowResumeDialog(false);
-      navigate(`/simulation/${data.sessionId}`);
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "No se pudo reiniciar la simulación.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleResumeSession = () => {
-    setShowResumeDialog(false);
-    if (existingSessionId) {
-      navigate(`/simulation/${existingSessionId}`);
-    }
-  };
-
-  const handleStartFresh = () => {
-    abandonAndRestartMutation.mutate();
-  };
 
   if (authLoading || scenarioLoading) {
     return (
@@ -274,54 +217,6 @@ export default function SimulationStart() {
           </div>
         </motion.div>
       </main>
-
-      <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <RefreshCw className="w-5 h-5 text-primary" />
-              Sesión en progreso encontrada
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-left">
-              Ya tienes una simulación en curso para este escenario. 
-              <br /><br />
-              <strong>Continuar:</strong> Retoma donde lo dejaste con todo tu progreso guardado.
-              <br /><br />
-              <strong>Empezar de nuevo:</strong> Tu sesión anterior se marcará como abandonada y comenzarás desde cero.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel 
-              onClick={() => setShowResumeDialog(false)}
-              data-testid="button-cancel-resume"
-            >
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleStartFresh}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={abandonAndRestartMutation.isPending}
-              data-testid="button-start-fresh"
-            >
-              {abandonAndRestartMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Reiniciando...
-                </>
-              ) : (
-                "Empezar de nuevo"
-              )}
-            </AlertDialogAction>
-            <Button
-              onClick={handleResumeSession}
-              data-testid="button-resume-session"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Continuar sesión
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

@@ -379,17 +379,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ message: "Scenario not found" });
       }
 
-      // Check if user already has an active session for this scenario
-      const existingSession = await storage.getActiveSessionForScenario(userId, scenarioId);
-      if (existingSession) {
-        // Return the existing session with a flag indicating resume
-        return res.status(200).json({ 
-          sessionId: existingSession.id, 
-          initialState: existingSession.currentState,
-          isResume: true,
-          message: "Tienes una sesión en progreso para este escenario"
-        });
-      }
+      // No more "resume" flow - exiting always means abandonment
+      // Users can start new sessions anytime (previous sessions are either completed or abandoned)
 
       const initialHistory: HistoryEntry[] = [
         {
@@ -412,7 +403,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         status: "active",
       });
 
-      res.status(201).json({ sessionId: session.id, initialState: session.currentState, isResume: false });
+      res.status(201).json({ sessionId: session.id, initialState: session.currentState });
     } catch (error) {
       console.error("Error starting simulation:", error);
       res.status(500).json({ message: "Failed to start simulation" });

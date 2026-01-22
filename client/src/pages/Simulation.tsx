@@ -151,10 +151,16 @@ export default function Simulation() {
     }
   }, [isGameOver, navigate]);
 
-  const confirmExit = useCallback(() => {
+  const confirmExit = useCallback(async () => {
+    try {
+      // Abandon the session before navigating away
+      await apiRequest("POST", `/api/simulations/${sessionId}/abandon`);
+    } catch (error) {
+      console.error("Error abandoning session:", error);
+    }
     setShowExitDialog(false);
     navigate("/");
-  }, [navigate]);
+  }, [navigate, sessionId]);
 
   const submitMutation = useMutation({
     mutationFn: async (input: string) => {
