@@ -39,3 +39,21 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
 
 ### File Storage
 - **Google Cloud Storage**: Used for PDF case study uploads in the Authoring Studio, integrated via `@google-cloud/storage`.
+
+## Recent Changes
+
+### Session Memory & Retries (January 2026)
+- **Exit Confirmation**: When students try to navigate away from an active simulation, a confirmation dialog warns about losing progress. Uses browser `beforeunload` event for refresh/tab close.
+- **Session Resume Flow**: Backend checks for existing active sessions before creating new ones. If an active session exists for the same scenario, the frontend shows a dialog with options to: Resume, Start Fresh (abandons old session), or Cancel.
+- **Session Status Display**: Home page shows session status badges (En Progreso, Completada, Abandonada) with appropriate actions (Continuar, Ver Resultados).
+- **Abandon Endpoint**: `POST /api/simulations/:sessionId/abandon` marks sessions as abandoned so students can start fresh.
+
+### AI Guardrails (January 2026)
+- 8 HARD_PROHIBITIONS: AI never gives correct answers, never grades visibly, never optimizes for GPA, never reveals evaluation logic
+- MENTOR_TONE: Supportive professional mentor persona (not grader/teacher/judge)
+- MISUSE_HANDLING: De-escalation for trolling/profanity, maintains neutral academic tone
+
+### Weak Answer Feedback Loop (January 2026)
+- Students get up to 2 revision attempts for weak/incomplete answers before final acceptance
+- Revision prompts appear in InputConsole banner and FeedbackPanel
+- UI shows "Revisión X de 2" counter
