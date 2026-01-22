@@ -60,7 +60,7 @@ export default function ProfessorDashboard() {
       await apiRequest("DELETE", `/api/professor/scenarios/${scenarioId}`);
     },
     onSuccess: () => {
-      toast({ title: "Scenario deleted", description: "The scenario and all sessions have been removed." });
+      toast({ title: "Escenario eliminado", description: "El escenario y todas las sesiones han sido removidos." });
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios"] });
       setDeleteScenarioId(null);
     },
@@ -92,7 +92,7 @@ export default function ProfessorDashboard() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 text-destructive">
               <AlertTriangle className="w-5 h-5" />
-              <p>Failed to load scenarios. Please try again.</p>
+              <p>Error al cargar escenarios. Por favor intenta de nuevo.</p>
             </div>
           </CardContent>
         </Card>
@@ -177,15 +177,15 @@ export default function ProfessorDashboard() {
 
       {/* Scenarios List */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Your Scenarios</h2>
+        <h2 className="text-lg font-semibold">Tus Escenarios</h2>
         
         {!scenarios || scenarios.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center">
               <BookOpen className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-4">You haven't created any scenarios yet.</p>
+              <p className="text-muted-foreground mb-4">Aún no has creado ningún escenario.</p>
               <Link href="/studio">
-                <Button>Create Your First Scenario</Button>
+                <Button>Crear Tu Primer Escenario</Button>
               </Link>
             </CardContent>
           </Card>
@@ -203,7 +203,7 @@ export default function ProfessorDashboard() {
                     <div className="flex-1 min-w-0">
                       <CardTitle className="text-base truncate">{scenario.title}</CardTitle>
                       <CardDescription className="line-clamp-2 mt-1">
-                        {scenario.description || "No description"}
+                        {scenario.description || "Sin descripción"}
                       </CardDescription>
                     </div>
                     <DropdownMenu>
@@ -218,7 +218,7 @@ export default function ProfessorDashboard() {
                           setSelectedScenarioId(scenario.id);
                         }}>
                           <Eye className="w-4 h-4 mr-2" />
-                          View Sessions
+                          Ver Sesiones
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
@@ -229,7 +229,7 @@ export default function ProfessorDashboard() {
                           }}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Delete Scenario
+                          Eliminar Escenario
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -253,7 +253,7 @@ export default function ProfessorDashboard() {
                   </div>
                   <div className="flex items-center justify-end mt-4">
                     <Button variant="ghost" size="sm" className="text-primary">
-                      View Details
+                      Ver Detalles
                       <ChevronRight className="w-4 h-4 ml-1" />
                     </Button>
                   </div>
@@ -334,7 +334,7 @@ function SessionManagementPanel({ scenarioId, onClose }: { scenarioId: string; o
       await apiRequest("DELETE", `/api/professor/sessions/${sessionId}`);
     },
     onSuccess: () => {
-      toast({ title: "Session deleted", description: "Student has been removed from this simulation." });
+      toast({ title: "Sesión eliminada", description: "El estudiante ha sido removido de esta simulación." });
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios", scenarioId, "sessions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios"] });
       setDeleteSessionId(null);
@@ -554,11 +554,11 @@ function ConversationViewer({ sessionId, onClose }: { sessionId: string; onClose
       <div className="fixed inset-4 md:inset-10 bg-background rounded-lg border shadow-2xl overflow-hidden flex flex-col">
         <div className="border-b p-4 flex items-center justify-between">
           <div>
-            <h2 className="font-semibold">Conversation History</h2>
+            <h2 className="font-semibold">Historial de Conversación</h2>
             <p className="text-sm text-muted-foreground">
               {data?.session?.user?.firstName && data?.session?.user?.lastName 
                 ? `${data.session.user.firstName} ${data.session.user.lastName}`
-                : data?.session?.user?.email || "Student"}
+                : data?.session?.user?.email || "Estudiante"}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-conversation">
@@ -589,7 +589,7 @@ function ConversationViewer({ sessionId, onClose }: { sessionId: string; onClose
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <Badge variant="outline" className="text-xs">
-                      {entry.role === "user" ? "Student" : entry.role === "npc" ? entry.speaker || "NPC" : "System"}
+                      {entry.role === "user" ? "Estudiante" : entry.role === "npc" ? entry.speaker || "NPC" : "Sistema"}
                     </Badge>
                   </div>
                   <p className="text-sm whitespace-pre-wrap">{entry.content}</p>

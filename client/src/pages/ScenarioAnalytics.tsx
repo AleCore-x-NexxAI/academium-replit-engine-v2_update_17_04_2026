@@ -172,10 +172,10 @@ export default function ScenarioAnalytics() {
     onSuccess: () => {
       refetchSessions();
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios"] });
-      toast({ title: "Session status updated" });
+      toast({ title: "Estado de sesión actualizado" });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to update status", description: error.message, variant: "destructive" });
+      toast({ title: "Error al actualizar estado", description: error.message, variant: "destructive" });
     },
   });
 
@@ -186,16 +186,16 @@ export default function ScenarioAnalytics() {
     onSuccess: () => {
       refetchSessions();
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios"] });
-      toast({ title: "Session deleted" });
+      toast({ title: "Sesión eliminada" });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to delete session", description: error.message, variant: "destructive" });
+      toast({ title: "Error al eliminar sesión", description: error.message, variant: "destructive" });
     },
   });
 
   useEffect(() => {
     if (scenarioError && isUnauthorizedError(scenarioError as Error)) {
-      toast({ title: "Session Expired", description: "Please sign in again.", variant: "destructive" });
+      toast({ title: "Sesión expirada", description: "Por favor inicia sesión de nuevo.", variant: "destructive" });
       setTimeout(() => { window.location.href = "/api/login"; }, 500);
     }
   }, [scenarioError, toast]);
@@ -249,7 +249,7 @@ export default function ScenarioAnalytics() {
               </Link>
             </Button>
             <div>
-              <h1 className="text-xl font-semibold">{scenario?.title || "Scenario Analytics"}</h1>
+              <h1 className="text-xl font-semibold">{scenario?.title || "Análisis de Escenario"}</h1>
               <p className="text-sm text-muted-foreground">{scenario?.domain}</p>
             </div>
           </div>
@@ -400,7 +400,7 @@ export default function ScenarioAnalytics() {
                             variant="ghost"
                             size="icon"
                             onClick={() => {
-                              if (confirm("Delete this session permanently?")) {
+                              if (confirm("¿Eliminar esta sesión permanentemente?")) {
                                 deleteSessionMutation.mutate(session.id);
                               }
                             }}
