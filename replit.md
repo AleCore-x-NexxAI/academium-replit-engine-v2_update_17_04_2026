@@ -42,11 +42,11 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
 
 ## Recent Changes
 
-### Session Memory & Retries (January 2026)
-- **Exit Confirmation**: When students try to navigate away from an active simulation, a confirmation dialog warns about losing progress. Uses browser `beforeunload` event for refresh/tab close.
-- **Session Resume Flow**: Backend checks for existing active sessions before creating new ones. If an active session exists for the same scenario, the frontend shows a dialog with options to: Resume, Start Fresh (abandons old session), or Cancel.
-- **Session Status Display**: Home page shows session status badges (En Progreso, Completada, Abandonada) with appropriate actions (Continuar, Ver Resultados).
-- **Abandon Endpoint**: `POST /api/simulations/:sessionId/abandon` marks sessions as abandoned so students can start fresh.
+### Session Management & Exit Flow (January 2026)
+- **Exit = Immediate Abandonment**: Clicking "Salir y perder progreso" immediately abandons the session via POST `/api/simulations/:sessionId/abandon`. No resume functionality exists - exiting always means permanent loss of progress.
+- **Exit Confirmation Dialog**: Warning dialog appears with "Salir y perder progreso" and "Continuar simulación" options. Browser `beforeunload` event warns about refresh/tab close.
+- **Student Home Page**: Only shows completed sessions in "Mis Simulaciones Completadas" section. Abandoned sessions are hidden from students but retained in database for professor analytics.
+- **Session States**: `active` (in progress), `completed` (finished all decisions), `abandoned` (user exited early). Students can start new simulations anytime without blocking.
 
 ### AI Guardrails (January 2026)
 - 8 HARD_PROHIBITIONS: AI never gives correct answers, never grades visibly, never optimizes for GPA, never reveals evaluation logic
