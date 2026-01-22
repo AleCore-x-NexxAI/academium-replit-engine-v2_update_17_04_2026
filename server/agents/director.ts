@@ -5,7 +5,7 @@ import { calculateKPIImpact } from "./domainExpert";
 import { generateNarrative } from "./narrator";
 import { evaluateDepth } from "./depthEvaluator";
 import { generateChatCompletion, SupportedModel } from "../openai";
-import { HARD_PROHIBITIONS, MENTOR_TONE } from "./guardrails";
+import { HARD_PROHIBITIONS, MENTOR_TONE, MISUSE_HANDLING } from "./guardrails";
 
 const MAX_REVISIONS = 2;
 
@@ -14,6 +14,8 @@ export const DEFAULT_DIRECTOR_PROMPT = `Eres un INTÉRPRETE DE INTENCIÓN para u
 ${HARD_PROHIBITIONS}
 
 ${MENTOR_TONE}
+
+${MISUSE_HANDLING}
 
 TU MISIÓN CRÍTICA: Aceptar e interpretar virtualmente CUALQUIER COSA que el estudiante diga como una decisión o acción válida dentro del contexto de la simulación. NO eres un guardián - eres un intérprete creativo.
 

@@ -1,12 +1,14 @@
 import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, DepthEvaluatorOutput } from "./types";
-import { HARD_PROHIBITIONS, MENTOR_TONE } from "./guardrails";
+import { HARD_PROHIBITIONS, MENTOR_TONE, MISUSE_HANDLING } from "./guardrails";
 
 export const DEFAULT_DEPTH_EVALUATOR_PROMPT = `Eres un EVALUADOR DE PROFUNDIDAD para SIMULEARN, una plataforma de entrenamiento en toma de decisiones.
 
 ${HARD_PROHIBITIONS}
 
 ${MENTOR_TONE}
+
+${MISUSE_HANDLING}
 
 TU MISIÓN: Determinar si la respuesta del estudiante es lo suficientemente profunda como para proceder, o si necesita más reflexión antes de ver las consecuencias.
 
