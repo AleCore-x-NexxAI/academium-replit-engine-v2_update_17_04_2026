@@ -139,9 +139,6 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
       })
     : null;
 
-  // Get the overall score if available
-  const overallScore = session.scoreSummary?.overallScore;
-  
   return (
     <Link href={`/simulation/${session.id}/results`}>
       <Card
@@ -160,18 +157,10 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
               <h4 className="font-medium truncate mb-1">
                 {session.scenario?.title || "Simulación"}
               </h4>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="secondary" className="text-xs">
-                  <CheckCircle2 className="w-3 h-3 mr-1" />
-                  Completada
-                </Badge>
-                {overallScore !== undefined && (
-                  <Badge variant="outline" className="text-xs">
-                    <Target className="w-3 h-3 mr-1" />
-                    {Math.round(overallScore)}%
-                  </Badge>
-                )}
-              </div>
+              <Badge variant="secondary" className="text-xs">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                Completada
+              </Badge>
             </div>
           </div>
 
