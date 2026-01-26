@@ -19,13 +19,12 @@ const POC_SCENARIO = {
       efficiency: 65,
       trust: 80,
     },
-    indicators: {
-      teamMorale: 70,
-      budgetImpact: 0,
-      operationalRisk: 50,
-      strategicAlignment: 75,
-      timePressure: 80,
-    },
+    indicators: [
+      { id: "teamMorale", label: "Moral del Equipo", value: 70, description: "Nivel de motivación y compromiso del equipo" },
+      { id: "budgetImpact", label: "Impacto Presupuestario", value: 50, description: "Estado del presupuesto disponible" },
+      { id: "operationalRisk", label: "Riesgo Operacional", value: 50, description: "Nivel de riesgo en operaciones" },
+      { id: "strategicFlexibility", label: "Flexibilidad Estratégica", value: 60, description: "Capacidad de adaptación estratégica" },
+    ],
     totalDecisions: 3,
     decisionPoints: [
       {

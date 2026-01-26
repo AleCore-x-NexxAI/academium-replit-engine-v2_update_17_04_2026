@@ -48,16 +48,14 @@ const INDICATOR_ICONS: Record<string, React.ElementType> = {
   teamMorale: Users,
   budgetImpact: DollarSign,
   operationalRisk: AlertTriangle,
-  strategicAlignment: Target,
-  timePressure: Clock,
+  strategicFlexibility: Target,
 };
 
 const INDICATOR_LABELS: Record<string, string> = {
   teamMorale: "Moral del Equipo",
   budgetImpact: "Impacto Presupuestario",
   operationalRisk: "Riesgo Operacional",
-  strategicAlignment: "Alineación Estratégica",
-  timePressure: "Presión de Tiempo",
+  strategicFlexibility: "Flexibilidad Estratégica",
 };
 
 function formatKpiValue(key: string, value: number): string {

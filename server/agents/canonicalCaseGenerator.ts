@@ -89,15 +89,17 @@ SECCIÓN 6 - REFLEXIÓN (Ligera):
   * "¿Qué explorarías diferente la próxima vez?"
 - NO reflexiones largas, NO ensayos
 
-=== INDICADORES DEL SISTEMA (5 INDICADORES POC) ===
+=== INDICADORES DEL SISTEMA (4 INDICADORES POC) ===
 Los indicadores deben reflejar:
-1. Moral del equipo (teamMorale)
-2. Impacto presupuestario (budgetImpact)
-3. Riesgo operacional (operationalRisk)
-4. Flexibilidad estratégica (strategicFlexibility)
-5. Confianza de stakeholders (stakeholderTrust)
+1. Moral del equipo (teamMorale) - Estado emocional y compromiso del equipo
+2. Impacto presupuestario (budgetImpact) - Salud financiera y disponibilidad de recursos
+3. Riesgo operacional (operationalRisk) - Nivel de incertidumbre/peligro operativo
+4. Flexibilidad estratégica (strategicFlexibility) - Capacidad de adaptación y opciones estratégicas
 
-REGLA: Cada decisión DEBE cambiar al menos un indicador NEGATIVAMENTE (costo de oportunidad).
+⚠️ REGLA CRÍTICA DE COSTO DE OPORTUNIDAD:
+Cada decisión DEBE cambiar AL MENOS UN indicador NEGATIVAMENTE.
+- No existen decisiones "perfectas" sin consecuencias
+- Toda elección implica renunciar a algo
 
 === TONO DE CONSECUENCIAS Y RETROALIMENTACIÓN ===
 - Alentador
@@ -142,8 +144,7 @@ REGLA: Cada decisión DEBE cambiar al menos un indicador NEGATIVAMENTE (costo de
     { "id": "teamMorale", "label": "Moral del Equipo", "value": 65, "description": "..." },
     { "id": "budgetImpact", "label": "Impacto Presupuestario", "value": 70, "description": "..." },
     { "id": "operationalRisk", "label": "Riesgo Operacional", "value": 50, "description": "..." },
-    { "id": "strategicFlexibility", "label": "Flexibilidad Estratégica", "value": 60, "description": "..." },
-    { "id": "stakeholderTrust", "label": "Confianza de Stakeholders", "value": 75, "description": "..." }
+    { "id": "strategicFlexibility", "label": "Flexibilidad Estratégica", "value": 60, "description": "..." }
   ],
   "role": "Rol específico del jugador",
   "objective": "Objetivo claro de la misión",
@@ -212,7 +213,6 @@ Recuerda: 3 puntos de decisión exactamente, sin respuestas correctas, tono de m
     { id: "budgetImpact", label: "Impacto Presupuestario", value: 70, description: "Estado del presupuesto disponible" },
     { id: "operationalRisk", label: "Riesgo Operacional", value: 50, description: "Nivel de riesgo en operaciones" },
     { id: "strategicFlexibility", label: "Flexibilidad Estratégica", value: 60, description: "Capacidad de adaptación estratégica" },
-    { id: "stakeholderTrust", label: "Confianza de Stakeholders", value: 75, description: "Nivel de confianza de las partes interesadas" },
   ];
 
   const decisionPoints: DecisionPoint[] = (parsed.decisionPoints || []).map((dp: any, index: number) => ({
@@ -236,7 +236,7 @@ Recuerda: 3 puntos de decisión exactamente, sin respuestas correctas, tono de m
     });
   }
 
-  const indicators: Indicator[] = (parsed.indicators || []).length >= 5 
+  const indicators: Indicator[] = (parsed.indicators || []).length >= 4 
     ? parsed.indicators.map((ind: any) => ({
         id: ind.id || "indicator",
         label: ind.label || "Indicador",

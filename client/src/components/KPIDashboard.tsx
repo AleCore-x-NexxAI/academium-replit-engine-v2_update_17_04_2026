@@ -42,15 +42,10 @@ const indicatorExplanations: Record<string, IndicatorInfo> = {
     upMeaning: "El riesgo ha aumentado - hay más posibilidad de problemas técnicos o fallos operativos.",
     downMeaning: "El riesgo ha disminuido - las decisiones han estabilizado la operación.",
   },
-  strategicAlignment: {
-    description: "Mide qué tan alineadas están las decisiones con los objetivos estratégicos de la organización.",
-    upMeaning: "Las decisiones apoyan mejor la visión y objetivos de largo plazo de la empresa.",
-    downMeaning: "Las decisiones pueden estar desviándose de los objetivos estratégicos principales.",
-  },
-  timePressure: {
-    description: "Representa la urgencia y presión temporal sobre el proyecto y sus entregables.",
-    upMeaning: "La presión de tiempo ha aumentado - hay más urgencia para cumplir plazos.",
-    downMeaning: "Se ha ganado tiempo o reducido la urgencia de los entregables.",
+  strategicFlexibility: {
+    description: "Mide la capacidad de adaptación y las opciones estratégicas disponibles para la organización.",
+    upMeaning: "Las decisiones han abierto nuevas opciones y aumentado la capacidad de adaptación.",
+    downMeaning: "Las decisiones han reducido opciones futuras o comprometido la capacidad de adaptación.",
   },
 };
 
@@ -233,16 +228,14 @@ const indicatorIcons: Record<string, React.ReactNode> = {
   teamMorale: <Users className="w-4 h-4" />,
   budgetImpact: <DollarSign className="w-4 h-4" />,
   operationalRisk: <AlertTriangle className="w-4 h-4" />,
-  strategicAlignment: <Target className="w-4 h-4" />,
-  timePressure: <Clock className="w-4 h-4" />,
+  strategicFlexibility: <Target className="w-4 h-4" />,
 };
 
 const indicatorColors: Record<string, string> = {
   teamMorale: "bg-chart-2/10 text-chart-2",
   budgetImpact: "bg-chart-1/10 text-chart-1",
   operationalRisk: "bg-chart-5/10 text-chart-5",
-  strategicAlignment: "bg-chart-3/10 text-chart-3",
-  timePressure: "bg-chart-4/10 text-chart-4",
+  strategicFlexibility: "bg-chart-3/10 text-chart-3",
 };
 
 export function KPIDashboard({

@@ -14,7 +14,7 @@ REGLAS CRÍTICAS:
 - NUNCA hagas juicios arbitrarios - cada impacto debe ser explicable
 - Eres un EXPERTO, no un juez - explica causa y efecto, no "bueno" o "malo"
 
-LOS 5 INDICADORES POC (ajusta impactos según el contexto del escenario):
+LOS 4 INDICADORES POC (ajusta impactos según el contexto del escenario):
 1. **teamMorale** (0-100) - Estado emocional y compromiso del equipo
    - Afectado por: carga de trabajo, reconocimiento, decisiones de liderazgo, justicia
    - Base del mundo real: Estudios de satisfacción de empleados, psicología organizacional
@@ -27,19 +27,21 @@ LOS 5 INDICADORES POC (ajusta impactos según el contexto del escenario):
    - Afectado por: cambios de procesos, problemas de cumplimiento, desafíos de ejecución
    - Base del mundo real: Marcos de gestión de riesgos, estándares de excelencia operativa
 
-4. **strategicAlignment** (0-100) - Qué tan bien las decisiones se alinean con los objetivos organizacionales
-   - Afectado por: consistencia de decisiones, pensamiento a largo plazo, alineación de stakeholders
-   - Base del mundo real: Teoría de gestión estratégica, gobierno corporativo
-
-5. **timePressure** (0-100) - Urgencia y estrés por fechas límite
-   - Afectado por: decisiones de cronograma, cambios de alcance, asignación de recursos
-   - Base del mundo real: Principios de gestión de proyectos, dinámicas de tiempo al mercado
+4. **strategicFlexibility** (0-100) - Capacidad de adaptación y opciones estratégicas disponibles
+   - Afectado por: decisiones que abren o cierran opciones futuras, rigidez vs. adaptabilidad
+   - Base del mundo real: Teoría de opciones reales, agilidad estratégica, gestión de la incertidumbre
 
 PRINCIPIOS DE CÁLCULO DE IMPACTO:
 1. **Causalidad Lógica**: Cada impacto debe tener sentido en el mundo real
 2. **Los Intercambios Son Reales**: Las buenas decisiones también tienen costos
 3. **Respuesta Proporcional**: Ajusta el impacto a la severidad de la decisión (±2-5 menor, ±5-12 significativo, ±10-25 mayor)
 4. **Fundamenta Tu Razonamiento**: Explica POR QUÉ basándote en conocimiento empresarial/industrial
+
+REGLA CRÍTICA DE COSTO DE OPORTUNIDAD:
+⚠️ CADA decisión DEBE cambiar AL MENOS UN indicador NEGATIVAMENTE.
+- No existen decisiones "perfectas" sin consecuencias
+- Toda elección implica renunciar a algo (costo de oportunidad)
+- Si una decisión mejora un área, debe perjudicar otra (aunque sea levemente)
 
 IMPORTANTE: El razonamiento y el insight de experto SIEMPRE deben estar en ESPAÑOL de Latinoamérica.
 
@@ -49,8 +51,7 @@ FORMATO DE SALIDA (solo JSON estricto):
     "teamMorale": <número -25 a +25>,
     "budgetImpact": <número -25 a +25>,
     "operationalRisk": <número -25 a +25>,
-    "strategicAlignment": <número -25 a +25>,
-    "timePressure": <número -25 a +25>
+    "strategicFlexibility": <número -25 a +25>
   },
   "reasoning": "<2-3 oraciones en español explicando POR QUÉ ocurren estos cambios, con justificación del mundo real>",
   "expertInsight": "<1-2 oraciones en español de contexto de experiencia del dominio - lo que un profesional real sabría sobre esta situación>"
@@ -59,8 +60,8 @@ FORMATO DE SALIDA (solo JSON estricto):
 EJEMPLO:
 Decisión: "Retrasar el lanzamiento del producto 2 semanas para corregir problemas de calidad"
 {
-  "indicatorDeltas": {"teamMorale": 5, "budgetImpact": -8, "operationalRisk": -15, "strategicAlignment": 10, "timePressure": -10},
-  "reasoning": "Los retrasos enfocados en calidad típicamente reducen el riesgo operativo significativamente (basado en post-mortems de la industria de software que muestran 3x el costo de corregir problemas después del lanzamiento). El presupuesto se ve afectado por los costos extendidos de desarrollo, pero la moral del equipo mejora cuando se prioriza la calidad sobre la prisa.",
+  "indicatorDeltas": {"teamMorale": 5, "budgetImpact": -8, "operationalRisk": -15, "strategicFlexibility": -5},
+  "reasoning": "Los retrasos enfocados en calidad típicamente reducen el riesgo operativo significativamente (basado en post-mortems de la industria de software que muestran 3x el costo de corregir problemas después del lanzamiento). El presupuesto se ve afectado por los costos extendidos de desarrollo. La flexibilidad estratégica se reduce levemente al comprometer recursos adicionales, pero la moral del equipo mejora cuando se prioriza la calidad sobre la prisa.",
   "expertInsight": "En gestión de productos, la 'regla 1-10-100' sugiere que corregir un defecto en diseño cuesta $1, en desarrollo $10, y post-lanzamiento $100. Esta decisión sigue principios establecidos de gestión de calidad."
 }`;
 
@@ -86,7 +87,7 @@ export async function calculateKPIImpact(context: AgentContext): Promise<DomainE
 
   const currentIndicators = context.indicators
     ? `CURRENT INDICATORS:\n${context.indicators.map(i => `- ${i.label}: ${i.value}`).join("\n")}`
-    : `CURRENT INDICATORS:\n- Team Morale: ${context.currentKpis.morale}\n- Budget Impact: 50\n- Operational Risk: 50\n- Strategic Alignment: 50\n- Time Pressure: 50`;
+    : `CURRENT INDICATORS:\n- Team Morale: ${context.currentKpis.morale}\n- Budget Impact: 50\n- Operational Risk: 50\n- Strategic Flexibility: 50`;
 
   const userPrompt = `
 SIMULATION CONTEXT:
@@ -128,9 +129,9 @@ Return ONLY valid JSON matching the specified format.`;
     const kpiDeltas = {
       revenue: indicatorDeltas.budgetImpact ? indicatorDeltas.budgetImpact * 1000 : 0,
       morale: indicatorDeltas.teamMorale || 0,
-      reputation: indicatorDeltas.strategicAlignment || 0,
+      reputation: indicatorDeltas.strategicFlexibility || 0,
       efficiency: -(indicatorDeltas.operationalRisk || 0),
-      trust: indicatorDeltas.strategicAlignment || 0,
+      trust: indicatorDeltas.strategicFlexibility || 0,
     };
 
     return {
