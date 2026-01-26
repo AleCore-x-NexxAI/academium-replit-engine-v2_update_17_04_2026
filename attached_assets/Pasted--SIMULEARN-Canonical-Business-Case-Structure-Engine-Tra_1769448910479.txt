@@ -1,0 +1,228 @@
+
+
+
+
+
+
+SIMULEARN
+Canonical Business Case Structure
+(Engine Training & Case Authoring Packet – POC v1)
+
+
+
+
+
+
+
+
+
+
+
+
+PURPOSE OF THIS DOCUMENT
+This document defines the canonical structure for all SimuLearn business cases used in the February POC.
+Its purpose is to ensure that:
+All cases feel academically legitimate
+All cases feel real-world and immersive
+The AI engine behaves consistently and safely
+Professors maintain full pedagogical control
+Students engage in applied reasoning, not answer-hunting
+This structure is mandatory for POC cases.
+
+OVERALL CASE CONSTRAINTS (LOCKED)
+Target discipline: Business
+Target level: Undergraduate
+Case duration: 20–25 minutes total
+Decision points: 3 (max 4 only if explicitly justified)
+Language: Spanish
+Assessment status: Non-graded (POC only)
+Primary objective:
+Flow & completion
+Authentic decision-making experience
+⚠️ Depth of decision quality is secondary in the POC, not ignored.
+
+SECTION 1 — CASE CONTEXT (NARRATIVE SETUP)
+Objective
+Place the student inside a realistic business situation with enough context to make decisions meaningful — without turning the case into an essay or story.
+Rules (LOCKED)
+Length: 120–180 words
+Tone: Professional, neutral, real-world
+Narrative is functional, not literary
+Every sentence must support decision-making
+Must Include
+Organization type (company, startup, division, etc.)
+Student role (explicit authority level)
+Current situation or pressure
+Time constraint or urgency
+Clear reason why decisions matter now
+Must NOT Include
+Emotional storytelling
+Character arcs
+Historical overviews
+Academic theory explanations
+Hidden “correct” clues
+Engine Instruction
+Narrative context is permitted only to establish realism and immersion.
+ It must never introduce information that does not directly affect decisions.
+
+SECTION 2 — CORE BUSINESS CHALLENGE
+Objective
+Define the central problem the organization is facing.
+Rules (LOCKED)
+Single primary challenge
+Clearly constrained (budget, time, resources, uncertainty)
+No jargon-heavy framing
+No implied “correct” direction
+Must Include
+What is at risk
+What cannot be changed
+What is uncertain
+What success might look like (without defining it)
+Engine Instruction
+The problem statement frames tension, not solutions.
+
+SECTION 3 — DECISION POINT 1 (ORIENTATION DECISION)
+Objective
+Introduce the student to the simulation mechanics while establishing agency.
+Format (LOCKED FOR POC)
+Multiple choice
+3–4 options
+Each option represents a strategic posture, not a solution
+Critical Rule (VERY IMPORTANT)
+There is no correct or incorrect option.
+Each option must:
+Be defensible
+Have logical rationale
+Lead to different downstream consequences
+Example Framing (Conceptual)
+Option A: Prioritize short-term stability
+Option B: Invest in long-term capability
+Option C: Balance risk conservatively
+Engine Instruction
+Multiple-choice options must never be evaluated as right or wrong — only as directional paths.
+
+SECTION 4 — CONSEQUENCES & FEEDBACK (AFTER DECISION 1)
+Objective
+Show the impact of the decision in a realistic, non-judgmental way.
+Consequence Types (LOCKED)
+Narrative consequence
+What happens next in the organization
+System indicators (visual or textual)
+Budget (↑ / ↓ / stable)
+Team morale
+Operational risk
+Strategic flexibility
+⚠️ Every decision must change at least one indicator negatively (opportunity cost).
+Tone Rules
+Encouraging
+Mentorship-oriented
+Never evaluative
+Never corrective
+Prohibited Language
+“Correct”
+“Wrong”
+“Best”
+“Optimal”
+“You should have…”
+
+SECTION 5 — DECISION POINT 2 (ANALYTICAL DECISION)
+Objective
+Move from orientation into reasoned judgment.
+Format (LOCKED)
+Short written justification (5–7 lines)
+Open-ended
+No word-count pressure
+Prompt Design Rules
+Ask how and why
+Never ask what is the right answer
+Encourage consideration of trade-offs
+Engine Behavior
+If response is weak or vague:
+Ask clarifying questions
+Highlight missing considerations
+Offer alternative perspectives (not answers)
+
+SECTION 6 — CONSEQUENCES & FEEDBACK (AFTER DECISION 2)
+Objective
+Deepen realism and complexity.
+Required Elements
+Compounded effects from Decision 1
+Stakeholder reactions (management, team, customers, etc.)
+Emerging tensions or unintended consequences
+Ethics Rule (LOCKED)
+Ethics must emerge implicitly, never as a direct question.
+
+SECTION 7 — DECISION POINT 3 (INTEGRATIVE DECISION)
+Objective
+Force synthesis of:
+Information
+Trade-offs
+Prior consequences
+Format (LOCKED)
+Short written justification
+Focus on integration, not creativity for its own sake
+Design Constraint
+Decision must feel consequential
+No “perfect balance” outcomes
+Realistic ambiguity is encouraged
+
+SECTION 8 — FINAL OUTCOME & RESOLUTION
+Objective
+Provide closure and meaning, not judgment.
+Must Include
+Trajectory summary
+Where the organization stands now
+Sense of accomplishment
+Something was achieved
+Progress occurred
+Open-ended future
+Trade-offs remain
+Real life continues
+Tone
+Respectful
+Grounded
+Encouraging
+Never graded
+Engine Instruction
+The final outcome must acknowledge effort and impact without evaluating correctness or performance.
+
+SECTION 9 — REFLECTION (LIGHTWEIGHT)
+Objective
+Encourage metacognition without burden.
+Format (LOCKED)
+1 optional prompt
+Example:
+“What factor most influenced your decisions?”
+“What would you explore differently next time?”
+⚠️ No long reflections. No essays.
+
+HARD PROHIBITIONS (ENGINE SAFETY RULES)
+The engine must never:
+Reveal a “correct” answer
+Optimize for GPA or grades
+Mimic professor preferences
+Respond with profanity
+Engage in inappropriate humor
+Mirror student misuse or bad behavior
+The engine must always:
+Maintain academic tone
+Redirect inappropriate input professionally
+Preserve institutional trust
+
+DATA & MEMORY RULES (POC)
+Student identity may be stored (name)
+Decision path may be stored
+Exact textual answers should not be reused
+No cross-student leakage
+No long-term profiling (POC)
+
+VERSIONING NOTE (IMPORTANT)
+This structure is:
+LOCKED for POC v1
+Subject to refinement in:
+v2 (decision depth)
+v3 (competency mapping, grading, analytics)
+Any future changes must be:
+Explicitly documented
+Version-tagged
+Backward-compatible where possible
