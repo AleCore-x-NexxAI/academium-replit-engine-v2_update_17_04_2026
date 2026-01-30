@@ -70,3 +70,19 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
   - GET `/api/professor/scenarios/:id/sessions` - List all sessions for a scenario  
   - GET `/api/professor/scenarios/:id/themes` - Aggregated keyword themes from responses
   - GET `/api/professor/sessions/:id/conversation` - Full decision history for a session
+
+### Professor First-Time Flow UX (January 2026)
+- **Home Page Redesign**: Professors see a calm landing page supporting their emotional journey:
+  1. Curiosity – "What is this?" → Hero tagline + visual simulation preview
+  2. Safety – "Can I explore without breaking anything?" → Safety message at bottom
+  3. Control – "I decide how to use this." → Two equal paths (AI/Manual) in Create card
+  4. Confidence – "I can do this alone if needed." → Help card without shame
+- **First Screen Shows ONLY**:
+  - Calm hero section with tagline "Aprendizaje experiencial para tus estudiantes"
+  - Three action cards: Explorar un Ejemplo, Crear Simulación, ¿Quieres saber más?
+  - Visual previews in cards (simulation mockup, AI/Manual icons, FAQ hints)
+  - Safety message: "Explora libremente. Nada aquí es permanente."
+- **First Screen Does NOT Show**: Dashboards, metrics, scenario grids, completed sessions, "Crear Escenario" buttons
+- **ExploreExample Page** (`/explore`): Read-only preview of POC simulation showing decision structure, aligned to canonical "Crisis de Lanzamiento de Producto" scenario
+- **Simplified Header**: Only "Mis Simulaciones" link (goes to /professor), avatar, and logout
+- **Dashboard Access**: Scenario lists and stats are on /professor page, not home page
