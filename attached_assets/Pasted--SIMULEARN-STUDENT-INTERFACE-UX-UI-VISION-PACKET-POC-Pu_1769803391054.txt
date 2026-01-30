@@ -1,0 +1,193 @@
+
+
+
+
+SIMULEARN — STUDENT INTERFACE UX/UI VISION PACKET (POC)
+
+
+
+
+
+
+
+
+
+Purpose: Align product vision, student psychology, and interaction logic
+ Scope: Student-facing only (POC)
+ Explicitly excluded (for now): Student case creation, grading logic, analytics depth
+
+1. STUDENT CORE MENTAL MODEL (NON-NEGOTIABLE)
+When a student logs in, they must immediately understand:
+“This is a decision-based simulation, not a quiz, not a lesson, not a chatbot.”
+They should feel:
+Safe to experiment
+Curious, not judged
+In control, but not hand-held
+Consequences exist, but learning > correctness
+Students should NEVER feel:
+Rushed
+Scored in real time
+Punished for “wrong” thinking
+Lost about what the situation is
+
+2. STUDENT ENTRY SCREEN (DASHBOARD)
+Purpose of this screen
+Reduce friction
+Reinforce that simulations are ongoing experiences, not one-off tasks
+Make re-entry effortless
+Required Elements (Conceptual)
+Active Simulations
+Shows progress (“Turn X”, “In progress”)
+Signals continuity
+Available Scenarios
+Clear scenario cards
+One-sentence ethical/strategic tension
+Category tag (Ethics / Strategy / Crisis)
+What this screen should implicitly communicate
+“You are stepping into a role”
+“Each scenario is a world, not a question”
+“You can pause and return”
+What must NOT appear here
+Grades
+Performance breakdowns
+Rubrics
+Leaderboards
+
+3. SCENARIO LANDING PAGE (BEFORE START)
+This is a psychological transition screen.
+Purpose
+Help the student mentally step into the role before action begins.
+Required Blocks
+Scenario Title + Theme
+Your Role
+Framed as responsibility, not identity
+Objective
+One clear tension (trade-offs implied, not explained)
+Starting Conditions (Metrics)
+Shown as context, not goals
+Key UX Rule
+Metrics are descriptive, not instructional.
+They answer:
+“What world am I stepping into?”
+Not:
+“What should I optimize?”
+
+4. IN-SIMULATION INTERFACE (CORE EXPERIENCE)
+This is where your strongest instincts are — and you’re right.
+
+4.1 Persistent Context (CRITICAL)
+The student should NEVER lose the case context.
+Solution (Vision-Level)
+Case summary visible at all times
+Either:
+Fixed side panel (left or right), OR
+Collapsible pinned summary
+Contents
+Role
+Objective
+One-paragraph situation recap
+This prevents:
+Cognitive overload
+“What was this about again?” moments
+Shallow responses
+
+4.2 Decision Input Area
+This is not a chat app, even if it looks conversational.
+Input philosophy
+Encourage reflection
+No word minimums
+No “correct” formatting
+Prompt framing
+“What would you like to do?”
+ Not:
+ “What is the correct decision?”
+
+4.3 Metrics Panel (LEFT or RIGHT COLUMN)
+Metrics should feel like:
+“Signals from the system”
+Not:
+“A scorecard”
+Required Metrics (POC)
+Team Morale
+Reputation
+Operational Efficiency
+Stakeholder Trust
+Budget / Revenue (contextual)
+
+4.4 Metric Explanation (YOU CALLED THIS — AND IT’S IMPORTANT)
+Yes — there should be a “Why did this change?” affordance.
+Implementation Vision
+Small “?” or “info” icon per metric
+On click:
+Short causal explanation
+Linked to decision, not morality
+Example:
+“Team morale decreased because resources were reallocated without consultation.”
+Not:
+“This was a bad ethical decision.”
+
+5. FEEDBACK & CONSEQUENCES
+Decision Feedback Panel
+This is post-decision reflection, not grading.
+Should include:
+Narrative feedback
+Trade-offs acknowledged
+Strengths highlighted
+Improvement framed as considerations, not failures
+Must NOT include:
+Scores
+Pass/fail
+Rankings
+
+6. FEATURES TO REMOVE / HIDE (POC)
+You were very clear — and you’re right.
+❌ Suggested answers
+ ❌ Rubrics (hidden entirely)
+ ❌ Grading emphasis
+ ❌ Overly granular analytics
+If these exist technically, they must be invisible by default.
+
+7. “COMING SOON” STUDENT SANDBOX (OPTIONAL, STRATEGIC)
+You’re thinking correctly here.
+Recommendation
+Show disabled or “Coming Soon” button:
+“Create Your Own Scenario”
+Clicking opens:
+Tooltip / modal:
+ “Soon you’ll be able to design simulations yourself.”
+
+
+This:
+Signals roadmap
+Positions product as expandable
+Encourages curiosity without scope creep
+
+SECOND DELIVERABLE
+EXECUTION CHECKLIST FOR YOUR COUSIN (HOW TO BUILD THIS)
+This is not vision — this is translation to UI elements.
+
+A. LAYOUT STRUCTURE
+3-column layout on simulation screen:
+Context panel (persistent)
+Main narrative + decision flow
+Metrics & feedback panel
+
+B. COMPONENTS REQUIRED
+Collapsible context card
+Metric cards with delta indicators
+Tooltip / info icons for causal explanations
+Decision input box with primary CTA
+Feedback card (post-decision)
+
+C. DESIGN MOOD & PSYCHOLOGY
+Colors: Calm, neutral, professional
+Avoid red/green dominance
+Typography: Clear hierarchy, no urgency cues
+Spacing: Generous — avoid “exam” density
+
+D. INTERACTION RULES
+No timers
+No forced progression
+Feedback only after decision
+Metrics update with explanation affordance
+
