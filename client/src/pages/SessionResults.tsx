@@ -217,6 +217,15 @@ export default function SessionResults() {
               </div>
             </div>
           </Card>
+
+          <Card className="mt-6 p-6 bg-primary/5 border-primary/20">
+            <p className="text-center text-muted-foreground leading-relaxed" data-testid="text-closure-message">
+              <span className="font-medium text-foreground">Has navegado decisiones complejas con trade-offs reales.</span>{" "}
+              Como en el mundo empresarial, no había respuestas perfectas — solo caminos diferentes con consecuencias distintas. 
+              Los dilemas que enfrentaste aquí reflejan situaciones que continúan evolucionando en la vida real. 
+              Lo que llevas contigo es la experiencia de haber reflexionado, decidido y observado el impacto de tus elecciones.
+            </p>
+          </Card>
         </motion.div>
 
         <motion.div

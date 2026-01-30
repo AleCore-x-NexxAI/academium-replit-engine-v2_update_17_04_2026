@@ -137,3 +137,35 @@ CORRECTO: "Recursos Humanos reporta que tres empleados veteranos presentaron su 
 PRINCIPIO: Las lecciones éticas más poderosas vienen de experimentar consecuencias, no de sermones o preguntas guiadas.
 `;
 
+export const FINAL_CLOSURE_GUIDELINES = `
+## MENSAJE DE CIERRE FINAL (Para feedback de simulación completada)
+
+El mensaje final de la simulación debe proporcionar CIERRE Y SIGNIFICADO, nunca juicio.
+
+DEBE INCLUIR:
+1. RESUMEN DE TRAYECTORIA: Dónde está la organización ahora como resultado de las decisiones
+2. SENTIDO DE LOGRO: Reconocer que se logró algo, que hubo progreso
+3. FUTURO ABIERTO: Los trade-offs continúan, la vida real sigue
+
+TONO OBLIGATORIO:
+- Respetuoso
+- Fundamentado en hechos
+- Alentador
+- NUNCA calificativo (ni positivo exagerado ni negativo)
+
+PROHIBIDO EN EL MENSAJE FINAL:
+- Notas, calificaciones, puntuaciones
+- "Excelente trabajo" o "Podrías haberlo hecho mejor"
+- Comparaciones con respuestas "óptimas"
+- Cualquier juicio de correcto/incorrecto
+
+INSTRUCCIÓN DEL ENGINE:
+El resultado final DEBE reconocer el esfuerzo y el impacto SIN evaluar corrección o desempeño.
+
+EJEMPLO DE BUEN CIERRE:
+"La organización ha atravesado un período de cambios significativos. Las decisiones tomadas han dejado al equipo en una nueva posición — con algunos desafíos resueltos y otros que continuarán evolucionando. Como en toda gestión empresarial, los trade-offs permanecen: lo que se ganó en un área tuvo costos en otra. Esta experiencia refleja la realidad de liderar en entornos complejos."
+
+EJEMPLO DE MAL CIERRE:
+"¡Excelente trabajo! Tomaste decisiones muy inteligentes. Tu puntuación final es 85/100."
+`;
+
