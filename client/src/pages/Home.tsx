@@ -12,19 +12,14 @@ import {
   Star,
   BookOpen,
   ChevronRight,
-  Loader2,
-  Wrench,
-  BarChart3,
   LayoutDashboard,
   Pencil,
   Bug,
-  Settings2,
+  BarChart3,
   CheckCircle2,
   Calendar,
-  Eye,
   Sparkles,
   HelpCircle,
-  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -136,82 +131,142 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
 function ProfessorWelcome({ userName }: { userName: string }) {
   return (
     <div className="mb-12">
+      {/* Calm Hero Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-10"
+        className="text-center mb-12"
       >
-        <h1 className="text-3xl font-bold mb-3">
-          Bienvenido/a, {userName}
+        <p className="text-sm text-muted-foreground mb-2" data-testid="text-hero-tagline">
+          Aprendizaje experiencial para tus estudiantes
+        </p>
+        <h1 className="text-3xl font-bold mb-3" data-testid="text-hero-welcome">
+          Hola, {userName}
         </h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">
-          Explora cómo funciona SIMULEARN a tu propio ritmo. Nada aquí es permanente ni tiene riesgo.
+        <p className="text-muted-foreground max-w-lg mx-auto text-lg" data-testid="text-hero-subtitle">
+          Tus estudiantes toman decisiones. Tú observas cómo piensan.
         </p>
       </motion.div>
 
-      <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+      {/* Three Calm Actions */}
+      <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-8">
+        {/* Explore Example Card - with visual preview */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
           <Link href="/explore">
-            <Card className="p-6 h-full hover-elevate cursor-pointer text-center" data-testid="card-explore-example">
-              <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
-                <Eye className="w-7 h-7" />
+            <Card className="p-6 h-full hover-elevate cursor-pointer" data-testid="card-explore-example">
+              {/* Visual simulation preview hint */}
+              <div className="bg-muted/50 rounded-lg p-3 mb-4 border border-dashed border-muted-foreground/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-primary/60" />
+                  <div className="h-2 w-16 bg-muted-foreground/20 rounded" />
+                </div>
+                <div className="space-y-1.5">
+                  <div className="h-2 w-full bg-muted-foreground/15 rounded" />
+                  <div className="h-2 w-3/4 bg-muted-foreground/15 rounded" />
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <div className="h-6 w-16 bg-primary/20 rounded text-[10px] flex items-center justify-center text-primary/70">Opción A</div>
+                  <div className="h-6 w-16 bg-muted-foreground/10 rounded text-[10px] flex items-center justify-center text-muted-foreground/50">Opción B</div>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2" data-testid="text-explore-title">Explorar un Ejemplo</h3>
-              <p className="text-sm text-muted-foreground" data-testid="text-explore-description">
-                Ve cómo los estudiantes experimentan una simulación. Sin compromiso.
-              </p>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold mb-1" data-testid="text-explore-title">Explorar un Ejemplo</h3>
+                <p className="text-sm text-muted-foreground" data-testid="text-explore-description">
+                  Ve lo que experimentan tus estudiantes
+                </p>
+              </div>
             </Card>
           </Link>
         </motion.div>
 
+        {/* Create Simulation Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
           <Link href="/studio">
-            <Card className="p-6 h-full hover-elevate cursor-pointer text-center" data-testid="card-create-simulation">
-              <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-7 h-7" />
+            <Card className="p-6 h-full hover-elevate cursor-pointer" data-testid="card-create-simulation">
+              {/* Visual creation hint */}
+              <div className="bg-muted/50 rounded-lg p-3 mb-4 border border-dashed border-muted-foreground/20">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-primary/60" />
+                    <span className="text-[10px] text-muted-foreground/60">IA</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Pencil className="w-3 h-3 text-muted-foreground/40" />
+                    <span className="text-[10px] text-muted-foreground/60">Manual</span>
+                  </div>
+                </div>
+                <div className="text-center py-2">
+                  <Plus className="w-6 h-6 mx-auto text-muted-foreground/30" />
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2" data-testid="text-create-title">Crear Simulación</h3>
-              <p className="text-sm text-muted-foreground" data-testid="text-create-description">
-                Crea tu propio caso de negocios. Tú decides cómo.
-              </p>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold mb-1" data-testid="text-create-title">Crear Simulación</h3>
+                <p className="text-sm text-muted-foreground" data-testid="text-create-description">
+                  Tú decides cómo hacerlo
+                </p>
+              </div>
             </Card>
           </Link>
         </motion.div>
 
+        {/* Help Card - Warmer framing */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <Card className="p-6 h-full text-center" data-testid="card-get-help">
-            <div className="w-14 h-14 rounded-full bg-muted text-muted-foreground flex items-center justify-center mx-auto mb-4">
-              <Lightbulb className="w-7 h-7" />
+          <Card className="p-6 h-full" data-testid="card-get-help">
+            {/* Visual help hint */}
+            <div className="bg-muted/50 rounded-lg p-3 mb-4 border border-dashed border-muted-foreground/20">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="w-3 h-3 text-muted-foreground/40" />
+                  <div className="h-2 w-24 bg-muted-foreground/15 rounded" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="w-3 h-3 text-muted-foreground/40" />
+                  <div className="h-2 w-20 bg-muted-foreground/15 rounded" />
+                </div>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold mb-2" data-testid="text-help-title">Obtener Ayuda</h3>
-            <p className="text-sm text-muted-foreground mb-3" data-testid="text-help-description">
-              Respuestas a preguntas comunes sobre SIMULEARN.
-            </p>
-            <div className="text-xs text-muted-foreground/70 space-y-1">
-              <p className="flex items-center gap-1 justify-center" data-testid="text-help-faq-1">
-                <HelpCircle className="w-3 h-3" />
-                ¿Qué es una simulación?
+            <div className="text-center">
+              <h3 className="text-lg font-semibold mb-1" data-testid="text-help-title">¿Quieres saber más?</h3>
+              <p className="text-sm text-muted-foreground mb-3" data-testid="text-help-description">
+                Respuestas rápidas a lo esencial
               </p>
-              <p className="flex items-center gap-1 justify-center" data-testid="text-help-faq-2">
-                <HelpCircle className="w-3 h-3" />
-                ¿Cómo la usan los estudiantes?
-              </p>
+              <div className="text-xs text-muted-foreground/70 space-y-1">
+                <p className="flex items-center gap-1 justify-center" data-testid="text-help-faq-1">
+                  <ChevronRight className="w-3 h-3" />
+                  ¿Qué es una simulación?
+                </p>
+                <p className="flex items-center gap-1 justify-center" data-testid="text-help-faq-2">
+                  <ChevronRight className="w-3 h-3" />
+                  ¿Cuánto tiempo toma?
+                </p>
+              </div>
             </div>
           </Card>
         </motion.div>
       </div>
+
+      {/* Safety messaging */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5 }}
+        className="text-center text-sm text-muted-foreground/60"
+        data-testid="text-safety-message"
+      >
+        Explora libremente. Nada aquí es permanente.
+      </motion.p>
     </div>
   );
 }
@@ -331,61 +386,32 @@ export default function Home() {
             <span className="text-xl font-bold">SIMULEARN</span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Minimal header for first-time flow - only show essential navigation */}
+            {/* Dashboard link is subtle, not prominent */}
             {isProfessor && (
-              <>
-                <Button variant="outline" asChild data-testid="link-professor-dashboard">
-                  <Link href="/professor">
-                    <LayoutDashboard className="w-4 h-4 mr-2" />
-                    Panel
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild data-testid="link-analytics">
-                  <Link href="/analytics">
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Analíticas
-                  </Link>
-                </Button>
-                <Button variant="outline" asChild data-testid="link-studio">
-                  <Link href="/studio">
-                    <Wrench className="w-4 h-4 mr-2" />
-                    Estudio de Autoría
-                  </Link>
-                </Button>
-              </>
+              <Button variant="ghost" size="sm" asChild className="text-muted-foreground" data-testid="link-professor-dashboard">
+                <Link href="/professor">
+                  <LayoutDashboard className="w-4 h-4 mr-1.5" />
+                  Mis Simulaciones
+                </Link>
+              </Button>
             )}
 
             {showRoleSwitcher && user && <RoleSwitcher user={user} />}
 
             {user?.isSuperAdmin && (
-              <Button variant="outline" size="icon" asChild data-testid="link-bug-reports">
+              <Button variant="ghost" size="icon" asChild data-testid="link-bug-reports">
                 <Link href="/bug-reports">
                   <Bug className="w-4 h-4" />
                 </Link>
               </Button>
             )}
 
-            <Button variant="outline" size="icon" asChild data-testid="link-settings">
-              <Link href="/settings">
-                <Settings2 className="w-4 h-4" />
-              </Link>
-            </Button>
-
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium" data-testid="text-user-name">
-                  {user?.firstName || "Usuario"}
-                </p>
-                <p className="text-xs text-muted-foreground capitalize">
-                  {effectiveRole}
-                  {user?.isSuperAdmin && user?.viewingAs && (
-                    <span className="ml-1 text-amber-500">(viendo como)</span>
-                  )}
-                </p>
-              </div>
-              <Avatar className="w-9 h-9">
+            <div className="flex items-center gap-2">
+              <Avatar className="w-8 h-8">
                 <AvatarImage src={user?.profileImageUrl || undefined} />
-                <AvatarFallback>
+                <AvatarFallback className="text-xs">
                   {user?.firstName?.[0] || "U"}
                 </AvatarFallback>
               </Avatar>
@@ -393,9 +419,10 @@ export default function Home() {
                 variant="ghost"
                 size="sm"
                 asChild
+                className="text-muted-foreground"
                 data-testid="button-logout"
               >
-                <a href="/api/logout">Cerrar Sesión</a>
+                <a href="/api/logout">Salir</a>
               </Button>
             </div>
           </div>
@@ -404,98 +431,86 @@ export default function Home() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {isProfessor ? (
+          /* Professor first-time flow: ONLY show calm hero + 3 actions + safety message
+             No dashboards, metrics, scenario lists, or completed sessions here.
+             Those are accessible via "Mis Simulaciones" link to /professor */
           <ProfessorWelcome userName={user?.firstName || ""} />
         ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-12"
-          >
-            <h1 className="text-3xl font-bold mb-2">
-              Bienvenido/a, {user?.firstName || ""}
-            </h1>
-            <p className="text-muted-foreground">
-              Inicia una nueva simulación o revisa tus resultados anteriores.
-            </p>
-          </motion.div>
-        )}
-
-        {completedSessions.length > 0 && (
-          <section className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold">Mis Simulaciones Completadas</h2>
-              <Badge variant="secondary">{completedSessions.length} completadas</Badge>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {sessionsLoading ? (
-                Array.from({ length: 2 }).map((_, i) => (
-                  <Skeleton key={i} className="h-20 rounded-lg" />
-                ))
-              ) : (
-                completedSessions.map((session) => (
-                  <SessionCard key={session.id} session={session} />
-                ))
-              )}
-            </div>
-          </section>
-        )}
-
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold">Escenarios Disponibles</h2>
-            {isProfessor && (
-              <Button asChild data-testid="button-create-scenario">
-                <Link href="/studio">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Crear Escenario
-                </Link>
-              </Button>
-            )}
-          </div>
-
-          {scenariosLoading ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-48 rounded-lg" />
-              ))}
-            </div>
-          ) : scenarios && scenarios.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {scenarios.map((scenario) => (
-                <motion.div
-                  key={scenario.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <ScenarioCard 
-                    scenario={scenario} 
-                    userId={user?.id}
-                    userRole={effectiveRole}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            <Card className="p-12 text-center">
-              <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-              <h3 className="text-lg font-medium mb-2">No Hay Escenarios Disponibles</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                {isProfessor
-                  ? "Crea tu primer escenario para comenzar."
-                  : "Vuelve pronto para nuevas experiencias de aprendizaje."}
+          /* Student view: show welcome + their content */
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-12"
+            >
+              <h1 className="text-3xl font-bold mb-2">
+                Bienvenido/a, {user?.firstName || ""}
+              </h1>
+              <p className="text-muted-foreground">
+                Inicia una nueva simulación o revisa tus resultados anteriores.
               </p>
-              {isProfessor && (
-                <Button asChild>
-                  <Link href="/studio">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Crear Escenario
-                  </Link>
-                </Button>
+            </motion.div>
+
+            {completedSessions.length > 0 && (
+              <section className="mb-12">
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <h2 className="text-xl font-semibold">Mis Simulaciones Completadas</h2>
+                  <Badge variant="secondary">{completedSessions.length} completadas</Badge>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {sessionsLoading ? (
+                    Array.from({ length: 2 }).map((_, i) => (
+                      <Skeleton key={i} className="h-20 rounded-lg" />
+                    ))
+                  ) : (
+                    completedSessions.map((session) => (
+                      <SessionCard key={session.id} session={session} />
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <h2 className="text-xl font-semibold">Escenarios Disponibles</h2>
+              </div>
+
+              {scenariosLoading ? (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-48 rounded-lg" />
+                  ))}
+                </div>
+              ) : scenarios && scenarios.length > 0 ? (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {scenarios.map((scenario) => (
+                    <motion.div
+                      key={scenario.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <ScenarioCard 
+                        scenario={scenario} 
+                        userId={user?.id}
+                        userRole={effectiveRole}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <Card className="p-12 text-center">
+                  <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <h3 className="text-lg font-medium mb-2">No Hay Escenarios Disponibles</h3>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Vuelve pronto para nuevas experiencias de aprendizaje.
+                  </p>
+                </Card>
               )}
-            </Card>
-          )}
-        </section>
+            </section>
+          </>
+        )}
       </main>
     </div>
   );
