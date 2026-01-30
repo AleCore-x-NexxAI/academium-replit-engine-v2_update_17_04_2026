@@ -106,3 +106,43 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
 - **Footer Actions**: "Guardar Borrador" and "Publicar" buttons
 - **NOT included per spec**: Rubrics, Scores, Weights, Complex branching logic, More than 3 decisions
 - **UX Philosophy**: "This is manageable." Total control without overload.
+
+### Student UX/UI Vision Implementation (January 2026)
+Fully implemented the Student Interface UX/UI Vision Packet for POC scope. Students experience a calm, reflection-focused interface with no visible grades or scores.
+
+- **Student Core Mental Model**: 
+  - Students see supportive messaging: "No hay respuestas correctas — lo que importa es tu razonamiento"
+  - No grades, scores, rubrics, or leaderboards visible anywhere
+  - No timers or forced progression — students control their pace
+
+- **Student Dashboard** (`/` for students):
+  - Welcome heading with supportive messaging
+  - Active simulations show progress indicators ("Turno X de 3")
+  - Scenario cards display: title, category tag (e.g., "Gestión de Crisis"), duration estimate ("~20-25 min")
+  - "Coming Soon" section with disabled "Próximamente" button for future student sandbox feature
+  - No grades, performance breakdowns, or rubrics shown
+
+- **Scenario Landing Page** (`/simulation/start/:id`):
+  - "Tu Responsabilidad" heading (framed as responsibility, not just role identity)
+  - "La Tensión" heading (clear ethical/strategic tension, not just objective)
+  - "Contexto de Partida" section shows initial indicators as context ("condiciones actuales — tus decisiones las modificarán"), not goals to optimize
+  - Stakeholder impact note included
+
+- **Simulation Cockpit** (`/simulation/:sessionId`):
+  - 3-column layout: Context panel (left), Narrative + Input (center), Metrics + Feedback (right)
+  - **CaseContextPanel**: Persistent case summary always visible (role, objective, situation recap)
+  - **KPIDashboard**: Metric cards with delta indicators, HelpCircle "?" icons for causal explanations
+  - **InputConsole**: Decision input encourages reflection ("¿Qué decides hacer?"), no "correct answer" framing
+  - **FeedbackPanel**: Uses "Observaciones" and "Nota del Mentor" framing — no scores visible
+
+- **Session Results** (`/session/:id/results`):
+  - "Evolución de Indicadores" shows world-state changes (factual deltas), not student grades
+  - "Observaciones Finales" provides reflection-focused feedback
+  - Closure message emphasizes learning from trade-offs, not correctness
+  - Decision timeline shows student choices and consequences
+
+- **Design Mood**:
+  - Calm blue/gray color palette (210 hue base)
+  - Green/amber for trend indicators (not red/green to reduce judgment feeling)
+  - Generous spacing, clear typography hierarchy
+  - No urgency cues or exam-like density
