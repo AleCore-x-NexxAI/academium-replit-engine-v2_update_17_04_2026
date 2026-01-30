@@ -11,9 +11,11 @@ import {
   Trash2,
   RefreshCw,
   ChevronRight,
+  ChevronDown,
   AlertTriangle,
   Loader2,
   ArrowLeft,
+  BarChart3,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,6 +52,7 @@ export default function ProfessorDashboard() {
   const { toast } = useToast();
   const [deleteScenarioId, setDeleteScenarioId] = useState<string | null>(null);
   const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
+  const [showStats, setShowStats] = useState(false);
 
   const { data: scenarios, isLoading, error } = useQuery<ScenarioWithStats[]>({
     queryKey: ["/api/professor/scenarios"],
@@ -109,7 +112,7 @@ export default function ProfessorDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">Panel del Profesor</h1>
-          <p className="text-muted-foreground">Gestiona tus simulaciones y visualiza el progreso de estudiantes</p>
+          <p className="text-muted-foreground">Gestiona tus simulaciones</p>
         </div>
         <Link href="/studio">
           <Button data-testid="button-go-to-studio">
@@ -119,65 +122,12 @@ export default function ProfessorDashboard() {
         </Link>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <BookOpen className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-total-scenarios">{scenarios?.length || 0}</p>
-                <p className="text-sm text-muted-foreground">Escenarios</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <Users className="w-5 h-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-total-enrollments">{totalEnrollments}</p>
-                <p className="text-sm text-muted-foreground">Total Estudiantes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/10 rounded-lg">
-                <Clock className="w-5 h-5 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-active-sessions">{totalActive}</p>
-                <p className="text-sm text-muted-foreground">En Progreso</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold" data-testid="text-completed-sessions">{totalCompleted}</p>
-                <p className="text-sm text-muted-foreground">Completadas</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Scenarios List */}
+      {/* Scenarios List - Now First */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold">Tus Escenarios</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Tus Escenarios</h2>
+          <Badge variant="secondary">{scenarios?.length || 0} escenarios</Badge>
+        </div>
         
         {!scenarios || scenarios.length === 0 ? (
           <Card>
@@ -229,37 +179,89 @@ export default function ProfessorDashboard() {
                           }}
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          Eliminar Escenario
+                          Eliminar
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center gap-4 text-sm">
-                    <Badge variant="secondary">{scenario.domain}</Badge>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Users className="w-4 h-4" />
-                      <span>{scenario.enrollmentCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Clock className="w-4 h-4" />
-                      <span>{scenario.activeCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-green-600">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>{scenario.completedCount}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end mt-4">
-                    <Button variant="ghost" size="sm" className="text-primary">
-                      Ver Detalles
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </Button>
+                  <div className="text-xs text-muted-foreground">
+                    Haz clic para ver sesiones de estudiantes
                   </div>
                 </CardContent>
               </Card>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Stats Section - Collapsible */}
+      <div className="space-y-4">
+        <button
+          onClick={() => setShowStats(!showStats)}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          data-testid="button-toggle-stats"
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span data-testid="text-stats-toggle-label">Ver estadísticas de participación</span>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showStats ? "rotate-180" : ""}`} />
+        </button>
+
+        {showStats && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-total-scenarios">{scenarios?.length || 0}</p>
+                    <p className="text-sm text-muted-foreground">Escenarios</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500/10 rounded-lg">
+                    <Users className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-total-enrollments">{totalEnrollments}</p>
+                    <p className="text-sm text-muted-foreground">Total Estudiantes</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500/10 rounded-lg">
+                    <Clock className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-active-sessions">{totalActive}</p>
+                    <p className="text-sm text-muted-foreground">En Progreso</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500/10 rounded-lg">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold" data-testid="text-completed-sessions">{totalCompleted}</p>
+                    <p className="text-sm text-muted-foreground">Completadas</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

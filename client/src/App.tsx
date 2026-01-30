@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
+import ExploreExample from "@/pages/ExploreExample";
 import Simulation from "@/pages/Simulation";
 import SimulationStart from "@/pages/SimulationStart";
 import SessionResults from "@/pages/SessionResults";
@@ -30,6 +31,7 @@ function AuthenticatedApp() {
     <>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/explore" component={ExploreExample} />
         <Route path="/simulation/start/:scenarioId" component={SimulationStart} />
         <Route path="/simulation/:sessionId/results" component={SessionResults} />
         <Route path="/simulation/:sessionId" component={Simulation} />

@@ -21,6 +21,10 @@ import {
   Settings2,
   CheckCircle2,
   Calendar,
+  Eye,
+  Sparkles,
+  HelpCircle,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -126,6 +130,89 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
         </div>
       </Card>
     </Link>
+  );
+}
+
+function ProfessorWelcome({ userName }: { userName: string }) {
+  return (
+    <div className="mb-12">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center mb-10"
+      >
+        <h1 className="text-3xl font-bold mb-3">
+          Bienvenido/a, {userName}
+        </h1>
+        <p className="text-muted-foreground max-w-xl mx-auto">
+          Explora cómo funciona SIMULEARN a tu propio ritmo. Nada aquí es permanente ni tiene riesgo.
+        </p>
+      </motion.div>
+
+      <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Link href="/explore">
+            <Card className="p-6 h-full hover-elevate cursor-pointer text-center" data-testid="card-explore-example">
+              <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
+                <Eye className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2" data-testid="text-explore-title">Explorar un Ejemplo</h3>
+              <p className="text-sm text-muted-foreground" data-testid="text-explore-description">
+                Ve cómo los estudiantes experimentan una simulación. Sin compromiso.
+              </p>
+            </Card>
+          </Link>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Link href="/studio">
+            <Card className="p-6 h-full hover-elevate cursor-pointer text-center" data-testid="card-create-simulation">
+              <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4">
+                <Sparkles className="w-7 h-7" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2" data-testid="text-create-title">Crear Simulación</h3>
+              <p className="text-sm text-muted-foreground" data-testid="text-create-description">
+                Crea tu propio caso de negocios. Tú decides cómo.
+              </p>
+            </Card>
+          </Link>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <Card className="p-6 h-full text-center" data-testid="card-get-help">
+            <div className="w-14 h-14 rounded-full bg-muted text-muted-foreground flex items-center justify-center mx-auto mb-4">
+              <Lightbulb className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2" data-testid="text-help-title">Obtener Ayuda</h3>
+            <p className="text-sm text-muted-foreground mb-3" data-testid="text-help-description">
+              Respuestas a preguntas comunes sobre SIMULEARN.
+            </p>
+            <div className="text-xs text-muted-foreground/70 space-y-1">
+              <p className="flex items-center gap-1 justify-center" data-testid="text-help-faq-1">
+                <HelpCircle className="w-3 h-3" />
+                ¿Qué es una simulación?
+              </p>
+              <p className="flex items-center gap-1 justify-center" data-testid="text-help-faq-2">
+                <HelpCircle className="w-3 h-3" />
+                ¿Cómo la usan los estudiantes?
+              </p>
+            </div>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
   );
 }
 
@@ -235,8 +322,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b sticky top-0 bg-background z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+      <header className="border-b sticky top-0 bg-background z-[1000]">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
               <Brain className="w-5 h-5 text-primary-foreground" />
@@ -316,18 +403,22 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-12"
-        >
-          <h1 className="text-3xl font-bold mb-2">
-            Bienvenido/a, {user?.firstName || ""}
-          </h1>
-          <p className="text-muted-foreground">
-            Inicia una nueva simulación o revisa tus resultados anteriores.
-          </p>
-        </motion.div>
+        {isProfessor ? (
+          <ProfessorWelcome userName={user?.firstName || ""} />
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-12"
+          >
+            <h1 className="text-3xl font-bold mb-2">
+              Bienvenido/a, {user?.firstName || ""}
+            </h1>
+            <p className="text-muted-foreground">
+              Inicia una nueva simulación o revisa tus resultados anteriores.
+            </p>
+          </motion.div>
+        )}
 
         {completedSessions.length > 0 && (
           <section className="mb-12">

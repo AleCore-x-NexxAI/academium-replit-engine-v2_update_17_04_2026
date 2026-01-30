@@ -2278,9 +2278,9 @@ export default function Studio() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <Card
-                  className="p-6 cursor-pointer hover-elevate border-2 border-primary/30 hover:border-primary/50 bg-primary/5"
+                  className="p-6 cursor-pointer hover-elevate"
                   onClick={() => setAuthoringMode("canonical")}
                   data-testid="card-ai-authoring-mode"
                 >
@@ -2289,31 +2289,28 @@ export default function Studio() {
                       <Sparkles className="w-6 h-6 text-primary" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold">AI Conversacional</h3>
-                        <Badge variant="secondary" className="text-xs">Recomendado</Badge>
-                      </div>
+                      <h3 className="font-semibold mb-1">Crear con Asistencia IA</h3>
                       <p className="text-sm text-muted-foreground">
-                        Genera un caso completo con IA: contexto estilo Harvard, 3 decisiones, 5 indicadores POC, todo en español.
+                        Genera un caso completo conversando con IA. Tú siempre tienes el control final.
                       </p>
                     </div>
                   </div>
                 </Card>
 
                 <Card
-                  className="p-6 cursor-pointer hover-elevate border-2 border-transparent hover:border-primary/20"
+                  className="p-6 cursor-pointer hover-elevate"
                   data-testid="card-manual-authoring-mode"
                 >
                   <Dialog>
                     <DialogTrigger asChild>
                       <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                          <PenTool className="w-6 h-6 text-muted-foreground" />
+                        <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <PenTool className="w-6 h-6 text-primary" />
                         </div>
                         <div>
-                          <h3 className="font-semibold mb-1">Creación Manual</h3>
+                          <h3 className="font-semibold mb-1">Crear Manualmente</h3>
                           <p className="text-sm text-muted-foreground">
-                            Construye un escenario desde cero con el formulario completo.
+                            Construye un escenario desde cero con control total del contenido.
                           </p>
                         </div>
                       </div>
