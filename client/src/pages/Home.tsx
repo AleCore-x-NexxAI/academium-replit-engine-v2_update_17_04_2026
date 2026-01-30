@@ -18,6 +18,8 @@ import {
   CheckCircle2,
   Calendar,
   Sparkles,
+  Lock,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -99,6 +101,7 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
     );
   }
 
+  // Student view: Simple card focused on the experience
   return (
     <Link href={`/simulation/start/${scenario.id}`}>
       <Card
@@ -109,7 +112,9 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
           <div className="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
             {domainIcons[scenario.domain] || <BookOpen className="w-5 h-5" />}
           </div>
-          <Badge variant="secondary">{scenario.domain}</Badge>
+          <Badge variant="outline" className="text-xs">
+            {scenario.domain}
+          </Badge>
         </div>
 
         <h3 className="text-lg font-semibold mb-2">{scenario.title}</h3>
@@ -117,9 +122,15 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
           {scenario.description}
         </p>
 
-        <div className="flex items-center text-sm text-primary font-medium">
-          Iniciar Simulación
-          <ChevronRight className="w-4 h-4 ml-1" />
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5" />
+            20-25 min
+          </span>
+          <span className="text-primary font-medium flex items-center">
+            Comenzar
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </span>
         </div>
       </Card>
     </Link>
@@ -425,11 +436,14 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               className="mb-12"
             >
-              <h1 className="text-3xl font-bold mb-2">
+              <p className="text-sm text-muted-foreground mb-2">
+                Simulaciones de decisiones empresariales
+              </p>
+              <h1 className="text-3xl font-bold mb-2" data-testid="text-student-welcome">
                 Bienvenido/a, {user?.firstName || ""}
               </h1>
-              <p className="text-muted-foreground">
-                Inicia una nueva simulación o revisa tus resultados anteriores.
+              <p className="text-muted-foreground max-w-lg">
+                Cada escenario es un mundo donde tomas decisiones reales. No hay respuestas correctas — lo importante es tu razonamiento.
               </p>
             </motion.div>
 
@@ -455,8 +469,11 @@ export default function Home() {
             )}
 
             <section>
-              <div className="flex items-center justify-between gap-4 mb-6">
+              <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
                 <h2 className="text-xl font-semibold">Escenarios Disponibles</h2>
+                <p className="text-sm text-muted-foreground">
+                  Selecciona un escenario para comenzar tu experiencia
+                </p>
               </div>
 
               {scenariosLoading ? (
@@ -490,6 +507,34 @@ export default function Home() {
                   </p>
                 </Card>
               )}
+            </section>
+
+            {/* Coming Soon: Student Sandbox */}
+            <section className="mt-12 pt-8 border-t">
+              <Card className="p-6 bg-muted/30 border-dashed">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium mb-1">Crea tus propias experiencias</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Pronto podrás diseñar tus propias simulaciones y compartirlas.
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    disabled 
+                    className="opacity-60"
+                    data-testid="button-create-scenario-disabled"
+                  >
+                    <Lock className="w-4 h-4 mr-2" />
+                    Próximamente
+                  </Button>
+                </div>
+              </Card>
             </section>
           </>
         )}

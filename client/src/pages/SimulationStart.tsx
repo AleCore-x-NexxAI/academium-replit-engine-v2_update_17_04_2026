@@ -154,10 +154,13 @@ export default function SimulationStart() {
                 <div className="w-10 h-10 rounded-lg bg-chart-1/10 text-chart-1 flex items-center justify-center">
                   <Target className="w-5 h-5" />
                 </div>
-                <h3 className="font-semibold">Tu Rol</h3>
+                <h3 className="font-semibold">Tu Responsabilidad</h3>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground" data-testid="text-role">
                 {scenario.initialState?.role || "Líder de Negocios"}
+              </p>
+              <p className="text-xs text-muted-foreground/70 mt-2">
+                Tus decisiones impactan a múltiples partes interesadas
               </p>
             </Card>
 
@@ -166,11 +169,11 @@ export default function SimulationStart() {
                 <div className="w-10 h-10 rounded-lg bg-chart-2/10 text-chart-2 flex items-center justify-center">
                   <Users className="w-5 h-5" />
                 </div>
-                <h3 className="font-semibold">Objetivo</h3>
+                <h3 className="font-semibold">La Tensión</h3>
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground" data-testid="text-objective">
                 {scenario.initialState?.objective ||
-                  "Navega el desafío empresarial y demuestra tu capacidad de análisis."}
+                  "Navega las tensiones entre diferentes prioridades empresariales."}
               </p>
             </Card>
           </div>
@@ -200,11 +203,14 @@ export default function SimulationStart() {
           </Card>
 
           {(scenario.initialState?.indicators && scenario.initialState.indicators.length > 0) ? (
-            <Card className="p-6 mb-8">
-              <h3 className="font-semibold mb-4">Indicadores Iniciales</h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <Card className="p-6 mb-8 bg-muted/30">
+              <h3 className="font-semibold mb-2">Contexto de Partida</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Estas son las condiciones actuales — tus decisiones las modificarán
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {scenario.initialState.indicators.map((ind) => (
-                  <div key={ind.id} className="text-center p-3 bg-muted/50 rounded-lg">
+                  <div key={ind.id} className="text-center p-3 bg-background rounded-lg border">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
                       {ind.label}
                     </p>
@@ -214,8 +220,11 @@ export default function SimulationStart() {
               </div>
             </Card>
           ) : scenario.initialState?.kpis && (
-            <Card className="p-6 mb-8">
-              <h3 className="font-semibold mb-4">Condiciones Iniciales</h3>
+            <Card className="p-6 mb-8 bg-muted/30">
+              <h3 className="font-semibold mb-2">Contexto de Partida</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Estas son las condiciones actuales — tus decisiones las modificarán
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {[
                   { label: "Moral del Equipo", value: `${scenario.initialState.kpis.morale || 75}%` },
@@ -224,7 +233,7 @@ export default function SimulationStart() {
                   { label: "Confianza", value: `${scenario.initialState.kpis.trust || 75}%` },
                   { label: "Recursos", value: `${scenario.initialState.kpis.revenue ? Math.round(scenario.initialState.kpis.revenue / 10000) : 50}%` },
                 ].map((kpi) => (
-                  <div key={kpi.label} className="text-center p-3 bg-muted/50 rounded-lg">
+                  <div key={kpi.label} className="text-center p-3 bg-background rounded-lg border">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
                       {kpi.label}
                     </p>
