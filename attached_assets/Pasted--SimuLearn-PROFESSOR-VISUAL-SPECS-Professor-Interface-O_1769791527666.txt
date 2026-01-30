@@ -1,0 +1,252 @@
+
+
+
+
+SimuLearn — PROFESSOR VISUAL SPECS
+(Professor Interface Only — Student later)
+
+
+
+
+
+This document answers one question only:
+“If I were building this tomorrow, what screens exist and what lives on each one?”
+
+
+
+
+
+
+
+GLOBAL UI RULES (APPLY EVERYWHERE)
+Before screens, these are non-negotiable:
+One primary action per screen
+No screen should require explanation
+No grading, scoring, or evaluation language
+Calm academic tone (not startup, not gamified)
+Neutral colors (light background, dark text, soft accents)
+
+SCREEN 1 — PROFESSOR LANDING / HOME
+Purpose
+Orient without explaining. Invite exploration.
+Professor should feel
+“Okay, I see what this is for.”
+
+Layout Structure
+Top bar (thin, calm):
+Platform name (SimuLearn / Simulant)
+Optional profile icon (top right)
+No metrics, no numbers
+
+Main body (centered):
+ Three large rectangular cards (horizontal or vertical stack)
+Card 1 — “Explore Example Simulations”
+Short subtitle: See how a simulation works
+Click → opens read-only example
+Card 2 — “Create a Simulation”
+Short subtitle: Build a case for your class
+Click → goes to creation path selection
+Card 3 — “My Simulations”
+Short subtitle: View or edit existing cases
+Click → list view (simple)
+
+DO NOT show here
+Empty state warnings
+Analytics
+“You have 0 simulations”
+Tutorials
+Settings
+This screen is about orientation, not productivity.
+
+SCREEN 2 — EXAMPLE SIMULATION VIEW (READ-ONLY)
+Purpose
+Let professors feel the product before building.
+Professor should feel
+“Oh — this is what my students would experience.”
+
+Layout Structure
+Top bar:
+“Example Simulation” label
+Back button
+
+Main body:
+Case context (short narrative)
+Clearly labeled decision points
+Consequence summaries (text + simple indicators)
+
+Rules
+No editing
+No configuration
+No scoring
+No explanation overlays
+Examples replace tutorials.
+
+SCREEN 3 — CREATE SIMULATION: PATH SELECTION
+Purpose
+Give authority, not instruction.
+Professor should feel
+“I choose how I work.”
+
+Layout Structure
+Two equal cards, side-by-side:
+Option A — “Create with AI”
+Description (1 sentence):
+ Start from an AI-generated draft you can fully edit
+Option B — “Create Manually”
+Description (1 sentence):
+ Build your simulation step by step
+Same size. Same visual weight.
+
+DO NOT
+Recommend one
+Label difficulty
+Assume skill level
+
+SCREEN 4A — AI-ASSISTED CASE CREATION (POC)
+Purpose
+Fast start without loss of control.
+Professor should feel
+“This helps me get started — I’m still in charge.”
+
+Required Inputs (ONLY THESE)
+Case Topic
+Single text field
+Example placeholder: “Market expansion decision for a mid-size company”
+Discipline / Course Context
+Dropdown (Business for POC)
+Target Level
+Dropdown (Undergrad default)
+Generate Draft button
+That’s it.
+
+After generation
+AI produces:
+Case context
+3 decision points
+Outcome logic
+Everything is editable.
+
+DO NOT
+Ask for rubrics
+Ask for learning objectives
+Ask for grading criteria
+Ask for metrics
+
+SCREEN 4B — MANUAL CASE CREATION (POC)
+Purpose
+Total control without overload.
+Professor should feel
+“This is manageable.”
+
+Core Required Sections (POC ONLY)
+1. Case Context
+Short narrative (textarea)
+Guidance text: Set the situation for students
+
+
+2. Decision Points (MAX 3)
+For each decision:
+Decision prompt (textarea)
+Decision format:
+Decision 1: Multiple choice
+Decision 2–3: Short written response
+3. Consequences (High-Level)
+Narrative consequence text
+Optional simple indicators (e.g., morale, budget)
+
+Optional (Collapsed by Default)
+Ethics note
+Instructor notes (private)
+
+DO NOT include
+Rubrics
+Scores
+Weights
+Complex branching logic UI
+More than 3 decisions
+
+SCREEN 5 — MY SIMULATIONS (LIST VIEW)
+Purpose
+Reassurance and continuity.
+Professor should feel
+“I can come back to this anytime.”
+
+Layout Structure
+Simple list:
+Simulation title
+Status (Draft / Ready)
+Edit button
+
+DO NOT
+Show analytics
+Show student data
+Show performance
+
+HELP & SUPPORT (GLOBAL, NOT A SCREEN)
+How help appears
+Small ⓘ icons near fields
+Optional assistant icon (bottom corner)
+Tone
+Informational
+Non-judgmental
+No popups
+
+WHAT WE INTENTIONALLY CUT FOR THE POC
+Explicitly not included:
+Grading workflows
+Rubrics
+Scoring
+Analytics dashboards
+Student comparison
+Deep configuration panels
+These come after trust is built.
+
+FINAL BUILD PRIORITY FOR YOUR COUSIN
+If time runs out, build in this order:
+Landing screen
+Example simulation
+AI creation (basic)
+Manual creation (core fields only)
+List view
+Anything else = future version.
+
+Why this should now “click”
+This version:
+Gives screen-by-screen clarity
+Names exact sections, not abstractions
+Still avoids overdesign
+Is directly buildable
+Preserves your philosophy without losing execution
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
