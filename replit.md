@@ -86,3 +86,12 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
 - **Simplified Header**: Only SIMULEARN logo, avatar, and logout (no navigation links)
 - **Dashboard Access**: Scenario lists and stats are on /professor page, accessed via Card 3
 - **Studio Path Selection** (`/studio`): Shows two equal cards - "Crear con IA" and "Crear Manualmente" with same visual weight. No recommendations, no difficulty labels, no skill assumptions. Professor feels "I choose how I work."
+
+### Screen 4A - AI-Assisted Case Creation (January 2026)
+- **Simplified Input Form**: Only 3 required inputs plus Generate button
+  - "Tema del Caso" text field (placeholder: "Decisión de expansión de mercado para una empresa mediana")
+  - "Disciplina / Contexto del Curso" dropdown (default: Negocios; options: Negocios, Marketing, Finanzas, Operaciones, Recursos Humanos, Estrategia)
+  - "Nivel Objetivo" dropdown (default: Pregrado; options: Pregrado, Posgrado, Ejecutivo)
+  - "Generar Borrador" button (disabled until topic entered)
+- **Removed per Visual Specs**: "Contexto Adicional" textarea, "El caso generado incluirá" explanation list, decorative header/icons
+- **UX Philosophy**: "This helps me get started — I'm still in charge." No rubrics, no learning objectives, no grading criteria asked upfront.
