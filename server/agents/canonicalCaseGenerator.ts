@@ -1,3 +1,15 @@
+/**
+ * SIMULEARN Canonical Case Generator
+ * 
+ * STRUCTURE LOCKED for POC v1.0
+ * See server/agents/constants.ts for version roadmap.
+ * 
+ * Any modifications to the canonical structure require:
+ * 1. Explicit documentation of the change
+ * 2. Version tag update (v2.x, v3.x)
+ * 3. Backward compatibility where possible
+ */
+
 import type { 
   GeneratedScenarioData,
   InitialState,
@@ -7,10 +19,13 @@ import type {
   Indicator
 } from "@shared/schema";
 import { generateChatCompletion } from "../openai";
+import { POC_VERSION, STRUCTURE_LOCK_NOTICE } from "./constants";
 
 const CANONICAL_CASE_GENERATOR_PROMPT = `Eres un ARQUITECTO DE CASOS DE NEGOCIOS CANÓNICOS para SIMULEARN, una plataforma de simulación de negocios impulsada por IA para educación universitaria en América Latina.
 
-TU MISIÓN: Crear casos de negocios siguiendo una ESTRUCTURA CANÓNICA ESTRICTA para el POC de febrero.
+${STRUCTURE_LOCK_NOTICE}
+
+TU MISIÓN: Crear casos de negocios siguiendo una ESTRUCTURA CANÓNICA ESTRICTA para el POC de febrero (${POC_VERSION}).
 
 === RESTRICCIONES OBLIGATORIAS (NO MODIFICABLES) ===
 - Disciplina: Negocios

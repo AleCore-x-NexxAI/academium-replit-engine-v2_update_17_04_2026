@@ -1,0 +1,177 @@
+
+
+
+
+SimuLearn — Professor UX & UI Vision Packet 
+
+
+
+
+
+
+
+
+Purpose of This Packet
+This document explains what the product should feel like, what it must show, and what it must not show during the POC.
+This is not a design spec.
+ This is a decision-making guide for building the interface correctly, fast.
+The priority is:
+It must work, feel calm, and make professors feel in control.
+
+Core UX Principle (Read This First)
+If a professor opens SimuLearn for the first time and feels:
+Confused
+Overwhelmed
+Judged
+Forced
+The product fails — even if the tech works.
+Everything below exists to prevent that feeling.
+
+Who We Are Designing For (POC Scope)
+Primary User
+Professor (any tech level, including zero-tech)
+Secondary User
+Students (will be handled in a separate packet later)
+This document is professor-only.
+
+The Professor’s Natural First-Time Flow
+When a professor opens SimuLearn for the first time, their mindset is:
+Curiosity – “What is this?”
+Safety – “Can I explore without breaking anything?”
+Control – “I decide how to use this.”
+Confidence – “I can do this alone if needed.”
+The interface must support this order without instructions.
+
+Emotional Checkpoints (Non-Negotiable)
+Within the first 2–3 minutes, the professor must feel:
+Comfortable
+In control
+Not rushed
+Not judged
+Not forced into AI or manual
+If this checkpoint fails, adoption fails.
+
+What the First Screen Must Do
+The first screen must quietly answer these questions without text explanations:
+“This is a simulation-based learning tool.”
+“I can explore before creating anything.”
+“I can create a case in more than one way.”
+“Nothing here is permanent or risky.”
+
+What the Professor Should See First (High Level)
+The first screen should show:
+A calm landing space
+Clear options, not instructions
+Visual hints of what a “simulation” is
+Examples that feel academic and real-world
+The first screen should NOT show:
+Dashboards
+Metrics
+Grading
+Rubrics
+Student performance data
+Complex forms
+Too many buttons
+Curiosity dies when evaluation appears too early.
+
+Core Actions Available on First Screen
+The professor should immediately see three possible actions:
+Explore examples
+Create a simulation
+Get help (without shame)
+That’s it.
+No more.
+
+Explore Examples (Critical Feature)
+This is how professors understand the product without tutorials.
+What “Explore Examples” means:
+Read-only previews of finished simulations
+Short, realistic scenarios
+Clearly structured decision points
+No editing required
+Why this matters:
+It answers “What is this?” instantly
+It reduces fear of starting
+It teaches by showing, not explaining
+This feature is mandatory for POC success.
+
+Creating a Simulation (Two Equal Paths)
+When a professor chooses to create a simulation, they must see two equal options:
+AI-Assisted Creation
+Helps generate a first draft
+Still fully editable
+Manual Creation
+Full control from the start
+Critical rule:
+Do NOT recommend one over the other
+Do NOT frame one as “easier” or “better”
+Choice = control
+Professors must feel respected, not guided.
+
+Help Without Shame
+Professors must never feel:
+“I should already know this”
+“I’m bad with tech”
+“I’m slowing things down”
+Acceptable help methods:
+Small info icons
+Optional help panel
+Simple assistant that explains what things are
+Not acceptable:
+Forced tutorials
+Pop-ups that interrupt flow
+“Required walkthroughs”
+Help must be pull-based, not pushed.
+
+What the Professor Should Never Feel Blamed For
+Confusion
+Trying something that doesn’t work
+Not knowing where to click
+AI producing a weak draft
+Taking longer than expected
+Language across the product must always imply:
+“You’re exploring. This is normal.”
+
+What Must Be Hidden During POC (Even If It Exists)
+The following should exist in the backend if needed, but not be visible early:
+Grading logic
+Rubrics
+Performance scoring
+Analytics dashboards
+Advanced configuration
+Too many fields at once
+These kill curiosity and increase anxiety.
+
+Visual & Psychological Design Rules (High Level)
+We are designing for calm thinking, not excitement.
+The interface should feel:
+Academic
+Clean
+Modern
+Stable
+Non-gamified
+Avoid:
+Flashy colors
+“Game-like” visuals
+Aggressive metrics
+Anything that feels like surveillance or evaluation
+The platform should feel like:
+“A professional academic tool for thinking.”
+
+Absolute POC Priorities (In Order)
+The product works end-to-end
+Professors feel safe exploring
+Professors understand the value without explanation
+Professors feel in control
+Students can run a simulation successfully
+Everything else is secondary.
+
+Final Note (For Engineering Decisions)
+If there is a conflict between:
+Adding a feature
+Keeping the interface simple
+Always choose simplicity for the POC.
+Trust is more important than depth.
+
+One-Sentence Summary (For You to Say in the Meeting)
+“For the POC, the interface exists to make professors feel safe, in control, and curious — not impressed.”
