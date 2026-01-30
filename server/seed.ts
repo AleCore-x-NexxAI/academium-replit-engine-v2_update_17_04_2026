@@ -28,8 +28,8 @@ const POC_SCENARIO = {
     totalDecisions: 3,
     decisionPoints: [
       {
-        id: 1,
-        type: "multiple_choice" as const,
+        number: 1,
+        format: "multiple_choice" as const,
         prompt: "Primera decisión: ¿Cuál es tu respuesta inmediata a la noticia del bug crítico?",
         options: [
           "A. Retrasar el lanzamiento hasta resolver completamente el problema",
@@ -38,18 +38,21 @@ const POC_SCENARIO = {
           "D. Convocar una reunión de emergencia con todos los stakeholders para decidir juntos"
         ],
         requiresJustification: true,
+        includesReflection: false,
       },
       {
-        id: 2,
-        type: "written" as const,
+        number: 2,
+        format: "written" as const,
         prompt: "Segunda decisión: Después de tu decisión inicial, el equipo de desarrollo te informa que necesitan claridad sobre prioridades. ¿Cómo comunicas y justificas tu estrategia al equipo?",
         requiresJustification: true,
+        includesReflection: false,
       },
       {
-        id: 3,
-        type: "reflection" as const,
+        number: 3,
+        format: "written" as const,
         prompt: "Tercera decisión: Reflexión final. Considerando todo lo que ha pasado, ¿qué has aprendido sobre la gestión de crisis y qué harías diferente la próxima vez?",
         requiresJustification: true,
+        includesReflection: true,
       }
     ],
     subjectMatterContext: "Gestión de productos tecnológicos, metodologías ágiles, gestión de stakeholders, comunicación de crisis en startups. Conceptos clave: MVP (Producto Mínimo Viable), deuda técnica, gestión de expectativas, balance entre velocidad y calidad.",
