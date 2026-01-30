@@ -23,6 +23,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { GeneratedScenarioData, DecisionPoint, Indicator } from "@shared/schema";
@@ -109,7 +116,8 @@ export default function CanonicalCaseCreator({
   onClose,
 }: CanonicalCaseCreatorProps) {
   const [topic, setTopic] = useState("");
-  const [additionalContext, setAdditionalContext] = useState("");
+  const [discipline, setDiscipline] = useState("Negocios");
+  const [targetLevel, setTargetLevel] = useState("Pregrado");
   const [draftId, setDraftId] = useState<string | null>(null);
   const [canonicalCase, setCanonicalCase] = useState<CanonicalCaseData | null>(null);
   const [scenarioData, setScenarioData] = useState<GeneratedScenarioData | null>(null);
@@ -120,7 +128,8 @@ export default function CanonicalCaseCreator({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/canonical-case/generate", {
         topic,
-        additionalContext: additionalContext || undefined,
+        discipline,
+        targetLevel,
       });
       return response.json() as Promise<GenerateResponse>;
     },
@@ -277,44 +286,49 @@ export default function CanonicalCaseCreator({
         </div>
 
         <div className="flex-1 p-6 flex flex-col justify-center">
-          <div className="max-w-md mx-auto text-center space-y-6">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <Sparkles className="w-8 h-8 text-primary" />
-            </div>
-            
-            <div>
-              <h3 className="text-xl font-semibold mb-2">
-                Generar Caso de Negocios
-              </h3>
-              <p className="text-muted-foreground">
-                Ingresa un tema o industria y la IA generará un caso completo siguiendo 
-                la estructura canónica con 3 puntos de decisión.
-              </p>
-            </div>
-
-            <div className="space-y-4 text-left">
+          <div className="max-w-md mx-auto space-y-6">
+            <div className="space-y-4">
               <div>
-                <Label htmlFor="topic">Tema o Industria</Label>
+                <Label htmlFor="topic">Tema del Caso</Label>
                 <Input
                   id="topic"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  placeholder="Ej: Startup de tecnología enfrentando crisis de cadena de suministro"
+                  placeholder="Decisión de expansión de mercado para una empresa mediana"
                   className="mt-1"
-                  data-testid="input-topic"
+                  data-testid="input-case-topic"
                 />
               </div>
 
               <div>
-                <Label htmlFor="context">Contexto Adicional (Opcional)</Label>
-                <Textarea
-                  id="context"
-                  value={additionalContext}
-                  onChange={(e) => setAdditionalContext(e.target.value)}
-                  placeholder="Detalles específicos, industria, tipo de decisiones que quieres incluir..."
-                  className="mt-1 min-h-[80px]"
-                  data-testid="input-additional-context"
-                />
+                <Label htmlFor="discipline">Disciplina / Contexto del Curso</Label>
+                <Select value={discipline} onValueChange={setDiscipline}>
+                  <SelectTrigger className="mt-1" data-testid="select-discipline">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Negocios">Negocios</SelectItem>
+                    <SelectItem value="Marketing">Marketing</SelectItem>
+                    <SelectItem value="Finanzas">Finanzas</SelectItem>
+                    <SelectItem value="Operaciones">Operaciones</SelectItem>
+                    <SelectItem value="Recursos Humanos">Recursos Humanos</SelectItem>
+                    <SelectItem value="Estrategia">Estrategia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="targetLevel">Nivel Objetivo</Label>
+                <Select value={targetLevel} onValueChange={setTargetLevel}>
+                  <SelectTrigger className="mt-1" data-testid="select-target-level">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pregrado">Pregrado</SelectItem>
+                    <SelectItem value="Posgrado">Posgrado</SelectItem>
+                    <SelectItem value="Ejecutivo">Ejecutivo</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -322,31 +336,20 @@ export default function CanonicalCaseCreator({
               onClick={() => generateMutation.mutate()}
               disabled={!topic.trim() || generateMutation.isPending}
               className="w-full"
-              data-testid="button-generate-case"
+              data-testid="button-generate-draft"
             >
               {generateMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generando caso...
+                  Generando borrador...
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2" />
-                  Generar Caso
+                  Generar Borrador
                 </>
               )}
             </Button>
-
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>El caso generado incluirá:</p>
-              <ul className="list-disc list-inside text-left">
-                <li>Contexto del caso (120-180 palabras)</li>
-                <li>Desafío central de negocios</li>
-                <li>3 puntos de decisión estructurados</li>
-                <li>Pregunta de reflexión</li>
-                <li>5 indicadores POC</li>
-              </ul>
-            </div>
           </div>
         </div>
       </Card>
