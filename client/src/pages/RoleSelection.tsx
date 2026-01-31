@@ -78,7 +78,9 @@ export default function RoleSelection() {
     if (option?.requiresCode) {
       setShowCodeDialog(true);
     } else {
-      window.location.href = `/api/login?role=${role}`;
+      // Use fresh-login to clear any existing Replit session first
+      // This allows students on shared computers to switch accounts
+      window.location.href = `/api/fresh-login?role=${role}`;
     }
   };
 
@@ -103,7 +105,8 @@ export default function RoleSelection() {
       const data = await response.json();
 
       if (data.valid) {
-        window.location.href = `/api/login?role=admin&verified=true`;
+        // Use fresh-login to clear any existing Replit session first
+        window.location.href = `/api/fresh-login?role=admin&verified=true`;
       } else {
         toast({
           title: "Código inválido",

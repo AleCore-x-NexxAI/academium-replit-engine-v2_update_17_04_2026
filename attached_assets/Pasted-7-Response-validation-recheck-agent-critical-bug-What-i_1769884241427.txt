@@ -1,0 +1,72 @@
+7. Response validation / recheck agent – critical bug
+
+What is happening now
+
+In professor testing mode:
+	1.	I wrote: “idiota”
+The system answered:
+“Por favor, enfoquémonos en la simulación. ¿Qué medidas tomarías para abordar las inquietudes del equipo y garantizar que la implementación gradual de la IA en el marketing sea exitosa? Tu decisión es clave para avanzar.”
+	2.	Then I wrote: “wtf bruv”
+The system answered:
+“Parece que hubo un problema con tu entrada. En el contexto de integrar Inteligencia Artificial en el marketing, ¿cómo abordarías las inquietudes del equipo sobre sus roles futuros o las dudas del área financiera sobre el retorno de inversión? Tu perspectiva es clave para avanzar en la estrategia.”
+	3.	After this, the simulation simply continued, and my nonsense / offensive answers were accepted as if they were normal.
+
+So:
+	•	The guardrails did not stop the flow.
+	•	The recheck agent was not enforced.
+	•	The system let an invalid answer pass and moved to the next decision.
+
+This is the same problem as before, and it is still present in the testing ground for the teacher.
+
+⸻
+
+Required behavior
+	1.	Every single free-text answer MUST pass through the recheck agent first
+	•	Applies to:
+	•	Student mode
+	•	Professor testing mode
+	•	The main simulation flow must never use the raw answer directly.
+	•	The check must always run, no exceptions.
+	2.	Conditions that make an answer invalid
+The recheck agent must mark the answer as invalid if any of this is true:
+	•	Contains insults or offensive language
+(examples: “idiota”, “pendejo”, “wtf bruv”, curse words, slurs, etc.).
+	•	Is clearly unrelated to the case context
+(random text, memes, “asdf”, “lol”, “idk”, “bruh”, etc.).
+	•	Is empty or only a few meaningless words.
+	•	Violates any content guardrail you have defined.
+	3.	What should happen when the answer is invalid
+	•	The system must NOT move to the next decision.
+	•	Stay on the same question.
+	•	Show a clear message, for example:
+	•	“Tu respuesta no cumple con las normas de la simulación. Evita lenguaje ofensivo y responde a la situación del caso.”
+	•	Ask the user to send a new answer.
+	•	Only when the recheck agent marks the new answer as valid can the flow continue.
+	4.	What should happen when the answer is valid
+	•	The recheck agent returns a flag like is_valid = true.
+	•	Only then:
+	•	The main agent processes the answer.
+	•	The simulation advances to the next decision.
+
+⸻
+
+Implementation rule for the AI agent
+
+Hard rule:
+	•	The main simulation agent must never decide on progression by itself.
+	•	The sequence must always be:
+	1.	User sends answer.
+	2.	Recheck agent validates: valid / invalid.
+	3.	If invalid:
+	•	Return guardrail message.
+	•	Do not call the next-step logic.
+	4.	If valid:
+	•	Call the main reasoning agent.
+	•	Then advance to next decision.
+
+This must be enforced in:
+	•	Student simulations
+	•	Professor testing ground
+	•	Any future place where users respond to case questions
+
+Right now the product breaks pedagogical logic if students or teachers can type garbage and still move on. This needs to be treated as a blocking issue.

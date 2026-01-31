@@ -207,6 +207,52 @@ export async function setupAuth(app: Express) {
       });
     });
   });
+  
+  // Fresh login endpoint - logs out of Replit first, then redirects to login
+  // This is for shared computers where users need to switch accounts
+  app.get("/api/fresh-login", (req, res) => {
+    const role = req.query.role as string | undefined;
+    
+    // Store the role in a cookie so we can use it after the logout redirect
+    if (role && ["student", "professor", "admin"].includes(role)) {
+      res.cookie("pendingRole", role, {
+        httpOnly: true,
+        secure: true,
+        maxAge: 5 * 60 * 1000, // 5 minutes
+        sameSite: "lax",
+      });
+    }
+    
+    // Clear local session first
+    res.clearCookie("connect.sid");
+    res.clearCookie("isVerifiedAdmin");
+    
+    // Build the URL to return to after Replit logout
+    const returnUrl = `${req.protocol}://${req.hostname}/api/login${role ? `?role=${role}` : ''}`;
+    
+    // Log out of local session
+    req.logout(() => {
+      if (req.session) {
+        req.session.destroy(() => {
+          // Redirect to Replit's end session endpoint, then back to our login
+          res.redirect(
+            client.buildEndSessionUrl(config, {
+              client_id: process.env.REPL_ID!,
+              post_logout_redirect_uri: returnUrl,
+            }).href
+          );
+        });
+      } else {
+        // No session to destroy, just redirect
+        res.redirect(
+          client.buildEndSessionUrl(config, {
+            client_id: process.env.REPL_ID!,
+            post_logout_redirect_uri: returnUrl,
+          }).href
+        );
+      }
+    });
+  });
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
