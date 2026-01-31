@@ -112,8 +112,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Verify super admin code (before login)
-  app.post("/api/auth/verify-admin-code", async (req, res) => {
+  // Verify super admin code (before login) - stores verification in session
+  app.post("/api/auth/verify-admin-code", async (req: any, res) => {
     try {
       const { code } = req.body;
       const adminCode = process.env.SUPER_ADMIN_CODE;
@@ -124,6 +124,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
       
       const valid = code === adminCode;
+      
+      // Store verification result in session (server-side, cannot be spoofed)
+      if (valid) {
+        req.session.adminCodeVerified = true;
+        req.session.adminCodeVerifiedAt = Date.now();
+      }
+      
       res.json({ valid });
     } catch (error) {
       console.error("Error verifying admin code:", error);

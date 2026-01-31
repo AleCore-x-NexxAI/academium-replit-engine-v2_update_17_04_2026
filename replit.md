@@ -1,36 +1,36 @@
 # SIMULEARN Engine
 
 ## Overview
-SIMULEARN is an AI-powered business simulation platform for experiential learning. It enables students to practice real-world decision-making in dynamic, text-based scenarios. Professors can author and customize simulation blueprints. The platform uses a multi-agent AI architecture to generate immersive narratives, evaluate student decisions, calculate business impacts, and provide real-time feedback. Key capabilities include an interactive student "cockpit" with KPI dashboards, a professor authoring studio, and a multi-agent AI core for narrative generation, competency assessment, and business logic.
+SIMULEARN is an AI-powered business simulation platform designed for experiential learning. It enables students to practice real-world decision-making within dynamic, text-based scenarios. Professors can author and customize simulation blueprints. The platform uses a multi-agent AI architecture to generate immersive narratives, evaluate student decisions, calculate business impacts, and provide real-time feedback. Its core capabilities include an interactive student "cockpit" with KPI dashboards, a professor authoring studio for scenario creation, and a multi-agent AI engine for narrative generation, competency assessment, and business logic. The project aims to provide an immersive and reflective learning experience, focusing on decision-making processes rather than direct scoring, and empowering educators with flexible content creation tools.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-The frontend is built with React and TypeScript, utilizing Vite. UI components are developed using `shadcn/ui` on Radix UI primitives with Tailwind CSS, following a "Design System Approach" inspired by Fluent Design for professional credibility and cognitive load management. Typography uses Inter for UI/body text and JetBrains Mono for data. The simulation cockpit uses a three-column grid layout for context, narrative, and feedback. State management relies on Zustand for client-side state and TanStack Query for server state and caching, with real-time updates and optimistic UI.
+### Frontend
+The frontend is built with React and TypeScript, leveraging Vite for development. It uses `shadcn/ui` on Radix UI primitives with Tailwind CSS, following a Fluent Design-inspired "Design System Approach" for professional credibility. State management utilizes Zustand for client-side state and TanStack Query for server state, supporting real-time updates and optimistic UI. The student cockpit features a three-column grid for context, narrative, and feedback.
 
-### Backend Architecture
-The backend is an Express.js (Node.js) REST API, serving as the "World Server." It uses PostgreSQL with Drizzle ORM for type-safe data management. Authentication is handled by Replit Auth (OpenID Connect) with `express-session`. A JavaScript-based multi-agent orchestration system (using LangChain.js patterns) processes student turns. This system includes specialized AI agents: `SimulationDirector` (orchestrator), `ScenarioWeaver/Narrator` (narrative generation), `CompetencyAssessor/Evaluator` (decision scoring), and `BusinessLogicEngine/DomainExpert` (KPI calculation). LLM integration uses OpenAI GPT-4o via Replit AI Integrations. The system follows a "Stateful World, Stateless Agents" pattern where simulation state is stored in PostgreSQL, and agents reason without maintaining internal state.
+### Backend
+The backend is an Express.js (Node.js) REST API, functioning as the "World Server." It uses PostgreSQL with Drizzle ORM for type-safe data management. Authentication is handled by Replit Auth (OpenID Connect) with `express-session`. A JavaScript-based multi-agent orchestration system (inspired by LangChain.js patterns) processes student turns. This system comprises specialized AI agents: `SimulationDirector`, `ScenarioWeaver/Narrator`, `CompetencyAssessor/Evaluator`, and `BusinessLogicEngine/DomainExpert`. LLM integration uses OpenAI GPT-4o via Replit AI Integrations. The architecture follows a "Stateful World, Stateless Agents" pattern, storing simulation state in PostgreSQL while agents reason without maintaining internal state.
 
 ### Data Architecture
-Core database tables include `users`, `scenarios`, `simulation_sessions`, `turns`, and `sessions`. Key data structures like `SimulationState` (JSONB for KPIs, history, scores), `KPIs`, `Rubric` (JSONB for scoring criteria), and `HistoryEntry` (role-based messages) are central to the system.
+The core database includes tables for `users`, `scenarios`, `simulation_sessions`, `turns`, and `sessions`. Key data structures such as `SimulationState` (JSONB for KPIs, history, scores), `KPIs`, `Rubric` (JSONB for scoring criteria), and `HistoryEntry` (role-based messages) are central to managing simulation data.
 
 ### API Design
-The API provides RESTful endpoints for managing scenarios, simulations, and user authentication. Key endpoints facilitate starting new simulations, submitting student turns, and retrieving session data. The turn processing flow involves the client submitting input, the backend invoking the agent service, agents executing their workflow, and the backend persisting the turn and returning the response.
+The API provides RESTful endpoints for managing scenarios, simulations, and user authentication. It facilitates actions such as starting new simulations, submitting student turns, and retrieving session data. The turn processing flow involves client input submission, backend agent service invocation, agent workflow execution, and persistent storage of the turn with a response back to the client.
 
 ### Design Patterns
-The system employs event-driven updates with optimistic UI, a hierarchical agent pattern (Director managing worker agents), component composition using atomic design principles, and end-to-end type safety with shared schema types.
+The system employs event-driven updates with optimistic UI, a hierarchical agent pattern where a Director manages worker agents, component composition based on atomic design principles, and end-to-end type safety achieved through shared schema types. Role-Based Access Control (RBAC) is implemented to manage user permissions across different routes and functionalities, with specific flows for role selection and administrative access. The student interface is designed for a calm, reflection-focused experience, avoiding visible grades or scores and emphasizing reasoning over correct answers. The professor studio supports both AI-assisted and manual case creation, prioritizing ease of use and professor control.
 
 ## External Dependencies
 
 ### Third-Party Services
 - **Replit Infrastructure**: Replit Auth (OpenID Connect), Replit Object Storage (via Google Cloud Storage client), Replit AI Integrations (OpenAI proxy).
-- **AI/LLM Services**: OpenAI API (GPT-4o, GPT-4o-mini), configured via environment variables.
+- **AI/LLM Services**: OpenAI API (GPT-4o, GPT-4o-mini).
 
 ### Database
-- **PostgreSQL**: Accessed via Neon serverless driver for connection pooling and edge-compatible connections, configured via `DATABASE_URL`.
+- **PostgreSQL**: Accessed via Neon serverless driver.
 
 ### Key NPM Packages
 - **Frontend**: React, Wouter, Radix UI, Framer Motion, Recharts, TanStack Query, Zustand.
@@ -38,126 +38,4 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
 - **Development**: Vite, esbuild, tsx, Tailwind CSS.
 
 ### File Storage
-- **Google Cloud Storage**: Used for PDF case study uploads in the Authoring Studio, integrated via `@google-cloud/storage`.
-
-## Recent Changes
-
-### POC Tier-Based Metric System & Explainability (January 2026)
-- **Tier-Based Metric Changes**: Metrics limited to max 2-3 changes per turn with magnitude tiers:
-  - Tier 1: ±1-3 (minor impact)
-  - Tier 2: ±4-7 (moderate impact)
-  - Tier 3: ±8-12 (major impact, rare)
-- **Post-LLM Enforcement**: domainExpert.ts validates LLM output - clamps values to ±12, limits to max 3 non-zero metrics
-- **"Why?" Explainability**: Each metric change includes:
-  - `shortReason`: One-line explanation visible in KPIDashboard
-  - `causalChain`: 2-4 bullet expandable explanation with full causality
-  - `tier`: Tier classification (1-3)
-- **KPIDashboard Integration**: Now rendered in Simulation.tsx right panel with expandable "¿Por qué?" buttons
-- **Spanish-Only Guardrail**: POC_SPANISH_ONLY added to guardrails.ts enforcing zero English leakage
-- **Simplified Student UI**: Removed rubric button, hints button, and "Suggested Actions" panel from InputConsole
-- **Score-Free Results**: SessionResults shows indicator evolution and narrative feedback only - no grades visible
-
-### Session Management & Exit Flow (January 2026)
-- **Exit = Immediate Abandonment**: Clicking "Salir y perder progreso" immediately abandons the session via POST `/api/simulations/:sessionId/abandon`. No resume functionality exists - exiting always means permanent loss of progress.
-- **Exit Confirmation Dialog**: Warning dialog appears with "Salir y perder progreso" and "Continuar simulación" options. Browser `beforeunload` event warns about refresh/tab close.
-- **Student Home Page**: Only shows completed sessions in "Mis Simulaciones Completadas" section. Abandoned sessions are hidden from students but retained in database for professor analytics.
-- **Session States**: `active` (in progress), `completed` (finished all decisions), `abandoned` (user exited early). Students can start new simulations anytime without blocking.
-
-### AI Guardrails (January 2026)
-- 8 HARD_PROHIBITIONS: AI never gives correct answers, never grades visibly, never optimizes for GPA, never reveals evaluation logic
-- MENTOR_TONE: Supportive professional mentor persona (not grader/teacher/judge)
-- MISUSE_HANDLING: De-escalation for trolling/profanity, maintains neutral academic tone
-
-### Weak Answer Feedback Loop (January 2026)
-- Students get up to 2 revision attempts for weak/incomplete answers before final acceptance
-- Revision prompts appear in InputConsole banner and FeedbackPanel
-- UI shows "Revisión X de 2" counter
-
-### Faculty Visibility Dashboard (January 2026)
-- **ProfessorDashboard** (`/professor`): Overview of all professor's scenarios with student participation stats
-- **ScenarioAnalytics** (`/scenarios/:id/analytics`): Detailed view of all students for a scenario
-- **No Scores Displayed**: Faculty visibility shows raw student responses ONLY - no scores, rankings, or automated judgments
-- **Aggregated Themes**: Simple keyword frequency extraction from student responses (no AI-based judgment)
-- **ConversationViewer**: Shows decision-by-decision breakdown with "Decisión 1/2/3" labels, "Respuesta del Estudiante", "Narrativa de Simulación", "Reflexión Final"
-- **All UI in Spanish**: Professor-facing pages fully translated to Latin American Spanish
-- **API Endpoints**: 
-  - GET `/api/professor/scenarios` - List scenarios with student counts
-  - GET `/api/professor/scenarios/:id/sessions` - List all sessions for a scenario  
-  - GET `/api/professor/scenarios/:id/themes` - Aggregated keyword themes from responses
-  - GET `/api/professor/sessions/:id/conversation` - Full decision history for a session
-
-### Professor First-Time Flow UX (January 2026)
-- **Home Page Redesign**: Professors see a calm landing page with three cards matching Visual Specs:
-  1. Curiosity – "What is this?" → Hero tagline + visual simulation preview
-  2. Safety – "Can I explore without breaking anything?" → Safety message at bottom
-  3. Control – "I decide how to use this." → Two equal paths (AI/Manual) in Create card
-- **First Screen Shows ONLY Three Cards**:
-  - Card 1: "Explorar un Ejemplo" → /explore (visual simulation mockup)
-  - Card 2: "Crear Simulación" → /studio (AI sparkles + Manual pencil icons)
-  - Card 3: "Mis Simulaciones" → /professor (visual list hint with "Listo"/"Borrador" badges)
-  - Safety message: "Explora libremente. Nada aquí es permanente."
-- **First Screen Does NOT Show**: Dashboards, metrics, scenario grids, completed sessions, help cards, header navigation links
-- **ExploreExample Page** (`/explore`): Read-only preview showing case context, 3 decision points, and indicator badges. No tutorials, no editing, no scoring - just "what students experience"
-- **Simplified Header**: Only SIMULEARN logo, avatar, and logout (no navigation links)
-- **Dashboard Access**: Scenario lists and stats are on /professor page, accessed via Card 3
-- **Studio Path Selection** (`/studio`): Shows two equal cards - "Crear con IA" and "Crear Manualmente" with same visual weight. No recommendations, no difficulty labels, no skill assumptions. Professor feels "I choose how I work."
-
-### Screen 4A - AI-Assisted Case Creation (January 2026)
-- **Simplified Input Form**: Only 3 required inputs plus Generate button
-  - "Tema del Caso" text field (placeholder: "Decisión de expansión de mercado para una empresa mediana")
-  - "Disciplina / Contexto del Curso" dropdown (default: Negocios; options: Negocios, Marketing, Finanzas, Operaciones, Recursos Humanos, Estrategia)
-  - "Nivel Objetivo" dropdown (default: Pregrado; options: Pregrado, Posgrado, Ejecutivo)
-  - "Generar Borrador" button (disabled until topic entered)
-- **Removed per Visual Specs**: "Contexto Adicional" textarea, "El caso generado incluirá" explanation list, decorative header/icons
-- **UX Philosophy**: "This helps me get started — I'm still in charge." No rubrics, no learning objectives, no grading criteria asked upfront.
-
-### Screen 4B - Manual Case Creation (January 2026)
-- **ManualCaseCreator component** (`/studio` → "Crear Manualmente"): Simplified form replacing complex ManualScenarioForm
-- **Core Required Sections**:
-  1. Case Title + Case Context textarea with guidance "Establece la situación para los estudiantes"
-  2. Decision Points (exactly 3): Decision 1 = multiple choice with 3 options, Decisions 2-3 = short written response
-  3. Consequences: Narrative textarea + optional simple indicators (morale, budget toggles)
-- **Optional Section** (collapsed by default): Ethics note and Instructor notes (private)
-- **Footer Actions**: "Guardar Borrador" and "Publicar" buttons
-- **NOT included per spec**: Rubrics, Scores, Weights, Complex branching logic, More than 3 decisions
-- **UX Philosophy**: "This is manageable." Total control without overload.
-
-### Student UX/UI Vision Implementation (January 2026)
-Fully implemented the Student Interface UX/UI Vision Packet for POC scope. Students experience a calm, reflection-focused interface with no visible grades or scores.
-
-- **Student Core Mental Model**: 
-  - Students see supportive messaging: "No hay respuestas correctas — lo que importa es tu razonamiento"
-  - No grades, scores, rubrics, or leaderboards visible anywhere
-  - No timers or forced progression — students control their pace
-
-- **Student Dashboard** (`/` for students):
-  - Welcome heading with supportive messaging
-  - Active simulations show progress indicators ("Turno X de 3")
-  - Scenario cards display: title, category tag (e.g., "Gestión de Crisis"), duration estimate ("~20-25 min")
-  - "Coming Soon" section with disabled "Próximamente" button for future student sandbox feature
-  - No grades, performance breakdowns, or rubrics shown
-
-- **Scenario Landing Page** (`/simulation/start/:id`):
-  - "Tu Responsabilidad" heading (framed as responsibility, not just role identity)
-  - "La Tensión" heading (clear ethical/strategic tension, not just objective)
-  - "Contexto de Partida" section shows initial indicators as context ("condiciones actuales — tus decisiones las modificarán"), not goals to optimize
-  - Stakeholder impact note included
-
-- **Simulation Cockpit** (`/simulation/:sessionId`):
-  - 3-column layout: Context panel (left), Narrative + Input (center), Metrics + Feedback (right)
-  - **CaseContextPanel**: Persistent case summary always visible (role, objective, situation recap)
-  - **KPIDashboard**: Metric cards with delta indicators, HelpCircle "?" icons for causal explanations
-  - **InputConsole**: Decision input encourages reflection ("¿Qué decides hacer?"), no "correct answer" framing
-  - **FeedbackPanel**: Uses "Observaciones" and "Nota del Mentor" framing — no scores visible
-
-- **Session Results** (`/session/:id/results`):
-  - "Evolución de Indicadores" shows world-state changes (factual deltas), not student grades
-  - "Observaciones Finales" provides reflection-focused feedback
-  - Closure message emphasizes learning from trade-offs, not correctness
-  - Decision timeline shows student choices and consequences
-
-- **Design Mood**:
-  - Calm blue/gray color palette (210 hue base)
-  - Green/amber for trend indicators (not red/green to reduce judgment feeling)
-  - Generous spacing, clear typography hierarchy
-  - No urgency cues or exam-like density
+- **Google Cloud Storage**: Used for PDF case study uploads in the Authoring Studio.

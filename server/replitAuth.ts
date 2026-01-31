@@ -105,13 +105,23 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/login", (req, res, next) => {
     const role = req.query.role as string | undefined;
-    const verified = req.query.verified === "true";
+    
+    // Check if admin code was verified server-side (within last 5 minutes)
+    const adminCodeVerified = (req.session as any).adminCodeVerified === true;
+    const verifiedAt = (req.session as any).adminCodeVerifiedAt || 0;
+    const isRecentVerification = Date.now() - verifiedAt < 5 * 60 * 1000; // 5 minute window
+    const isValidAdminVerification = adminCodeVerified && isRecentVerification;
     
     // Store role selection in session for use after callback
     if (role && ["student", "professor", "admin"].includes(role)) {
       (req.session as any).pendingRole = role;
-      (req.session as any).isVerifiedAdmin = role === "admin" && verified;
+      // Only grant super admin if admin code was verified server-side
+      (req.session as any).isVerifiedAdmin = role === "admin" && isValidAdminVerification;
     }
+    
+    // Clear the admin verification flags after use
+    delete (req.session as any).adminCodeVerified;
+    delete (req.session as any).adminCodeVerifiedAt;
     
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, {
