@@ -39,3 +39,33 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
 
 ### File Storage
 - **Google Cloud Storage**: Used for PDF case study uploads in the Authoring Studio.
+
+## Recent Changes (January 2026)
+
+### Professor Simulation Management Features
+- **Simulation Management View** (`/scenarios/:id/manage`): Comprehensive management interface with 4 tabs:
+  - **Overview**: View simulation details, standard indicators, and key statistics
+  - **Students**: Add students by email, bulk add, generate Kahoot-style join codes
+  - **Test**: "Test as Student" mode to experience the full student flow
+  - **Settings**: Control simulation start/stop, manage access
+- **Interactive Demo Mode** (`/demo-simulation`): Professors can experience the complete student simulation flow with 3 turns of decision-making
+- **Simulation Start Control**: Professors must start simulations before students can access them; students see "waiting for professor" message when `isStarted=false`
+- **Student Management**: Email invitations, bulk add, join code generation for easy student enrollment
+- **"Mis Simulaciones" Management**: Clicking simulation cards opens the management view instead of just editing
+
+### Standard 5 Indicators (Consistent Across All Views)
+All simulation views display exactly 5 standard business indicators with consistent IDs and Spanish labels:
+1. `revenue` - Ingresos / Presupuesto
+2. `morale` - Moral del Equipo
+3. `reputation` - Reputación de Marca
+4. `efficiency` - Eficiencia Operacional
+5. `trust` - Confianza de Stakeholders
+
+### Key Routes
+- `/` - Homepage with simulation discovery
+- `/professor` - Professor dashboard with "Mis Simulaciones"
+- `/explore` - Example simulation with standard indicators
+- `/demo-simulation` - Interactive professor demo mode
+- `/scenarios/:id/manage` - Simulation management view
+- `/simulation/start/:id` - Simulation start page (shows waiting message for students if not started)
+- `/studio` - Professor authoring studio for creating scenarios
