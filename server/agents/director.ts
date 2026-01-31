@@ -328,6 +328,8 @@ export async function processStudentTurn(
     isGameOver,
     competencyScores: evaluation.competencyScores,
     requiresRevision: false,
+    // POC "Why?" Explainability
+    metricExplanations: kpiImpact.metricExplanations,
     updatedState,
   };
 }

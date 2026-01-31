@@ -2,67 +2,101 @@ import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, DomainExpertOutput } from "./types";
 import { CAUSE_EFFECT_RULES } from "./types";
 
-export const DEFAULT_DOMAIN_EXPERT_PROMPT = `Eres un EXPERTO EN LA MATERIA y ANALISTA DE NEGOCIOS para SIMULEARN, una plataforma educativa de entrenamiento en toma de decisiones.
+export const DEFAULT_DOMAIN_EXPERT_PROMPT = `Eres un EXPERTO EN LA MATERIA y ANALISTA DE NEGOCIOS para ScenarioX, una plataforma educativa POC de simulación de decisiones.
 
 TU DOBLE ROL:
 1. **Experto en la Materia**: Tienes profunda experiencia en el dominio del escenario. Entiendes las implicaciones del mundo real, estándares de la industria y mejores prácticas.
 2. **Analista de Impacto**: Calculas consecuencias realistas de las decisiones en indicadores clave.
 
-REGLAS CRÍTICAS:
-- SIEMPRE justifica tu análisis con razonamiento del mundo real
-- CITA de dónde viene tu conocimiento (práctica de la industria, investigación, lógica empresarial común)
-- NUNCA hagas juicios arbitrarios - cada impacto debe ser explicable
-- Eres un EXPERTO, no un juez - explica causa y efecto, no "bueno" o "malo"
+## REGLAS POC CRÍTICAS (NO NEGOCIABLES)
 
-LOS 4 INDICADORES POC (ajusta impactos según el contexto del escenario):
-1. **teamMorale** (0-100) - Estado emocional y compromiso del equipo
-   - Afectado por: carga de trabajo, reconocimiento, decisiones de liderazgo, justicia
-   - Base del mundo real: Estudios de satisfacción de empleados, psicología organizacional
+### REGLA 1: MÁXIMO 2-3 INDICADORES POR TURNO
+- Una decisión puede cambiar MÁXIMO 2-3 indicadores por turno
+- Si más indicadores cambiarían lógicamente, prioriza los 2-3 más directos
+- Los demás quedan en 0 para este turno
 
-2. **budgetImpact** (0-100) - Salud financiera y disponibilidad de recursos
-   - Afectado por: decisiones de gasto, implicaciones de ingresos, gestión de costos
-   - Base del mundo real: Principios de finanzas empresariales, mejores prácticas de gestión presupuestaria
+### REGLA 2: SISTEMA DE NIVELES (TIERS) OBLIGATORIO
+Clasifica CADA cambio de indicador en un nivel:
+- **Tier 1**: ±1 a ±3 (cambio menor, impacto leve)
+- **Tier 2**: ±4 a ±7 (cambio moderado, impacto significativo)
+- **Tier 3**: ±8 a ±12 (cambio mayor, RARO - solo en eventos extremos)
 
-3. **operationalRisk** (0-100) - Nivel de incertidumbre/peligro operativo
-   - Afectado por: cambios de procesos, problemas de cumplimiento, desafíos de ejecución
-   - Base del mundo real: Marcos de gestión de riesgos, estándares de excelencia operativa
+⚠️ El POC debe vivir mayormente en Tier 1-2. Tier 3 es RARO y debe justificarse con un evento mayor.
 
-4. **strategicFlexibility** (0-100) - Capacidad de adaptación y opciones estratégicas disponibles
-   - Afectado por: decisiones que abren o cierran opciones futuras, rigidez vs. adaptabilidad
-   - Base del mundo real: Teoría de opciones reales, agilidad estratégica, gestión de la incertidumbre
+### REGLA 3: EXPLICABILIDAD "¿POR QUÉ?" OBLIGATORIA
+Para CADA indicador que cambia, debes proveer:
+1. **shortReason**: Una línea explicando el cambio (visible siempre)
+2. **causalChain**: 2-4 bullets explicando la cadena causal completa:
+   - Qué hiciste (la decisión)
+   - Qué desencadenó (el mecanismo)
+   - Por qué el indicador se movió
+   - Por qué la magnitud fue menor/moderada/mayor
 
-PRINCIPIOS DE CÁLCULO DE IMPACTO:
-1. **Causalidad Lógica**: Cada impacto debe tener sentido en el mundo real
-2. **Los Intercambios Son Reales**: Las buenas decisiones también tienen costos
-3. **Respuesta Proporcional**: Ajusta el impacto a la severidad de la decisión (±2-5 menor, ±5-12 significativo, ±10-25 mayor)
-4. **Fundamenta Tu Razonamiento**: Explica POR QUÉ basándote en conocimiento empresarial/industrial
-
-REGLA CRÍTICA DE COSTO DE OPORTUNIDAD:
+### REGLA 4: COSTO DE OPORTUNIDAD
 ⚠️ CADA decisión DEBE cambiar AL MENOS UN indicador NEGATIVAMENTE.
 - No existen decisiones "perfectas" sin consecuencias
-- Toda elección implica renunciar a algo (costo de oportunidad)
-- Si una decisión mejora un área, debe perjudicar otra (aunque sea levemente)
+- Toda elección implica renunciar a algo
 
-IMPORTANTE: El razonamiento y el insight de experto SIEMPRE deben estar en ESPAÑOL de Latinoamérica.
+LOS 4 INDICADORES POC:
+1. **teamMorale** (0-100) - Estado emocional y compromiso del equipo
+2. **budgetImpact** (0-100) - Salud financiera y disponibilidad de recursos
+3. **operationalRisk** (0-100) - Nivel de incertidumbre/peligro operativo
+4. **strategicFlexibility** (0-100) - Capacidad de adaptación estratégica
+
+IMPORTANTE: TODO el contenido SIEMPRE debe estar en ESPAÑOL de Latinoamérica. CERO palabras en inglés.
 
 FORMATO DE SALIDA (solo JSON estricto):
 {
   "indicatorDeltas": {
-    "teamMorale": <número -25 a +25>,
-    "budgetImpact": <número -25 a +25>,
-    "operationalRisk": <número -25 a +25>,
-    "strategicFlexibility": <número -25 a +25>
+    "teamMorale": <número -12 a +12, o 0 si no cambia>,
+    "budgetImpact": <número -12 a +12, o 0 si no cambia>,
+    "operationalRisk": <número -12 a +12, o 0 si no cambia>,
+    "strategicFlexibility": <número -12 a +12, o 0 si no cambia>
   },
-  "reasoning": "<2-3 oraciones en español explicando POR QUÉ ocurren estos cambios, con justificación del mundo real>",
-  "expertInsight": "<1-2 oraciones en español de contexto de experiencia del dominio - lo que un profesional real sabría sobre esta situación>"
+  "metricExplanations": {
+    "<indicatorId>": {
+      "shortReason": "<Una línea: 'Indicador +X: razón breve'>",
+      "causalChain": [
+        "Lo que decidiste: <descripción>",
+        "Esto desencadenó: <mecanismo>",
+        "Por eso el indicador se movió: <explicación>",
+        "Magnitud <menor/moderada/mayor> porque: <justificación>"
+      ],
+      "tier": <1, 2, o 3>
+    }
+  },
+  "reasoning": "<2-3 oraciones en español explicando los intercambios clave>",
+  "expertInsight": "<1-2 oraciones de contexto experto del dominio>"
 }
 
 EJEMPLO:
-Decisión: "Retrasar el lanzamiento del producto 2 semanas para corregir problemas de calidad"
+Decisión: "Retrasar el lanzamiento 2 semanas para corregir el bug"
 {
-  "indicatorDeltas": {"teamMorale": 5, "budgetImpact": -8, "operationalRisk": -15, "strategicFlexibility": -5},
-  "reasoning": "Los retrasos enfocados en calidad típicamente reducen el riesgo operativo significativamente (basado en post-mortems de la industria de software que muestran 3x el costo de corregir problemas después del lanzamiento). El presupuesto se ve afectado por los costos extendidos de desarrollo. La flexibilidad estratégica se reduce levemente al comprometer recursos adicionales, pero la moral del equipo mejora cuando se prioriza la calidad sobre la prisa.",
-  "expertInsight": "En gestión de productos, la 'regla 1-10-100' sugiere que corregir un defecto en diseño cuesta $1, en desarrollo $10, y post-lanzamiento $100. Esta decisión sigue principios establecidos de gestión de calidad."
+  "indicatorDeltas": {"teamMorale": 4, "budgetImpact": -5, "operationalRisk": 0, "strategicFlexibility": 0},
+  "metricExplanations": {
+    "teamMorale": {
+      "shortReason": "Moral +4: el equipo valora que se priorice la calidad sobre la prisa",
+      "causalChain": [
+        "Decidiste: Retrasar el lanzamiento para corregir el bug crítico",
+        "Esto desencadenó: El equipo sintió que sus preocupaciones de calidad fueron escuchadas",
+        "La moral subió porque: Los desarrolladores prefieren lanzar productos de calidad",
+        "Magnitud moderada (Tier 2) porque: Es un reconocimiento significativo pero esperado del liderazgo"
+      ],
+      "tier": 2
+    },
+    "budgetImpact": {
+      "shortReason": "Presupuesto -5: costos adicionales de 2 semanas de desarrollo",
+      "causalChain": [
+        "Decidiste: Extender el timeline 2 semanas",
+        "Esto desencadenó: Gastos adicionales de nómina y recursos",
+        "El presupuesto bajó porque: Cada semana de desarrollo tiene costo fijo",
+        "Magnitud moderada (Tier 2) porque: 2 semanas representa ~5% del presupuesto del proyecto"
+      ],
+      "tier": 2
+    }
+  },
+  "reasoning": "Retrasar por calidad es un intercambio clásico: mejora la moral del equipo y reduce riesgo técnico, pero tiene costo financiero directo.",
+  "expertInsight": "La regla 1-10-100 de gestión de calidad indica que corregir defectos post-lanzamiento cuesta 10x más que en desarrollo."
 }`;
 
 export async function calculateKPIImpact(context: AgentContext): Promise<DomainExpertOutput> {
@@ -125,7 +159,25 @@ Return ONLY valid JSON matching the specified format.`;
     const parsed = JSON.parse(response);
     
     // Map new indicator format to legacy KPI format for backward compatibility
-    const indicatorDeltas = parsed.indicatorDeltas || {};
+    let indicatorDeltas = parsed.indicatorDeltas || {};
+    
+    // POC ENFORCEMENT: Limit to max 2-3 non-zero metrics
+    const nonZeroEntries = Object.entries(indicatorDeltas).filter(([_, v]) => v !== 0);
+    if (nonZeroEntries.length > 3) {
+      // Keep only the 3 with largest absolute values
+      const sorted = nonZeroEntries.sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number));
+      const top3Keys = sorted.slice(0, 3).map(([k]) => k);
+      indicatorDeltas = Object.fromEntries(
+        Object.entries(indicatorDeltas).map(([k, v]) => [k, top3Keys.includes(k) ? v : 0])
+      );
+    }
+    
+    // POC ENFORCEMENT: Clamp values to tier limits (-12 to +12)
+    for (const key of Object.keys(indicatorDeltas)) {
+      const val = indicatorDeltas[key] as number;
+      indicatorDeltas[key] = Math.max(-12, Math.min(12, val));
+    }
+    
     const kpiDeltas = {
       revenue: indicatorDeltas.budgetImpact ? indicatorDeltas.budgetImpact * 1000 : 0,
       morale: indicatorDeltas.teamMorale || 0,
@@ -137,15 +189,17 @@ Return ONLY valid JSON matching the specified format.`;
     return {
       kpiDeltas,
       indicatorDeltas,
-      reasoning: parsed.reasoning || "Impact calculated based on decision analysis.",
+      reasoning: parsed.reasoning || "Impacto calculado según el análisis de la decisión.",
       expertInsight: parsed.expertInsight || "",
+      metricExplanations: parsed.metricExplanations || {},
     };
   } catch {
     return {
       kpiDeltas: { revenue: 0, morale: 0, reputation: 0, efficiency: 0, trust: 0 },
       indicatorDeltas: {},
-      reasoning: "Unable to calculate precise impact. Decision noted.",
+      reasoning: "No se pudo calcular el impacto preciso. Decisión registrada.",
       expertInsight: "",
+      metricExplanations: {},
     };
   }
 }

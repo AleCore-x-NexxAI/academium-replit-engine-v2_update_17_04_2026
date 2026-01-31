@@ -329,6 +329,13 @@ export interface FeedbackResponse {
   hint?: string;
 }
 
+// POC Metric Explainability - "Why?" feature
+export interface MetricExplanation {
+  shortReason: string; // One-line visible explanation e.g., "Moral +4: el equipo valora la calidad"
+  causalChain: string[]; // 2-4 bullet expandable explanation chain
+  tier: 1 | 2 | 3; // Magnitude tier (1: ±1-3, 2: ±4-7, 3: ±8-12)
+}
+
 export interface TurnResponse {
   narrative: NarrativeResponse;
   kpiUpdates: Record<string, KPIUpdate>;
@@ -342,6 +349,8 @@ export interface TurnResponse {
   revisionPrompt?: string;
   revisionAttempt?: number;
   maxRevisions?: number;
+  // POC "Why?" Explainability
+  metricExplanations?: Record<string, MetricExplanation>;
 }
 
 export interface ScoreSummary {

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { KPIs, HistoryEntry, TurnResponse, Indicator, DecisionPoint } from "@shared/schema";
+import type { KPIs, HistoryEntry, TurnResponse, Indicator, DecisionPoint, MetricExplanation } from "@shared/schema";
 
 interface ThinkingStep {
   message: string;
@@ -31,6 +31,8 @@ interface SimulationStore {
   revisionPrompt: string | null;
   revisionAttempts: number;
   maxRevisions: number;
+  // POC "Why?" Explainability
+  metricExplanations: Record<string, MetricExplanation>;
 
   setSessionId: (id: string | null) => void;
   addTurn: (userInput: string, response: TurnResponse) => void;
@@ -84,6 +86,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   revisionPrompt: null,
   revisionAttempts: 0,
   maxRevisions: 2,
+  // POC "Why?" Explainability
+  metricExplanations: {},
 
   setSessionId: (id) => set({ sessionId: id }),
 
@@ -136,6 +140,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
         pendingRevision: false,
         revisionPrompt: null,
         revisionAttempts: 0,
+        // POC "Why?" Explainability
+        metricExplanations: response.metricExplanations || {},
       };
     }),
 
@@ -155,7 +161,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
         history: newHistory,
         pendingRevision: true,
         revisionPrompt: response.revisionPrompt || null,
-        revisionAttempts: response.revisionAttempts || state.revisionAttempts + 1,
+        revisionAttempts: response.revisionAttempt || state.revisionAttempts + 1,
         maxRevisions: response.maxRevisions || 2,
         currentFeedback: response.feedback ? {
           score: 0,

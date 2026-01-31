@@ -1,43 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Lightbulb, BookOpen, Loader2, BarChart3, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, BarChart3, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
 import type { DecisionPoint } from "@shared/schema";
 
-interface RubricCriterion {
-  name: string;
-  description: string;
-  weight: number;
-}
-
+// POC: Simplified props - rubric and hints removed per POC spec
 interface InputConsoleProps {
   onSubmit: (text: string) => void;
   mode: "guided" | "assessment";
-  options?: string[];
   isProcessing: boolean;
   isGameOver: boolean;
   onViewResults?: () => void;
-  rubric?: { criteria: RubricCriterion[] };
-  currentFeedback?: {
-    score: number;
-    message: string;
-    hint?: string;
-  } | null;
-  onRequestHint?: () => Promise<string>;
   currentDecisionPoint?: DecisionPoint;
   decisionNumber?: number;
   totalDecisions?: number;
@@ -50,13 +28,9 @@ interface InputConsoleProps {
 export function InputConsole({
   onSubmit,
   mode,
-  options = [],
   isProcessing,
   isGameOver,
   onViewResults,
-  rubric,
-  currentFeedback,
-  onRequestHint,
   currentDecisionPoint,
   decisionNumber,
   totalDecisions,
@@ -69,26 +43,13 @@ export function InputConsole({
   const [selectedOption, setSelectedOption] = useState<string>("");
   const [justification, setJustification] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingHint, setIsLoadingHint] = useState(false);
-  const [currentHint, setCurrentHint] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isMultipleChoice = currentDecisionPoint?.format === "multiple_choice";
   const requiresJustification = currentDecisionPoint?.requiresJustification ?? false;
   const decisionOptions = currentDecisionPoint?.options || [];
 
-  const handleRequestHint = async () => {
-    if (!onRequestHint || isLoadingHint) return;
-    setIsLoadingHint(true);
-    try {
-      const hint = await onRequestHint();
-      setCurrentHint(hint);
-    } catch (error) {
-      console.error("Failed to get hint:", error);
-    } finally {
-      setIsLoadingHint(false);
-    }
-  };
+  // POC: Hints removed - handleRequestHint removed per spec
 
   useEffect(() => {
     if (!isProcessing && textareaRef.current) {
@@ -123,12 +84,7 @@ export function InputConsole({
     }
   };
 
-  const handleOptionClick = (option: string) => {
-    if (!isProcessing && !isGameOver) {
-      setInput(option);
-      textareaRef.current?.focus();
-    }
-  };
+  // POC: handleOptionClick removed - "Suggested Actions" panel removed per spec
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -255,36 +211,7 @@ export function InputConsole({
         </motion.div>
       )}
 
-      <AnimatePresence>
-        {!isMultipleChoice && mode === "guided" && options.length > 0 && !isGameOver && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mb-3"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <Lightbulb className="w-4 h-4 text-chart-4" />
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Acciones Sugeridas
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {options.map((option, index) => (
-                <Badge
-                  key={index}
-                  variant="secondary"
-                  className="cursor-pointer hover-elevate px-3 py-1.5 text-sm"
-                  onClick={() => handleOptionClick(option)}
-                  data-testid={`option-chip-${index}`}
-                >
-                  {option}
-                </Badge>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+{/* POC: "Suggested Actions" panel removed per spec - no action chips shown */}
 
       {!isMultipleChoice && (
         <div className="flex gap-3">
@@ -322,94 +249,8 @@ export function InputConsole({
               )}
             </Button>
 
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  data-testid="button-review-rubric"
-                >
-                  <BookOpen className="w-3 h-3 mr-1" />
-                  Rúbrica
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Rúbrica de Evaluación</DialogTitle>
-                  <DialogDescription>
-                    Tus decisiones serán evaluadas según estos criterios
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 mt-2">
-                  {rubric?.criteria?.length ? (
-                    rubric.criteria.map((criterion, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{criterion.name}</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {criterion.weight}%
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {criterion.description}
-                        </p>
-                        <Progress value={criterion.weight} className="h-1" />
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No hay criterios de rúbrica disponibles para este escenario.
-                    </p>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  onClick={handleRequestHint}
-                  disabled={isLoadingHint || isGameOver}
-                  data-testid="button-get-hint"
-                >
-                  {isLoadingHint ? (
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                  ) : (
-                    <Lightbulb className="w-3 h-3 mr-1" />
-                  )}
-                  Pista
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md" data-testid="dialog-hint-content">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2" data-testid="text-hint-title">
-                    <Lightbulb className="w-5 h-5 text-chart-4" />
-                    Orientación
-                  </DialogTitle>
-                  <DialogDescription>
-                    Aquí tienes orientación para ayudarte con tu decisión
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 mt-2">
-                  {currentHint ? (
-                    <p className="text-sm leading-relaxed" data-testid="text-current-hint">{currentHint}</p>
-                  ) : currentFeedback?.hint ? (
-                    <div className="space-y-3">
-                      <p className="text-sm leading-relaxed" data-testid="text-feedback-hint-dialog">{currentFeedback.hint}</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground" data-testid="text-default-hint">
-                      Considera los stakeholders involucrados: empleados, clientes, inversionistas y la comunidad. 
-                      Piensa en las consecuencias a corto y largo plazo de tus decisiones.
-                    </p>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
+{/* POC: Rubric button hidden per spec - no grading/scoring visible to students */}
+            {/* POC: Hints OFF by default per spec - can be enabled by professor toggle (not implemented in POC) */}
           </div>
         </div>
       )}

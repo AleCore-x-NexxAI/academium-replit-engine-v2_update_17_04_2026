@@ -51,11 +51,23 @@ export interface EvaluatorOutput {
   flags: string[];
 }
 
+// POC Tier classification for metric changes
+export type MetricTier = 0 | 1 | 2 | 3;
+// Tier 0: no change, Tier 1: ±1-3, Tier 2: ±4-7, Tier 3: ±8-12 (rare, event-level)
+
+export interface MetricExplanation {
+  shortReason: string; // One-line visible explanation
+  causalChain: string[]; // 2-4 bullet expandable chain: what→why→effect→magnitude
+  tier: MetricTier;
+}
+
 export interface DomainExpertOutput {
   kpiDeltas: Record<string, number>;
   indicatorDeltas?: Record<string, number>; // POC-style indicator changes
   reasoning: string;
   expertInsight?: string; // Subject matter expert context
+  // POC "Why?" Explainability
+  metricExplanations?: Record<string, MetricExplanation>;
 }
 
 export interface NarratorOutput {

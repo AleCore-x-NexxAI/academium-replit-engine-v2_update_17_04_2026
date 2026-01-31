@@ -1,12 +1,13 @@
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, TrendingDown, DollarSign, Users, Star, Gauge, Shield, Activity, Clock, Target, AlertTriangle, HelpCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Users, Star, Gauge, Shield, Activity, Clock, Target, AlertTriangle, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { KPIs, Indicator } from "@shared/schema";
+import type { KPIs, Indicator, MetricExplanation } from "@shared/schema";
 
 interface KPIDashboardProps {
   kpis: KPIs;
@@ -18,6 +19,8 @@ interface KPIDashboardProps {
   objective?: string;
   currentDecision?: number;
   totalDecisions?: number;
+  // POC "Why?" Explainability
+  metricExplanations?: Record<string, MetricExplanation>;
 }
 
 interface IndicatorInfo {
@@ -56,13 +59,17 @@ interface IndicatorCardProps {
   previousValue?: number;
   icon: React.ReactNode;
   color: string;
+  // POC "Why?" Explainability
+  explanation?: MetricExplanation;
 }
 
-function IndicatorCard({ indicatorId, label, value, previousValue, icon, color }: IndicatorCardProps) {
+function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, explanation }: IndicatorCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const delta = previousValue !== undefined ? value - previousValue : 0;
   const isPositive = delta > 0;
   const isNegative = delta < 0;
   const info = indicatorExplanations[indicatorId];
+  const hasExplanation = explanation && delta !== 0;
 
   return (
     <Card
@@ -141,6 +148,48 @@ function IndicatorCard({ indicatorId, label, value, previousValue, icon, color }
           transition={{ duration: 0.5, ease: "easeOut" }}
         />
       </div>
+
+      {/* POC "Why?" Explainability - expandable explanation */}
+      {hasExplanation && (
+        <div className="mt-3 pt-2 border-t border-border/50">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+            data-testid={`button-why-${indicatorId}`}
+          >
+            <span className="font-medium">¿Por qué?</span>
+            {isExpanded ? (
+              <ChevronUp className="w-3 h-3 ml-auto" />
+            ) : (
+              <ChevronDown className="w-3 h-3 ml-auto" />
+            )}
+          </button>
+          <AnimatePresence>
+            {isExpanded && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="pt-2 space-y-2">
+                  <p className="text-xs text-foreground/90">{explanation.shortReason}</p>
+                  {explanation.causalChain && explanation.causalChain.length > 0 && (
+                    <ul className="text-xs text-muted-foreground space-y-1 ml-2">
+                      {explanation.causalChain.map((step, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="text-primary/70 mt-0.5">•</span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </Card>
   );
 }
@@ -248,6 +297,7 @@ export function KPIDashboard({
   objective,
   currentDecision,
   totalDecisions,
+  metricExplanations,
 }: KPIDashboardProps) {
   const kpiConfig = [
     {
@@ -341,6 +391,7 @@ export function KPIDashboard({
                   previousValue={prevIndicator?.value}
                   icon={indicatorIcons[indicator.id] || <Gauge className="w-4 h-4" />}
                   color={indicatorColors[indicator.id] || "bg-muted text-muted-foreground"}
+                  explanation={metricExplanations?.[indicator.id]}
                 />
               );
             })

@@ -137,6 +137,24 @@ CORRECTO: "Recursos Humanos reporta que tres empleados veteranos presentaron su 
 PRINCIPIO: Las lecciones éticas más poderosas vienen de experimentar consecuencias, no de sermones o preguntas guiadas.
 `;
 
+export const POC_SPANISH_ONLY = `
+## REGLA POC: ESPAÑOL OBLIGATORIO (NO NEGOCIABLE)
+
+TODO el contenido generado DEBE estar en ESPAÑOL de Latinoamérica.
+
+⚠️ CERO palabras en inglés. CERO excepciones.
+
+PROHIBIDO:
+- "stakeholders" → usa "partes interesadas" o "interesados clave"
+- "feedback" → usa "retroalimentación" o "observaciones"
+- "trade-off" → usa "intercambio" o "compensación"
+- "deadline" → usa "fecha límite" o "plazo"
+- "bug" → usa "error" o "defecto" (aunque "bug" es aceptable en contexto técnico)
+- Cualquier otra palabra en inglés
+
+Si no conoces la traducción, usa una explicación descriptiva en español.
+`;
+
 export const FINAL_CLOSURE_GUIDELINES = `
 ## MENSAJE DE CIERRE FINAL (Para feedback de simulación completada)
 

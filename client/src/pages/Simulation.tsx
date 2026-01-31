@@ -62,6 +62,7 @@ export default function Simulation() {
     revisionPrompt,
     revisionAttempts,
     maxRevisions,
+    metricExplanations,
     setProcessing,
     setThinkingSteps,
     updateThinkingStep,
@@ -366,20 +367,13 @@ export default function Simulation() {
             />
           </div>
 
+          {/* POC: Simplified InputConsole - no rubric, hints, or suggested actions */}
           <InputConsole
             onSubmit={handleSubmit}
             mode={mode}
-            options={options}
             isProcessing={isProcessing}
             isGameOver={isGameOver}
             onViewResults={() => navigate(`/simulation/${sessionId}/results`)}
-            rubric={session.scenario?.rubric || undefined}
-            currentFeedback={currentFeedback}
-            onRequestHint={async () => {
-              const response = await apiRequest("POST", `/api/simulations/${sessionId}/hint`);
-              const data = await response.json();
-              return data.hint;
-            }}
             currentDecisionPoint={decisionPoints[currentDecision - 1]}
             decisionNumber={currentDecision}
             totalDecisions={totalDecisions}
@@ -393,8 +387,20 @@ export default function Simulation() {
         <motion.aside
           initial={{ x: 20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="w-96 border-l bg-card hidden xl:flex flex-col"
+          className="w-96 border-l bg-card hidden xl:flex flex-col overflow-y-auto"
         >
+          {/* POC: KPI Dashboard with "Why?" explainability */}
+          <div className="border-b">
+            <KPIDashboard
+              kpis={kpis}
+              previousKpis={previousKpis}
+              indicators={indicators}
+              previousIndicators={previousIndicators}
+              currentDecision={currentDecision}
+              totalDecisions={totalDecisions}
+              metricExplanations={metricExplanations}
+            />
+          </div>
           <FeedbackPanel
             feedback={currentFeedback}
             competencyScores={competencyScores}
