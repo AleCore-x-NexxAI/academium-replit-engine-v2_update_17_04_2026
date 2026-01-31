@@ -121,28 +121,33 @@ export class DatabaseStorage implements IStorage {
     // Check if user exists first
     const existingUser = await this.getUser(userData.id as string);
     
-    // For NEW users: default to student role (NOT superadmin) unless role is explicitly provided
-    const insertData = existingUser ? userData : {
-      ...userData,
-      role: userData.role || "student" as const,
-      isSuperAdmin: userData.isSuperAdmin ?? false,
-    };
-    
-    const [user] = await db
-      .insert(users)
-      .values(insertData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          // Only update basic profile info, don't change role/superadmin on existing users
+    if (existingUser) {
+      // Existing user: only update profile info, keep existing role
+      const [user] = await db
+        .update(users)
+        .set({
           email: userData.email,
           firstName: userData.firstName,
           lastName: userData.lastName,
           profileImageUrl: userData.profileImageUrl,
           updatedAt: new Date(),
-        },
+        })
+        .where(eq(users.id, userData.id as string))
+        .returning();
+      return user;
+    }
+    
+    // NEW user: set role from userData (defaults to student if not provided)
+    const [user] = await db
+      .insert(users)
+      .values({
+        ...userData,
+        role: userData.role || "student" as const,
+        isSuperAdmin: userData.isSuperAdmin ?? false,
       })
       .returning();
+    
+    console.log(`[Storage] Created NEW user ${userData.email} with role: ${user.role}, isSuperAdmin: ${user.isSuperAdmin}`);
     return user;
   }
 

@@ -515,7 +515,8 @@ export async function seedSampleSessions() {
 
 export async function seedAllSampleData() {
   await seedSampleScenarios();
-  await seedSampleUsers();
-  await seedSampleSessions();
-  console.log("All sample data seeded successfully!");
+  // Disabled sample user/session seeding for production - these are only for development demos
+  // await seedSampleUsers();
+  // await seedSampleSessions();
+  console.log("Seed scenarios complete - sample users disabled for production");
 }

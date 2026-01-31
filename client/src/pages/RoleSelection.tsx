@@ -159,16 +159,17 @@ export default function RoleSelection() {
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {roleOptions.map((option, index) => (
             <motion.div
               key={option.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
+              className="flex"
             >
               <Card
-                className={`p-6 h-full cursor-pointer transition-all hover-elevate ${
+                className={`p-6 w-full cursor-pointer transition-all hover-elevate flex flex-col ${
                   selectedRole === option.id
                     ? "ring-2 ring-primary"
                     : ""
@@ -177,22 +178,22 @@ export default function RoleSelection() {
                 data-testid={`card-role-${option.id}`}
               >
                 <div
-                  className={`w-16 h-16 rounded-xl ${option.color} flex items-center justify-center mb-4`}
+                  className={`w-16 h-16 rounded-xl ${option.color} flex items-center justify-center mb-4 mx-auto`}
                 >
                   {option.icon}
                 </div>
-                <h2 className="text-xl font-semibold mb-2">{option.title}</h2>
-                <p className="text-sm text-muted-foreground mb-4">
+                <h2 className="text-xl font-semibold mb-2 text-center">{option.title}</h2>
+                <p className="text-sm text-muted-foreground mb-4 text-center flex-grow">
                   {option.description}
                 </p>
                 {option.requiresCode && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-2">
                     <KeyRound className="w-3 h-3" />
                     <span>Requiere código de acceso</span>
                   </div>
                 )}
                 <Button
-                  className="w-full mt-4"
+                  className="w-full mt-auto"
                   variant={option.requiresCode ? "outline" : "default"}
                   data-testid={`button-select-${option.id}`}
                 >

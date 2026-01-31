@@ -76,8 +76,7 @@ export async function setupAuth(app: Express) {
   ) => {
     const user = {};
     updateUserSession(user, tokens);
-    // Note: Role is handled in callback route after session is available
-    await upsertUser(tokens.claims());
+    // Don't upsert user here - we'll do it in callback with the correct role
     verified(null, user);
   };
 
@@ -103,7 +102,7 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  app.get("/api/login", (req, res, next) => {
+  app.get("/api/login", async (req, res, next) => {
     const role = req.query.role as string | undefined;
     
     // Check if admin code was verified server-side (within last 5 minutes)
@@ -112,16 +111,32 @@ export async function setupAuth(app: Express) {
     const isRecentVerification = Date.now() - verifiedAt < 5 * 60 * 1000; // 5 minute window
     const isValidAdminVerification = adminCodeVerified && isRecentVerification;
     
-    // Store role selection in session for use after callback
+    // Store role in cookie that survives OIDC redirect (session is unreliable across redirects)
     if (role && ["student", "professor", "admin"].includes(role)) {
-      (req.session as any).pendingRole = role;
-      // Only grant super admin if admin code was verified server-side
-      (req.session as any).isVerifiedAdmin = role === "admin" && isValidAdminVerification;
+      // Set pending role cookie (expires in 5 minutes)
+      res.cookie("pendingRole", role, {
+        httpOnly: true,
+        secure: true,
+        maxAge: 5 * 60 * 1000, // 5 minutes
+        sameSite: "lax",
+      });
+      
+      // Set verified admin cookie if applicable
+      if (role === "admin" && isValidAdminVerification) {
+        res.cookie("isVerifiedAdmin", "true", {
+          httpOnly: true,
+          secure: true,
+          maxAge: 5 * 60 * 1000,
+          sameSite: "lax",
+        });
+      }
     }
     
-    // Clear the admin verification flags after use
+    // Clear the admin verification flags from session after use
     delete (req.session as any).adminCodeVerified;
     delete (req.session as any).adminCodeVerifiedAt;
+    
+    console.log(`[Auth] /api/login - role: ${role}, isValidAdminVerification: ${isValidAdminVerification}`);
     
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, {
@@ -134,25 +149,38 @@ export async function setupAuth(app: Express) {
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, async (err: any, user: any, info: any) => {
       if (err || !user) {
+        console.log("[Auth] /api/callback - auth failed, redirecting to login");
         return res.redirect("/api/login");
       }
       
       req.logIn(user, async (loginErr) => {
         if (loginErr) {
+          console.log("[Auth] /api/callback - login failed, redirecting to login");
           return res.redirect("/api/login");
         }
         
-        // Apply the pending role from session
-        const pendingRole = (req.session as any).pendingRole as "student" | "professor" | "admin" | undefined;
-        const isVerifiedAdmin = (req.session as any).isVerifiedAdmin === true;
+        // Get the pending role from cookie (set in /api/login - survives OIDC redirect)
+        const pendingRole = req.cookies?.pendingRole as "student" | "professor" | "admin" | undefined;
+        const isVerifiedAdmin = req.cookies?.isVerifiedAdmin === "true";
         
-        if (pendingRole && user.claims?.sub) {
-          const isSuperAdmin = pendingRole === "admin" && isVerifiedAdmin;
-          await storage.upsertUserWithRole(user.claims.sub, pendingRole, isSuperAdmin);
+        console.log(`[Auth] /api/callback - pendingRole from cookie: ${pendingRole}, isVerifiedAdmin: ${isVerifiedAdmin}`);
+        
+        // Create/update user with the correct role
+        if (user.claims?.sub) {
+          const claims = user.claims;
+          const role = pendingRole || "student";
+          const isSuperAdmin = role === "admin" && isVerifiedAdmin;
           
-          // Clear the pending role from session
-          delete (req.session as any).pendingRole;
-          delete (req.session as any).isVerifiedAdmin;
+          console.log(`[Auth] Creating/updating user ${claims.email} with role: ${role}, isSuperAdmin: ${isSuperAdmin}`);
+          
+          // Use upsertUser with the correct role for the initial creation
+          await upsertUser(claims, role, isSuperAdmin);
+          
+          console.log(`[Auth] User ${claims.email} created/updated successfully`);
+          
+          // Clear the pending role cookies
+          res.clearCookie("pendingRole");
+          res.clearCookie("isVerifiedAdmin");
         }
         
         return res.redirect("/");
