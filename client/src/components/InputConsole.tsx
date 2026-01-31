@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Loader2, BarChart3, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, BarChart3, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ interface InputConsoleProps {
   revisionPrompt?: string | null;
   revisionAttempts?: number;
   maxRevisions?: number;
+  validationError?: string | null;
 }
 
 export function InputConsole({
@@ -38,6 +39,7 @@ export function InputConsole({
   revisionPrompt,
   revisionAttempts = 0,
   maxRevisions = 2,
+  validationError,
 }: InputConsoleProps) {
   const [input, setInput] = useState("");
   const [selectedOption, setSelectedOption] = useState<string>("");
@@ -118,6 +120,27 @@ export function InputConsole({
           <p className="text-sm text-foreground leading-relaxed">
             {revisionPrompt}
           </p>
+        </motion.div>
+      )}
+
+      {validationError && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-4 p-4 bg-destructive/10 border-destructive/30 rounded-lg border"
+          data-testid="validation-error-banner"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+            <div>
+              <span className="text-xs font-medium text-destructive uppercase tracking-wide block mb-1">
+                Respuesta no válida
+              </span>
+              <p className="text-sm text-foreground leading-relaxed">
+                {validationError}
+              </p>
+            </div>
+          </div>
         </motion.div>
       )}
 

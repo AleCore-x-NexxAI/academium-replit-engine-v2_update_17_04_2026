@@ -7,6 +7,7 @@ import { processStudentTurn, DEFAULT_DIRECTOR_PROMPT } from "./agents/director";
 import { DEFAULT_EVALUATOR_PROMPT } from "./agents/evaluator";
 import { DEFAULT_NARRATOR_PROMPT } from "./agents/narrator";
 import { DEFAULT_DOMAIN_EXPERT_PROMPT } from "./agents/domainExpert";
+import { validateSimulationInput } from "./agents/inputValidator";
 import { SUPPORTED_MODELS } from "./openai";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
@@ -517,6 +518,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const initialState = session.scenario?.initialState;
       const scenarioLlmModel = session.scenario?.llmModel as import("./openai").SupportedModel | undefined;
       const scenarioAgentPrompts = session.scenario?.agentPrompts as import("@shared/schema").AgentPrompts | undefined;
+      
+      // CRITICAL: Validate input BEFORE any main processing
+      // This ensures offensive/nonsense inputs don't advance the simulation
+      const recentHistory = (session.currentState.history as HistoryEntry[])
+        .slice(-4)
+        .map(h => `${h.role}: ${h.content}`)
+        .join("\n");
+      
+      const validationResult = await validateSimulationInput(
+        input,
+        {
+          title: session.scenario?.title || "Business Simulation",
+          objective: initialState?.objective || "Navigate the challenge",
+          recentHistory,
+        },
+        { model: "gpt-4o-mini" } // Use cheaper model for validation
+      );
+      
+      if (!validationResult.isValid) {
+        console.log(`[Turn] Input validation failed for session ${sessionId}: ${validationResult.rejectionReason}`);
+        return res.status(400).json({
+          message: "validation_failed",
+          validationError: true,
+          userMessage: validationResult.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada y relacionada con el caso.",
+        });
+      }
       
       const context: AgentContext = {
         sessionId,

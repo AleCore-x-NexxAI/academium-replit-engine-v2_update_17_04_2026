@@ -42,6 +42,7 @@ export default function Simulation() {
   const [previousKpis, setPreviousKpis] = useState<KPIs | undefined>();
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showMobileCasePanel, setShowMobileCasePanel] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const {
     history,
@@ -213,6 +214,16 @@ export default function Simulation() {
       }
       
       const errorMessage = error?.data?.message || error?.message || "";
+      const errorData = error?.data || {};
+      
+      // Handle validation errors - stay on same question, show message
+      if (errorData.validationError || errorMessage === "validation_failed") {
+        const userMessage = errorData.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada.";
+        setValidationError(userMessage);
+        // Don't show toast for validation - the inline message is shown instead
+        return;
+      }
+      
       if (errorMessage.includes("not active") || errorMessage.includes("Session is not active")) {
         toast({
           title: "Simulación Completada",
@@ -237,6 +248,8 @@ export default function Simulation() {
   });
 
   const handleSubmit = (input: string) => {
+    // Clear any previous validation error when submitting new input
+    setValidationError(null);
     submitMutation.mutate(input);
   };
 
@@ -381,6 +394,7 @@ export default function Simulation() {
             revisionPrompt={revisionPrompt}
             revisionAttempts={revisionAttempts}
             maxRevisions={maxRevisions}
+            validationError={validationError}
           />
         </main>
 
