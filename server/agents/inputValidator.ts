@@ -50,20 +50,20 @@ function quickValidation(input: string): string | null {
   
   // Check for empty or too short input
   if (trimmed.length < MIN_INPUT_LENGTH) {
-    return "Tu respuesta es demasiado corta. Por favor, proporciona una respuesta más detallada sobre la situación del caso.";
+    return "Tu respuesta es demasiado corta. Una respuesta válida debe explicar tu decisión y razonamiento dentro del contexto del caso. Por favor, amplía tu respuesta.";
   }
   
   // Check for offensive patterns
   for (const pattern of OFFENSIVE_PATTERNS) {
     if (pattern.test(trimmed)) {
-      return "Tu respuesta contiene lenguaje inapropiado. Por favor, mantén un tono profesional y respetuoso como se esperaría en un entorno empresarial.";
+      return "Tu respuesta contiene lenguaje inapropiado. En esta simulación empresarial, se espera un tono profesional y respetuoso. Por favor, reformula tu respuesta.";
     }
   }
   
   // Check for nonsense patterns
   for (const pattern of NONSENSE_PATTERNS) {
     if (pattern.test(trimmed)) {
-      return "Tu respuesta no parece ser una respuesta válida. Por favor, proporciona una decisión o acción relacionada con la situación del caso.";
+      return "Tu respuesta no está relacionada con el caso. Una respuesta válida debe proponer una decisión o acción concreta para la situación planteada. Por favor, inténtalo de nuevo.";
     }
   }
   
@@ -132,7 +132,7 @@ Determina si esta respuesta es válida o inválida.`;
       return {
         isValid: false,
         rejectionReason: result.reason,
-        userMessage: "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta relacionada con el caso que mantenga un tono profesional y respetuoso."
+        userMessage: "Tu respuesta no está relacionada con el contexto del caso o no cumple con las normas de la simulación. Recuerda que una respuesta válida debe explicar tu decisión dentro del escenario planteado y mantener un tono profesional."
       };
     }
     

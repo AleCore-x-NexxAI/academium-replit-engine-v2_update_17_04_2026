@@ -213,12 +213,22 @@ export default function Simulation() {
         return;
       }
       
-      const errorMessage = error?.data?.message || error?.message || "";
-      const errorData = error?.data || {};
+      // Try to parse JSON from error message (format: "400: {json}")
+      const errorMessage = error?.message || "";
+      let errorData: any = {};
+      try {
+        const jsonMatch = errorMessage.match(/^\d+:\s*(.+)$/);
+        if (jsonMatch && jsonMatch[1]) {
+          errorData = JSON.parse(jsonMatch[1]);
+        }
+      } catch (e) {
+        // Not JSON, use raw message
+      }
       
       // Handle validation errors - stay on same question, show message
-      if (errorData.validationError || errorMessage === "validation_failed") {
-        const userMessage = errorData.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada.";
+      if (errorData.validationError || errorData.message === "validation_failed") {
+        const userMessage = errorData.userMessage || 
+          "Tu respuesta no pudo procesarse. Asegúrate de que:\n• La respuesta esté relacionada con el caso\n• Explique tu razonamiento o decisión\n• Mantenga un tono profesional";
         setValidationError(userMessage);
         // Don't show toast for validation - the inline message is shown instead
         return;

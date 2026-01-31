@@ -1,0 +1,76 @@
+Error Message Copy – Validation Feedback (Text Only Change)
+
+Current behavior (working correctly)
+	•	The validation / recheck logic is working:
+	•	Blocks short answers
+	•	Blocks nonsense
+	•	Blocks foul language
+	•	When validation fails, the system shows a red error toast:
+“Error
+No se pudo procesar tu decisión. Por favor intenta de nuevo.”
+
+Why this is a problem
+	•	The message sounds like a technical failure.
+	•	Users think:
+	•	The simulation is broken
+	•	There was a backend or UI error
+	•	It does not explain:
+	•	What went wrong
+	•	What they need to fix
+	•	This creates confusion instead of learning.
+
+⸻
+
+Required change (TEXT ONLY)
+
+⚠️ Do not change validation logic, guardrails, or flow.
+⚠️ Only update the error message content.
+
+New behavior
+
+When a response fails validation, show why it failed and what a valid response looks like.
+
+Suggested copy (example)
+
+Title:
+⚠️ Respuesta no válida
+
+Body:
+No se pudo procesar tu decisión por uno de los siguientes motivos:
+	•	La respuesta es demasiado corta
+	•	Contiene lenguaje inapropiado
+	•	No está relacionada con el contexto del caso
+
+Una respuesta válida debe:
+	•	Estar relacionada con la situación planteada
+	•	Explicar tu razonamiento o decisión
+	•	Tener sentido dentro del contexto del caso
+
+Por favor, ajusta tu respuesta e inténtalo de nuevo.
+
+⸻
+
+Alternative shorter version (if space is limited)
+
+Respuesta no válida
+Tu respuesta no pudo procesarse porque es demasiado corta, contiene lenguaje inapropiado o no está relacionada con el caso.
+Recuerda que una respuesta válida debe explicar tu decisión dentro del contexto de la simulación.
+
+⸻
+
+UX placement (no layout changes required)
+	•	Keep the error where it is now (toast or inline).
+	•	No new components required.
+	•	No logic changes.
+	•	Only replace the copy so the user understands:
+	•	This is intentional
+	•	This is a learning guardrail
+	•	This is not a system bug
+
+⸻
+
+Summary for the AI agent / dev
+	•	✅ Validation works, keep it as-is
+	•	❌ Current error text is misleading
+	•	🔧 Change only the error message text
+	•	🎯 Goal: explain why the answer failed and how to fix it
