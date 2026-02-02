@@ -48,7 +48,7 @@ const primaryRoleOptions: RoleOption[] = [
     id: "professor",
     title: "Profesor",
     description:
-      "Crea escenarios de simulación y visualiza el progreso de tus estudiantes.",
+      "Crea escenarios y revisa el progreso de tu clase.",
     icon: <BookOpen className="w-8 h-8" />,
     color: "bg-chart-2/10 text-chart-2",
     requiresCode: false,
@@ -59,7 +59,7 @@ const adminRoleOption: RoleOption = {
   id: "admin",
   title: "Super Administrador",
   description:
-    "Acceso completo al sistema para gestión y desarrollo.",
+    "Configuración del sistema y gestión de usuarios. (Acceso restringido)",
   icon: <Shield className="w-5 h-5" />,
   color: "bg-muted text-muted-foreground",
   requiresCode: true,
@@ -237,8 +237,8 @@ export default function RoleSelection() {
                 className="shrink-0"
                 data-testid={`button-select-${adminRoleOption.id}`}
               >
-                Acceder
-                <ArrowRight className="w-3 h-3 ml-1" />
+                Acceso restringido
+                <KeyRound className="w-3 h-3 ml-1" />
               </Button>
             </div>
           </Card>
