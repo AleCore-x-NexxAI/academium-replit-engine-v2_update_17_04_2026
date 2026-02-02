@@ -74,9 +74,9 @@ export default function RoleSelection() {
 
   const handleRoleSelect = (role: Role) => {
     setSelectedRole(role);
-    const option = roleOptions.find((r) => r.id === role);
     
-    if (option?.requiresCode) {
+    // Check if this role requires a code (only admin does)
+    if (role === "admin") {
       setShowCodeDialog(true);
     } else {
       // Use fresh-login to clear any existing Replit session first
@@ -160,8 +160,9 @@ export default function RoleSelection() {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {roleOptions.map((option, index) => (
+        {/* Primary role cards - Student and Professor */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          {primaryRoleOptions.map((option, index) => (
             <motion.div
               key={option.id}
               initial={{ opacity: 0, y: 20 }}
@@ -170,7 +171,7 @@ export default function RoleSelection() {
               className="flex"
             >
               <Card
-                className={`p-6 w-full cursor-pointer transition-all hover-elevate flex flex-col ${
+                className={`p-8 w-full cursor-pointer transition-all hover-elevate flex flex-col h-full ${
                   selectedRole === option.id
                     ? "ring-2 ring-primary"
                     : ""
@@ -183,19 +184,12 @@ export default function RoleSelection() {
                 >
                   {option.icon}
                 </div>
-                <h2 className="text-xl font-semibold mb-2 text-center">{option.title}</h2>
-                <p className="text-sm text-muted-foreground mb-4 text-center flex-grow">
+                <h2 className="text-xl font-semibold mb-3 text-center">{option.title}</h2>
+                <p className="text-sm text-muted-foreground mb-6 text-center flex-grow">
                   {option.description}
                 </p>
-                {option.requiresCode && (
-                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground mb-2">
-                    <KeyRound className="w-3 h-3" />
-                    <span>Requiere código de acceso</span>
-                  </div>
-                )}
                 <Button
                   className="w-full mt-auto"
-                  variant={option.requiresCode ? "outline" : "default"}
                   data-testid={`button-select-${option.id}`}
                 >
                   Continuar como {option.title}
@@ -206,12 +200,58 @@ export default function RoleSelection() {
           ))}
         </div>
 
+        {/* Secondary admin card - low visual weight */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="max-w-2xl mx-auto mt-6"
+        >
+          <Card
+            className={`px-6 py-4 w-full cursor-pointer transition-all hover-elevate border-dashed ${
+              selectedRole === adminRoleOption.id
+                ? "ring-2 ring-primary"
+                : ""
+            }`}
+            onClick={() => handleRoleSelect(adminRoleOption.id)}
+            data-testid={`card-role-${adminRoleOption.id}`}
+          >
+            <div className="flex items-center gap-4">
+              <div
+                className={`w-10 h-10 rounded-lg ${adminRoleOption.color} flex items-center justify-center shrink-0`}
+              >
+                {adminRoleOption.icon}
+              </div>
+              <div className="flex-grow min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium">{adminRoleOption.title}</h3>
+                  <KeyRound className="w-3 h-3 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {adminRoleOption.description}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0"
+                data-testid={`button-select-${adminRoleOption.id}`}
+              >
+                Acceder
+                <ArrowRight className="w-3 h-3 ml-1" />
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
+
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="text-center text-sm text-muted-foreground mt-8"
-        >Selecciona cómo vas a usar ScenarioX hoy</motion.p>
+          className="text-center text-xs text-muted-foreground mt-8"
+        >
+          Tu rol se guardará con tu cuenta.
+        </motion.p>
       </main>
       <Dialog open={showCodeDialog} onOpenChange={setShowCodeDialog}>
         <DialogContent>
