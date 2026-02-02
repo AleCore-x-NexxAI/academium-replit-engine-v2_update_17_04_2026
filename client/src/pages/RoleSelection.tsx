@@ -34,12 +34,12 @@ interface RoleOption {
   requiresCode: boolean;
 }
 
-const roleOptions: RoleOption[] = [
+const primaryRoleOptions: RoleOption[] = [
   {
     id: "student",
     title: "Estudiante",
     description:
-      "Accede a simulaciones de negocios y desarrolla tus habilidades de liderazgo a través de escenarios inmersivos.",
+      "Accede a simulaciones de negocios y desarrolla tus habilidades de liderazgo.",
     icon: <GraduationCap className="w-8 h-8" />,
     color: "bg-chart-1/10 text-chart-1",
     requiresCode: false,
@@ -48,21 +48,22 @@ const roleOptions: RoleOption[] = [
     id: "professor",
     title: "Profesor",
     description:
-      "Crea y personaliza escenarios de simulación. Visualiza el progreso de tus estudiantes y analiza sus decisiones.",
+      "Crea escenarios de simulación y visualiza el progreso de tus estudiantes.",
     icon: <BookOpen className="w-8 h-8" />,
     color: "bg-chart-2/10 text-chart-2",
     requiresCode: false,
   },
-  {
-    id: "admin",
-    title: "Super Administrador",
-    description:
-      "Acceso completo al sistema. Gestiona usuarios, configuraciones globales y herramientas avanzadas de desarrollo.",
-    icon: <Shield className="w-8 h-8" />,
-    color: "bg-chart-4/10 text-chart-4",
-    requiresCode: true,
-  },
 ];
+
+const adminRoleOption: RoleOption = {
+  id: "admin",
+  title: "Super Administrador",
+  description:
+    "Acceso completo al sistema para gestión y desarrollo.",
+  icon: <Shield className="w-5 h-5" />,
+  color: "bg-muted text-muted-foreground",
+  requiresCode: true,
+};
 
 export default function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -210,10 +211,7 @@ export default function RoleSelection() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
           className="text-center text-sm text-muted-foreground mt-8"
-        >
-          Tu rol se guardará con tu cuenta. Si necesitas cambiarlo después,
-          contacta al administrador del sistema.
-        </motion.p>
+        >Selecciona cómo vas a usar ScenarioX hoy</motion.p>
       </main>
       <Dialog open={showCodeDialog} onOpenChange={setShowCodeDialog}>
         <DialogContent>
