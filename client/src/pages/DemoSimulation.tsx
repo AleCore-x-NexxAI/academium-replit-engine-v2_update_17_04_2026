@@ -15,6 +15,9 @@ import {
   Minus,
   Eye,
   AlertTriangle,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,7 +78,7 @@ const STANDARD_INDICATORS = [
   { id: "trust", label: "Confianza de Stakeholders", value: 72, previousValue: 72 },
 ];
 
-const DEMO_RESPONSES: Record<number, { narrative: string; feedback: string; indicatorChanges: Record<string, number> }> = {
+const DEMO_RESPONSES: Record<number, { narrative: string; feedback: string; indicatorChanges: Record<string, number>; rationale: Record<string, string[]> }> = {
   1: {
     narrative: `Tu decisión de actuar rápidamente ha sido notada por el equipo.
 
@@ -84,6 +87,21 @@ El CEO aprecia tu proactividad en comunicar el problema. En la reunión de emerg
 Después de una discusión intensa, se decide aplazar el lanzamiento 2 semanas. El equipo de ventas no está contento, pero comprende la gravedad de la situación.`,
     feedback: "Tu decisión de informar al CEO inmediatamente demuestra buenas prácticas de gestión de crisis. La transparencia temprana permite tomar decisiones informadas.",
     indicatorChanges: { morale: -5, trust: 10, reputation: 5 },
+    rationale: {
+      morale: [
+        "El aplazamiento genera frustración en el equipo de desarrollo",
+        "Meses de trabajo intenso se sienten desvalorizados temporalmente",
+      ],
+      trust: [
+        "La transparencia con liderazgo incrementa la confianza organizacional",
+        "Stakeholders aprecian la comunicación proactiva del riesgo",
+        "La decisión demuestra priorización de seguridad sobre velocidad",
+      ],
+      reputation: [
+        "Evitar un lanzamiento con vulnerabilidades protege la imagen de marca",
+        "El mercado valora empresas que priorizan la seguridad del cliente",
+      ],
+    },
   },
   2: {
     narrative: `Tu estrategia de comunicación con el equipo de ventas ha sido implementada.
@@ -93,6 +111,20 @@ Al presentar datos concretos sobre los riesgos legales y reputacionales, logras 
 El equipo de ventas acepta comunicar el retraso a los clientes, posicionándolo como un compromiso con la calidad.`,
     feedback: "Tu enfoque equilibrado entre la presión comercial y la seguridad muestra madurez en la toma de decisiones. La propuesta de compensación es creativa.",
     indicatorChanges: { revenue: -10, efficiency: 5, trust: 8 },
+    rationale: {
+      revenue: [
+        "La compensación con funciones premium reduce margen de ganancia",
+        "El retraso de 2 semanas implica costos operativos adicionales",
+      ],
+      efficiency: [
+        "El plan de comunicación estructurado agiliza la gestión de expectativas",
+        "Procesos claros de escalamiento mejoran la respuesta organizacional",
+      ],
+      trust: [
+        "La propuesta de compensación genera buena voluntad con clientes",
+        "La transparencia sobre el retraso refuerza la relación comercial",
+      ],
+    },
   },
   3: {
     narrative: `Has completado la simulación de gestión de crisis.
@@ -102,6 +134,22 @@ El lanzamiento finalmente se realizó con éxito 2 semanas después. La vulnerab
 Este caso demuestra la importancia de priorizar la seguridad y mantener una comunicación clara con todos los stakeholders.`,
     feedback: "Tu reflexión muestra una comprensión profunda de los trade-offs en la gestión de crisis. Recuerda: las decisiones difíciles a menudo no tienen respuestas perfectas, solo mejores alternativas.",
     indicatorChanges: { revenue: 5, reputation: 10, morale: 8 },
+    rationale: {
+      revenue: [
+        "El lanzamiento exitoso genera ventas y recupera inversión",
+        "Clientes satisfechos con la compensación realizan compras adicionales",
+      ],
+      reputation: [
+        "La narrativa de 'calidad sobre velocidad' posiciona bien a la marca",
+        "Medios de la industria destacan el manejo responsable de la crisis",
+        "Clientes recomiendan el producto por la experiencia positiva",
+      ],
+      morale: [
+        "El equipo celebra el lanzamiento exitoso",
+        "La validación externa refuerza el compromiso del equipo",
+        "El manejo de la crisis fortalece la cultura organizacional",
+      ],
+    },
   },
 };
 
@@ -129,6 +177,8 @@ export default function DemoSimulation() {
   const [isComplete, setIsComplete] = useState(false);
 
   const [inputWarning, setInputWarning] = useState<string | null>(null);
+  const [currentRationale, setCurrentRationale] = useState<Record<string, string[]> | null>(null);
+  const [expandedIndicator, setExpandedIndicator] = useState<string | null>(null);
 
   const validateInput = (input: string): { valid: boolean; message?: string } => {
     const trimmedInput = input.trim().toLowerCase();
@@ -213,6 +263,8 @@ export default function DemoSimulation() {
     })));
 
     setCurrentFeedback(response.feedback);
+    setCurrentRationale(response.rationale);
+    setExpandedIndicator(null);
     setIsProcessing(false);
     setSelectedOption("");
     setWrittenResponse("");
@@ -357,68 +409,83 @@ export default function DemoSimulation() {
             </ScrollArea>
 
             {!isComplete && currentDecisionData && (
-              <div className="border-t p-4 bg-background">
-                <div className="max-w-2xl mx-auto space-y-4">
-                  <div>
-                    <h3 className="font-semibold mb-1">{currentDecisionData.title}</h3>
-                    <p className="text-sm text-muted-foreground">{currentDecisionData.prompt}</p>
+              <div className="border-t p-6 bg-background">
+                <div className="max-w-2xl mx-auto space-y-6">
+                  {/* Task callout module - visually dominant */}
+                  <div className="p-5 rounded-xl bg-primary/5 border-2 border-primary/20">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Target className="w-5 h-5 text-primary" />
+                      <span className="text-sm font-semibold text-primary uppercase tracking-wide">
+                        Tu decisión ahora
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-semibold mb-3" data-testid="text-decision-title">
+                      {currentDecisionData.title}
+                    </h3>
+                    <p className="text-base text-foreground leading-relaxed" data-testid="text-decision-prompt">
+                      {currentDecisionData.prompt}
+                    </p>
                   </div>
 
-                  {currentDecisionData.format === "multiple_choice" && currentDecisionData.options && (
-                    <RadioGroup value={selectedOption} onValueChange={setSelectedOption}>
-                      {currentDecisionData.options.map((option) => (
-                        <div
-                          key={option.id}
-                          className="flex items-start gap-3 p-3 rounded-lg border hover-elevate cursor-pointer"
-                          onClick={() => setSelectedOption(option.id)}
-                        >
-                          <RadioGroupItem value={option.id} id={option.id} className="mt-0.5" />
-                          <Label htmlFor={option.id} className="text-sm cursor-pointer flex-1">
-                            <span className="font-medium">{option.id}.</span> {option.text}
-                          </Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  )}
-
-                  {currentDecisionData.format === "written" && (
-                    <Textarea
-                      value={writtenResponse}
-                      onChange={(e) => {
-                        setWrittenResponse(e.target.value);
-                        if (inputWarning) setInputWarning(null);
-                      }}
-                      placeholder={currentDecisionData.placeholder || "Escribe tu respuesta..."}
-                      rows={4}
-                      className="resize-none"
-                      data-testid="input-written-response"
-                    />
-                  )}
-
-                  {inputWarning && (
-                    <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm" data-testid="text-input-warning">
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                        <span>{inputWarning}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    onClick={handleSubmitDecision}
-                    disabled={isProcessing || (currentDecisionData.format === "multiple_choice" ? !selectedOption : !writtenResponse.trim())}
-                    className="w-full"
-                    data-testid="button-submit-decision"
-                  >
-                    {isProcessing ? (
-                      "Procesando..."
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Enviar Decisión
-                      </>
+                  {/* Input area - clearly connected to task */}
+                  <div className="space-y-4">
+                    {currentDecisionData.format === "multiple_choice" && currentDecisionData.options && (
+                      <RadioGroup value={selectedOption} onValueChange={setSelectedOption} className="space-y-3">
+                        {currentDecisionData.options.map((option) => (
+                          <div
+                            key={option.id}
+                            className="flex items-start gap-4 p-4 rounded-lg border-2 hover-elevate cursor-pointer transition-all data-[state=checked]:border-primary data-[state=checked]:bg-primary/5"
+                            onClick={() => setSelectedOption(option.id)}
+                            data-state={selectedOption === option.id ? "checked" : "unchecked"}
+                          >
+                            <RadioGroupItem value={option.id} id={option.id} className="mt-1" />
+                            <Label htmlFor={option.id} className="text-base cursor-pointer flex-1 leading-relaxed">
+                              <span className="font-semibold text-primary">{option.id}.</span> {option.text}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
                     )}
-                  </Button>
+
+                    {currentDecisionData.format === "written" && (
+                      <Textarea
+                        value={writtenResponse}
+                        onChange={(e) => {
+                          setWrittenResponse(e.target.value);
+                          if (inputWarning) setInputWarning(null);
+                        }}
+                        placeholder={currentDecisionData.placeholder || "Escribe tu respuesta..."}
+                        rows={5}
+                        className="resize-none text-base"
+                        data-testid="input-written-response"
+                      />
+                    )}
+
+                    {inputWarning && (
+                      <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive" data-testid="text-input-warning">
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                          <span className="text-base">{inputWarning}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleSubmitDecision}
+                      disabled={isProcessing || (currentDecisionData.format === "multiple_choice" ? !selectedOption : !writtenResponse.trim())}
+                      className="w-full h-12 text-base"
+                      data-testid="button-submit-decision"
+                    >
+                      {isProcessing ? (
+                        "Procesando..."
+                      ) : (
+                        <>
+                          <Send className="w-5 h-5 mr-2" />
+                          Enviar Decisión
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -446,36 +513,84 @@ export default function DemoSimulation() {
             )}
           </div>
 
-          <aside className="w-80 border-l bg-muted/20 p-4 hidden xl:block">
-            <div className="space-y-6">
+          <aside className="w-96 border-l bg-muted/20 p-6 hidden xl:block">
+            <div className="space-y-8">
               <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4">
+                <h3 className="text-base font-semibold uppercase tracking-wide text-muted-foreground mb-6">
                   Indicadores
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-5">
                   {indicators.map((indicator) => {
                     const change = indicator.value - indicator.previousValue;
+                    const hasRationale = currentRationale && currentRationale[indicator.id];
+                    const isExpanded = expandedIndicator === indicator.id;
+                    
                     return (
-                      <div key={indicator.id} className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span>{indicator.label}</span>
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium">{indicator.value}%</span>
+                      <div key={indicator.id} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-base font-medium">{indicator.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg font-semibold">{indicator.value}%</span>
                             {change !== 0 && (
-                              <span className={`text-xs flex items-center ${change > 0 ? "text-green-600" : "text-red-600"}`}>
-                                {change > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                              <Badge 
+                                variant="secondary" 
+                                className={`text-sm px-2 py-0.5 ${
+                                  change > 0 
+                                    ? "bg-green-500/15 text-green-700 border-green-500/30" 
+                                    : "bg-red-500/15 text-red-700 border-red-500/30"
+                                }`}
+                              >
+                                {change > 0 ? <TrendingUp className="w-3.5 h-3.5 mr-1" /> : <TrendingDown className="w-3.5 h-3.5 mr-1" />}
                                 {change > 0 ? "+" : ""}{change}
-                              </span>
+                              </Badge>
                             )}
                             {change === 0 && (
-                              <Minus className="w-3 h-3 text-muted-foreground" />
+                              <Badge variant="secondary" className="text-sm px-2 py-0.5">
+                                <Minus className="w-3.5 h-3.5 mr-1" />
+                                0
+                              </Badge>
                             )}
                           </div>
                         </div>
                         <Progress 
                           value={indicator.value} 
-                          className={`h-2 ${change > 0 ? "[&>div]:bg-green-500" : change < 0 ? "[&>div]:bg-red-500" : ""}`}
+                          className={`h-3 ${change > 0 ? "[&>div]:bg-green-500" : change < 0 ? "[&>div]:bg-red-500" : ""}`}
                         />
+                        
+                        {/* Explainability button */}
+                        {hasRationale && change !== 0 && (
+                          <div className="pt-1">
+                            <button
+                              onClick={() => setExpandedIndicator(isExpanded ? null : indicator.id)}
+                              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                              data-testid={`button-why-${indicator.id}`}
+                            >
+                              <HelpCircle className="w-4 h-4" />
+                              <span>¿Por qué cambió?</span>
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
+                            
+                            <AnimatePresence>
+                              {isExpanded && currentRationale[indicator.id] && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: "auto" }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  <ul className="mt-3 space-y-2 pl-1">
+                                    {currentRationale[indicator.id].map((reason, idx) => (
+                                      <li key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 shrink-0 mt-2" />
+                                        <span>{reason}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -487,12 +602,12 @@ export default function DemoSimulation() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                  <h3 className="text-base font-semibold uppercase tracking-wide text-muted-foreground mb-4">
                     Observaciones
                   </h3>
                   <Card className="bg-primary/5 border-primary/20">
-                    <CardContent className="p-4">
-                      <p className="text-sm">{currentFeedback}</p>
+                    <CardContent className="p-5">
+                      <p className="text-base leading-relaxed">{currentFeedback}</p>
                     </CardContent>
                   </Card>
                 </motion.div>
