@@ -29,11 +29,12 @@ interface ManualCaseCreatorProps {
   onClose: () => void;
 }
 
-const POC_METRICS = [
-  { id: "metric1", label: "Métrica 1" },
-  { id: "metric2", label: "Métrica 2" },
-  { id: "metric3", label: "Métrica 3" },
-  { id: "metric4", label: "Métrica 4" },
+const STANDARD_INDICATORS = [
+  { id: "revenue", label: "Ingresos / Presupuesto" },
+  { id: "morale", label: "Moral del Equipo" },
+  { id: "reputation", label: "Reputación de Marca" },
+  { id: "efficiency", label: "Eficiencia Operacional" },
+  { id: "trust", label: "Confianza de Stakeholders" },
 ];
 
 const TRADEOFF_OPTIONS = [
@@ -95,10 +96,11 @@ export default function ManualCaseCreator({
           objective: "Tomar decisiones estratégicas",
           introText: formData.caseContext,
           kpis: {
-            metric1: 50,
-            metric2: 50,
-            metric3: 50,
-            metric4: 50,
+            revenue: 65,
+            morale: 70,
+            reputation: 75,
+            efficiency: 60,
+            trust: 72,
           },
         },
         tradeoffs: formData.tradeoffs,
@@ -135,10 +137,11 @@ export default function ManualCaseCreator({
           objective: "Tomar decisiones estratégicas",
           introText: formData.caseContext,
           kpis: {
-            metric1: 50,
-            metric2: 50,
-            metric3: 50,
-            metric4: 50,
+            revenue: 65,
+            morale: 70,
+            reputation: 75,
+            efficiency: 60,
+            trust: 72,
           },
         },
         tradeoffs: formData.tradeoffs,
@@ -267,26 +270,26 @@ export default function ManualCaseCreator({
           )}
         </div>
 
-        {/* POC Metrics (Read-only) */}
+        {/* Standard Indicators (Read-only) */}
         <div className="space-y-3">
           <div className="flex items-center gap-1">
-            <Label>Métricas de Simulación</Label>
-            <HelpIcon content="Métricas POC que se mostrarán durante la simulación. Son de solo lectura en esta versión." />
+            <Label>Indicadores de Simulación</Label>
+            <HelpIcon content="Indicadores estándar que se mostrarán durante la simulación para medir el impacto de las decisiones." />
           </div>
           <div className="flex flex-wrap gap-2">
-            {POC_METRICS.map((metric) => (
+            {STANDARD_INDICATORS.map((indicator) => (
               <Badge
-                key={metric.id}
+                key={indicator.id}
                 variant="secondary"
                 className="cursor-default"
-                data-testid={`chip-metric-${metric.id}`}
+                data-testid={`chip-indicator-${indicator.id}`}
               >
-                {metric.label}
+                {indicator.label}
               </Badge>
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Las 4 métricas POC se incluirán automáticamente en la simulación.
+            Los 5 indicadores estándar se incluirán automáticamente en la simulación.
           </p>
         </div>
 
