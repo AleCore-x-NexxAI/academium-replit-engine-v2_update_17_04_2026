@@ -157,11 +157,8 @@ function ProfessorWelcome({ userName }: { userName: string }) {
         <h1 className="text-3xl font-bold mb-3" data-testid="text-hero-welcome">
           Hola, {userName}
         </h1>
-        <p className="text-muted-foreground max-w-lg mx-auto text-lg" data-testid="text-hero-subtitle">
-          Tus estudiantes toman decisiones. Tú observas cómo piensan.
-        </p>
+        <p className="text-muted-foreground max-w-lg mx-auto text-lg" data-testid="text-hero-subtitle">Convierte decisiones en aprendizaje observable.</p>
       </motion.div>
-
       {/* Three Calm Actions */}
       <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-8">
         {/* Explore Example Card - with visual preview */}
@@ -264,7 +261,6 @@ function ProfessorWelcome({ userName }: { userName: string }) {
           </Link>
         </motion.div>
       </div>
-
       {/* Safety messaging */}
       <motion.p
         initial={{ opacity: 0 }}
@@ -462,16 +458,15 @@ export default function Home() {
           </div>
         </div>
       </header>
-
       <main className="max-w-7xl mx-auto px-6 py-8">
         {isProfessor ? (
           /* Professor first-time flow: ONLY show calm hero + 3 actions + safety message
              No dashboards, metrics, scenario lists, or completed sessions here.
              Those are accessible via "Mis Simulaciones" link to /professor */
-          <ProfessorWelcome userName={user?.firstName || ""} />
+          (<ProfessorWelcome userName={user?.firstName || ""} />)
         ) : (
           /* Student view: show welcome + their content */
-          <>
+          (<>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -500,7 +495,6 @@ export default function Home() {
                 </Button>
               </div>
             </motion.div>
-
             {/* Join Simulation Modal */}
             {showJoinModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -580,7 +574,6 @@ export default function Home() {
                 </motion.div>
               </div>
             )}
-
             {completedSessions.length > 0 && (
               <section className="mb-12">
                 <div className="flex items-center justify-between gap-4 mb-6">
@@ -601,7 +594,6 @@ export default function Home() {
                 </div>
               </section>
             )}
-
             <section>
               <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
                 <h2 className="text-xl font-semibold">Escenarios Disponibles</h2>
@@ -642,7 +634,6 @@ export default function Home() {
                 </Card>
               )}
             </section>
-
             {/* Coming Soon: Student Sandbox */}
             <section className="mt-12 pt-8 border-t">
               <Card className="p-6 bg-muted/30 border-dashed">
@@ -670,7 +661,7 @@ export default function Home() {
                 </div>
               </Card>
             </section>
-          </>
+          </>)
         )}
       </main>
     </div>
