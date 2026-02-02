@@ -2368,7 +2368,7 @@ export default function Studio() {
                   </div>
                   <h3 className="text-lg font-semibold mb-2">Crear con IA</h3>
                   <p className="text-sm text-muted-foreground">
-                    Comienza desde un borrador generado por IA que puedes editar libremente
+                    Genera un borrador a partir de tu tema. Luego lo editas antes de publicar.
                   </p>
                 </Card>
 
@@ -2380,12 +2380,17 @@ export default function Studio() {
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                     <PenTool className="w-8 h-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">Crear Manualmente</h3>
+                  <h3 className="text-lg font-semibold mb-2">Crear manualmente</h3>
                   <p className="text-sm text-muted-foreground">
-                    Construye tu simulación paso a paso
+                    Define el escenario paso a paso. Recomendado si ya tienes el caso listo.
                   </p>
                 </Card>
               </div>
+              
+              {/* Reassurance line */}
+              <p className="text-sm text-muted-foreground mt-6 text-center">
+                Nada se publica sin tu revisión.
+              </p>
             </motion.div>
           )}
         </AnimatePresence>
