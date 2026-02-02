@@ -39,7 +39,7 @@ const primaryRoleOptions: RoleOption[] = [
     id: "student",
     title: "Estudiante",
     description:
-      "Accede a simulaciones de negocios y desarrolla tus habilidades de liderazgo.",
+      "Accede a escenarios y toma decisiones. Verás el impacto de tu criterio.",
     icon: <GraduationCap className="w-8 h-8" />,
     color: "bg-chart-1/10 text-chart-1",
     requiresCode: false,
