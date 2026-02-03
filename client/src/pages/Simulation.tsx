@@ -386,20 +386,14 @@ export default function Simulation() {
           <motion.aside
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className="w-80 border-r bg-card hidden lg:flex flex-col shrink-0 relative"
+            className="w-80 border-r bg-card hidden lg:flex flex-col shrink-0"
           >
-            <button
-              onClick={() => setIsBriefingCollapsed(true)}
-              className="absolute top-3 right-3 z-10 p-1.5 rounded-md hover-elevate bg-background/80 backdrop-blur-sm border"
-              data-testid="button-collapse-briefing"
-            >
-              <PanelLeftClose className="w-4 h-4 text-muted-foreground" />
-            </button>
             {session.scenario && (
               <CaseContextPanel
                 scenario={session.scenario}
                 currentDecision={currentDecision}
                 totalDecisions={totalDecisions}
+                onCollapse={() => setIsBriefingCollapsed(true)}
               />
             )}
           </motion.aside>

@@ -9,6 +9,7 @@ import {
   ChevronUp,
   FileText,
   MessageSquare,
+  PanelLeftClose,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ interface CaseContextPanelProps {
   totalDecisions: number;
   isExpanded?: boolean;
   onToggle?: () => void;
+  onCollapse?: () => void;
 }
 
 export function CaseContextPanel({
@@ -31,6 +33,7 @@ export function CaseContextPanel({
   totalDecisions,
   isExpanded = true,
   onToggle,
+  onCollapse,
 }: CaseContextPanelProps) {
   const [showFullContext, setShowFullContext] = useState(true);
   const initialState = scenario.initialState;
@@ -48,27 +51,40 @@ export function CaseContextPanel({
     <div className="h-full flex flex-col">
       {/* S3.2: Briefing Panel Header */}
       <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-transparent shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <FileText className="w-4 h-4 text-primary" />
             </div>
             <span className="font-semibold text-foreground">Tu Briefing</span>
           </div>
-          {onToggle && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggle}
-              data-testid="button-toggle-case-panel"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronUp className="w-4 h-4" />
-              )}
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {onToggle && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggle}
+                data-testid="button-toggle-case-panel"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronUp className="w-4 h-4" />
+                )}
+              </Button>
+            )}
+            {onCollapse && (
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onCollapse}
+                className="bg-background"
+                data-testid="button-collapse-briefing"
+              >
+                <PanelLeftClose className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
