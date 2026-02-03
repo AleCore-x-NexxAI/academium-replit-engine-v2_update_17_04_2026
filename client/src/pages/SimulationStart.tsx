@@ -253,42 +253,57 @@ export default function SimulationStart() {
             )}
           </Card>
 
+          {/* Baseline Conditions - Visual Experience Start */}
           {(scenario.initialState?.indicators && scenario.initialState.indicators.length > 0) ? (
-            <Card className="p-6 mb-8 bg-muted/30">
-              <h3 className="font-semibold mb-2">Contexto de Partida</h3>
-              <p className="text-xs text-muted-foreground mb-4">
-                Estas son las condiciones actuales — tus decisiones las modificarán
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="p-6 mb-8 bg-gradient-to-br from-primary/5 to-chart-2/5 border-primary/20">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Target className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Punto de Partida</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Condiciones iniciales — tus decisiones las modificarán
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {scenario.initialState.indicators.map((ind) => (
-                  <div key={ind.id} className="text-center p-3 bg-background rounded-lg border">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                  <div key={ind.id} className="text-center p-4 bg-background rounded-lg border shadow-sm">
+                    <p className="text-xs text-muted-foreground mb-2">
                       {ind.label}
                     </p>
-                    <p className="text-lg font-mono font-semibold">{ind.value}</p>
+                    <p className="text-2xl font-bold text-primary">{ind.value}</p>
                   </div>
                 ))}
               </div>
             </Card>
           ) : scenario.initialState?.kpis && (
-            <Card className="p-6 mb-8 bg-muted/30">
-              <h3 className="font-semibold mb-2">Contexto de Partida</h3>
-              <p className="text-xs text-muted-foreground mb-4">
-                Estas son las condiciones actuales — tus decisiones las modificarán
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <Card className="p-6 mb-8 bg-gradient-to-br from-primary/5 to-chart-2/5 border-primary/20">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Target className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Punto de Partida</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Condiciones iniciales — tus decisiones las modificarán
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                  { label: "Moral del Equipo", value: `${scenario.initialState.kpis.morale || 75}%` },
+                  { label: "Ingresos", value: `${scenario.initialState.kpis.revenue || 65}%` },
+                  { label: "Moral", value: `${scenario.initialState.kpis.morale || 70}%` },
                   { label: "Reputación", value: `${scenario.initialState.kpis.reputation || 75}%` },
-                  { label: "Eficiencia", value: `${scenario.initialState.kpis.efficiency || 75}%` },
-                  { label: "Confianza", value: `${scenario.initialState.kpis.trust || 75}%` },
-                  { label: "Recursos", value: `${scenario.initialState.kpis.revenue ? Math.round(scenario.initialState.kpis.revenue / 10000) : 50}%` },
+                  { label: "Eficiencia", value: `${scenario.initialState.kpis.efficiency || 60}%` },
+                  { label: "Confianza", value: `${scenario.initialState.kpis.trust || 72}%` },
                 ].map((kpi) => (
-                  <div key={kpi.label} className="text-center p-3 bg-background rounded-lg border">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                  <div key={kpi.label} className="text-center p-4 bg-background rounded-lg border shadow-sm">
+                    <p className="text-xs text-muted-foreground mb-2">
                       {kpi.label}
                     </p>
-                    <p className="text-lg font-mono font-semibold">{kpi.value}</p>
+                    <p className="text-2xl font-bold text-primary">{kpi.value}</p>
                   </div>
                 ))}
               </div>

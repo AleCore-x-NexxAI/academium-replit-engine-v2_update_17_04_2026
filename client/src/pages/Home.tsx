@@ -107,39 +107,33 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
     );
   }
 
-  // Student view: Simple card focused on the experience
+  // Student view: Focused card with prominent CTA
   return (
-    <Link href={`/simulation/start/${scenario.id}`}>
-      <Card
-        className="p-6 h-full hover-elevate cursor-pointer"
-        data-testid={`card-scenario-${scenario.id}`}
-      >
-        <div className="flex items-start justify-between mb-4">
-          <div className="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-            {domainIcons[scenario.domain] || <BookOpen className="w-5 h-5" />}
-          </div>
-          <Badge variant="outline" className="text-xs">
-            {scenario.domain}
-          </Badge>
+    <Card
+      className="p-6 h-full flex flex-col"
+      data-testid={`card-scenario-${scenario.id}`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="w-12 h-12 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+          {domainIcons[scenario.domain] || <BookOpen className="w-5 h-5" />}
         </div>
+        <Badge variant="outline" className="text-xs">
+          {scenario.domain}
+        </Badge>
+      </div>
 
-        <h3 className="text-lg font-semibold mb-2">{scenario.title}</h3>
-        <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-          {scenario.description}
-        </p>
+      <h3 className="text-lg font-semibold mb-2">{scenario.title}</h3>
+      <p className="text-sm text-muted-foreground line-clamp-2 mb-4 flex-1">
+        {scenario.description}
+      </p>
 
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5" />
-            20-25 min
-          </span>
-          <span className="text-primary font-medium flex items-center">
-            Comenzar
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </span>
-        </div>
-      </Card>
-    </Link>
+      <Link href={`/simulation/start/${scenario.id}`}>
+        <Button className="w-full" data-testid={`button-comenzar-${scenario.id}`}>
+          <Play className="w-4 h-4 mr-2" />
+          Comenzar
+        </Button>
+      </Link>
+    </Card>
   );
 }
 
@@ -455,31 +449,31 @@ export default function Home() {
         ) : (
           /* Student view: show welcome + their content */
           (<>
+            {/* Top: Greeting + Subtitle */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-12"
+              className="mb-10 text-center"
             >
-              <p className="text-sm text-muted-foreground mb-2">
-                Simulaciones de decisiones empresariales
-              </p>
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <h1 className="text-3xl font-bold mb-2" data-testid="text-student-welcome">
-                    Bienvenido/a, {user?.firstName || ""}
-                  </h1>
-                  <p className="text-muted-foreground max-w-lg">
-                    Cada escenario es un mundo donde tomas decisiones reales. No hay respuestas correctas — lo importante es tu razonamiento.
-                  </p>
-                </div>
+              <h1 className="text-3xl font-bold mb-4" data-testid="text-student-welcome">
+                Bienvenido/a, {user?.firstName || ""}
+              </h1>
+              <div className="max-w-xl mx-auto space-y-1">
+                <p className="text-lg text-foreground">
+                  Elige un escenario para comenzar.
+                </p>
+                <p className="text-muted-foreground">
+                  No hay respuestas correctas — lo importante es tu razonamiento y cómo justificas tus decisiones.
+                </p>
+              </div>
+              <div className="mt-6">
                 <Button
                   onClick={() => setShowJoinModal(true)}
                   variant="outline"
-                  className="shrink-0"
                   data-testid="button-join-simulation"
                 >
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Unirse a Simulación
+                  Unirse con Código
                 </Button>
               </div>
             </motion.div>
@@ -582,70 +576,69 @@ export default function Home() {
                 </div>
               </section>
             )}
-            <section>
-              <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
-                <h2 className="text-xl font-semibold">Escenarios Disponibles</h2>
-                <p className="text-sm text-muted-foreground">
-                  Selecciona un escenario para comenzar tu experiencia
-                </p>
-              </div>
-
-              {scenariosLoading ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} className="h-48 rounded-lg" />
-                  ))}
-                </div>
-              ) : scenarios && scenarios.length > 0 ? (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {scenarios.map((scenario) => (
-                    <motion.div
-                      key={scenario.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                    >
-                      <ScenarioCard 
-                        scenario={scenario} 
-                        userId={user?.id}
-                        userRole={effectiveRole}
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-              ) : (
-                <Card className="p-12 text-center">
-                  <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <h3 className="text-lg font-medium mb-2">No Hay Escenarios Disponibles</h3>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    Vuelve pronto para nuevas experiencias de aprendizaje.
+            {/* Middle: Escenarios Disponibles = Main Container */}
+            <section className="mb-12">
+              <Card className="p-6 md:p-8 bg-muted/20">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-bold mb-2">Escenarios Disponibles</h2>
+                  <p className="text-muted-foreground">
+                    Selecciona un escenario para comenzar tu experiencia
                   </p>
-                </Card>
-              )}
+                </div>
+
+                {scenariosLoading ? (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-56 rounded-lg" />
+                    ))}
+                  </div>
+                ) : scenarios && scenarios.length > 0 ? (
+                  <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {scenarios.map((scenario, index) => (
+                      <motion.div
+                        key={scenario.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <ScenarioCard 
+                          scenario={scenario} 
+                          userId={user?.id}
+                          userRole={effectiveRole}
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                    <h3 className="text-lg font-medium mb-2">No Hay Escenarios Disponibles</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Vuelve pronto para nuevas experiencias de aprendizaje.
+                    </p>
+                  </div>
+                )}
+              </Card>
             </section>
-            {/* Coming Soon: Student Sandbox */}
-            <section className="mt-12 pt-8 border-t">
-              <Card className="p-6 bg-muted/30 border-dashed">
+            {/* Bottom: Coming Soon - Student Sandbox */}
+            <section>
+              <Card className="p-6 bg-gradient-to-r from-primary/5 via-primary/10 to-accent/10 border-primary/20">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center">
-                      <Sparkles className="w-5 h-5 text-muted-foreground" />
+                    <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-medium mb-1">Crea tus propias experiencias</h3>
+                      <h3 className="font-semibold mb-1 text-foreground">Crea tus propias experiencias</h3>
                       <p className="text-sm text-muted-foreground">
                         Pronto podrás diseñar tus propias simulaciones y compartirlas.
                       </p>
                     </div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    disabled 
-                    className="opacity-60"
-                    data-testid="button-create-scenario-disabled"
-                  >
-                    <Lock className="w-4 h-4 mr-2" />
+                  <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                    <Lock className="w-3 h-3 mr-1.5" />
                     Próximamente
-                  </Button>
+                  </Badge>
                 </div>
               </Card>
             </section>
