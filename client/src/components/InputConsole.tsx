@@ -101,7 +101,7 @@ export function InputConsole({
     : !!input.trim();
 
   return (
-    <div className="border-t bg-background p-4">
+    <div className="border-t-2 border-border bg-background p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
       {pendingRevision && revisionPrompt && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}

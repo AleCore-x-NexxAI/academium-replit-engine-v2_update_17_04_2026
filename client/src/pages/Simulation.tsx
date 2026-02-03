@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Brain, ArrowLeft, Loader2, AlertTriangle, FileText, X } from "lucide-react";
+import { Brain, ArrowLeft, Loader2, AlertTriangle, FileText, X, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -42,6 +42,7 @@ export default function Simulation() {
   const [previousKpis, setPreviousKpis] = useState<KPIs | undefined>();
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showMobileCasePanel, setShowMobileCasePanel] = useState(false);
+  const [isBriefingCollapsed, setIsBriefingCollapsed] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const {
@@ -367,19 +368,42 @@ export default function Simulation() {
       )}
 
       <div className="flex-1 flex overflow-hidden">
-        <motion.aside
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          className="w-80 border-r bg-card hidden lg:flex flex-col"
-        >
-          {session.scenario && (
-            <CaseContextPanel
-              scenario={session.scenario}
-              currentDecision={currentDecision}
-              totalDecisions={totalDecisions}
-            />
-          )}
-        </motion.aside>
+        {/* Collapsible Briefing Panel */}
+        {isBriefingCollapsed ? (
+          <div className="hidden lg:flex flex-col border-r bg-card shrink-0">
+            <button
+              onClick={() => setIsBriefingCollapsed(false)}
+              className="h-full w-12 flex flex-col items-center justify-center gap-2 hover-elevate transition-colors"
+              data-testid="button-expand-briefing"
+            >
+              <PanelLeftOpen className="w-5 h-5 text-primary" />
+              <span className="text-xs font-medium text-muted-foreground writing-mode-vertical" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
+                Briefing
+              </span>
+            </button>
+          </div>
+        ) : (
+          <motion.aside
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            className="w-80 border-r bg-card hidden lg:flex flex-col shrink-0 relative"
+          >
+            <button
+              onClick={() => setIsBriefingCollapsed(true)}
+              className="absolute top-3 right-3 z-10 p-1.5 rounded-md hover-elevate bg-background/80 backdrop-blur-sm border"
+              data-testid="button-collapse-briefing"
+            >
+              <PanelLeftClose className="w-4 h-4 text-muted-foreground" />
+            </button>
+            {session.scenario && (
+              <CaseContextPanel
+                scenario={session.scenario}
+                currentDecision={currentDecision}
+                totalDecisions={totalDecisions}
+              />
+            )}
+          </motion.aside>
+        )}
 
         <main className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 overflow-hidden">
