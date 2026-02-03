@@ -232,6 +232,8 @@ export interface DecisionPoint {
   includesReflection: boolean; // Whether to prompt for reflection after consequences
   // S7.1: Focus cue to help students orient their thinking (2-3 key dimensions)
   focusCue?: string; // e.g., "Considera el impacto en el equipo, los plazos y el riesgo."
+  // S5.1: Thinking scaffold - 2-3 bullets to guide reasoning (NO answers, NO best practices)
+  thinkingScaffold?: string[]; // e.g., ["Impacto en el equipo", "Riesgo vs velocidad", "Consecuencias a corto vs largo plazo"]
 }
 
 // POC Indicator - simpler than full KPI

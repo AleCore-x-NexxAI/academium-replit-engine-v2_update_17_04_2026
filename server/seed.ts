@@ -39,6 +39,8 @@ const POC_SCENARIO = {
         ],
         requiresJustification: true,
         includesReflection: false,
+        focusCue: "Antes de decidir, considera el impacto en el equipo, los inversionistas y la reputación del producto.",
+        thinkingScaffold: ["Impacto en el equipo", "Expectativas de inversionistas", "Riesgo vs velocidad"],
       },
       {
         number: 2,
@@ -46,13 +48,17 @@ const POC_SCENARIO = {
         prompt: "Segunda decisión: Después de tu decisión inicial, el equipo de desarrollo te informa que necesitan claridad sobre prioridades. ¿Cómo comunicas y justificas tu estrategia al equipo?",
         requiresJustification: true,
         includesReflection: false,
+        focusCue: "La tensión principal aquí es equilibrar la motivación del equipo con la presión de los stakeholders externos.",
+        thinkingScaffold: ["Moral del equipo", "Claridad en prioridades", "Consecuencias de la comunicación"],
       },
       {
         number: 3,
         format: "written" as const,
-        prompt: "Tercera decisión: Reflexión final. Considerando todo lo que ha pasado, ¿qué has aprendido sobre la gestión de crisis y qué harías diferente la próxima vez?",
+        prompt: "Tercera decisión: Con la fecha de lanzamiento acercándose, ¿cómo manejas las últimas 48 horas antes del lanzamiento?",
         requiresJustification: true,
-        includesReflection: true,
+        includesReflection: false,
+        focusCue: "Considera cómo tus decisiones anteriores afectan esta elección final.",
+        thinkingScaffold: ["Coherencia con decisiones previas", "Trade-offs finales", "Preparación para contingencias"],
       }
     ],
     subjectMatterContext: "Gestión de productos tecnológicos, metodologías ágiles, gestión de stakeholders, comunicación de crisis en startups. Conceptos clave: MVP (Producto Mínimo Viable), deuda técnica, gestión de expectativas, balance entre velocidad y calidad.",

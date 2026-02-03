@@ -232,6 +232,23 @@ export function InputConsole({
               </div>
             )}
             
+            {/* S5.1: Thinking Scaffold - guide reasoning without giving answers */}
+            {currentDecisionPoint.thinkingScaffold && currentDecisionPoint.thinkingScaffold.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-primary/10">
+                <p className="text-sm font-medium text-muted-foreground mb-2" data-testid="text-thinking-scaffold-label">
+                  Piensa en:
+                </p>
+                <ul className="space-y-1" data-testid="list-thinking-scaffold">
+                  {currentDecisionPoint.thinkingScaffold.map((item, index) => (
+                    <li key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary/50 flex-shrink-0" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
             {currentDecisionPoint.includesReflection && (
               <Badge variant="secondary" className="text-xs mt-3">
                 Incluye reflexión

@@ -98,6 +98,14 @@ All simulation views display exactly 5 standard business indicators with consist
 - **Optional Nudge**: "Si quieres, añade 1 aprendizaje y 1 cosa que harías distinto" (non-blocking)
 - **State Tracking**: `isReflectionStep` and `reflectionCompleted` in SimulationState; `processReflection()` handles completion
 
+### Thinking Scaffolds (S5.1)
+- **Purpose**: Reduce student confusion by guiding HOW to think about a question, not WHAT to choose
+- **Format**: "Piensa en:" followed by 2-3 bullet points under each decision prompt
+- **Bullet Content**: Reasoning dimensions only (stakeholders, trade-offs, constraints, risk)
+- **Rules**: NEVER suggest answers, NEVER give "best practices", NEVER imply a correct choice
+- **Implementation**: `thinkingScaffold` array field on DecisionPoint; displayed in InputConsole below focusCue
+- **Example**: ["Impacto en el equipo", "Riesgo vs velocidad", "Consecuencias a corto vs largo plazo"]
+
 ### Indicator Directionality (S8.1)
 - All indicators have a `direction` property: `"up_better"` or `"down_better"`
 - `operationalRisk`/risk indicators are `"down_better"`; others typically `"up_better"`

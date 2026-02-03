@@ -137,6 +137,20 @@ Formatos aceptables para focusCue:
 
 IMPORTANTE: El focusCue NUNCA implica una respuesta correcta.
 
+=== S5.1 THINKING SCAFFOLD (OBLIGATORIO en cada decisión) ===
+Cada punto de decisión DEBE incluir un "thinkingScaffold" que:
+- Es un array de 2-3 bullets CORTOS (máximo 6 palabras cada uno)
+- Son dimensiones de razonamiento: stakeholders / trade-offs / restricciones / riesgo
+- NUNCA sugieren una respuesta, NUNCA dan "best practices", NUNCA llegan a conclusiones
+- Tono de mentor: ayudan a entender CÓMO pensar la pregunta, no QUÉ elegir
+
+Ejemplos de thinkingScaffold:
+- ["Impacto en el equipo", "Riesgo vs velocidad", "Consecuencias a corto vs largo plazo"]
+- ["Personas afectadas", "Recursos disponibles", "Restricciones de tiempo"]
+- ["Stakeholders clave", "Trade-offs principales", "Límites del contexto"]
+
+IMPORTANTE: El thinkingScaffold NUNCA contiene verbos imperativos ni sugerencias de acción.
+
 === FORMATO DE SALIDA JSON ===
 {
   "title": "Título compelling y específico en español",
@@ -152,7 +166,8 @@ IMPORTANTE: El focusCue NUNCA implica una respuesta correcta.
       "options": ["Opción A: descripción", "Opción B: descripción", "Opción C: descripción"],
       "requiresJustification": false,
       "includesReflection": false,
-      "focusCue": "Antes de decidir, considera: [dimensión 1] / [dimensión 2] / [dimensión 3]."
+      "focusCue": "Antes de decidir, considera: [dimensión 1] / [dimensión 2] / [dimensión 3].",
+      "thinkingScaffold": ["Dimensión de razonamiento 1", "Dimensión de razonamiento 2", "Dimensión de razonamiento 3"]
     },
     {
       "number": 2,
@@ -160,7 +175,8 @@ IMPORTANTE: El focusCue NUNCA implica una respuesta correcta.
       "prompt": "Pregunta de la decisión 2 - análisis justificado (cómo y por qué)",
       "requiresJustification": true,
       "includesReflection": false,
-      "focusCue": "La tensión principal aquí es equilibrar [X] con [Y]."
+      "focusCue": "La tensión principal aquí es equilibrar [X] con [Y].",
+      "thinkingScaffold": ["Impacto en personas", "Recursos vs tiempo", "Consecuencias futuras"]
     },
     {
       "number": 3,
@@ -168,7 +184,8 @@ IMPORTANTE: El focusCue NUNCA implica una respuesta correcta.
       "prompt": "Pregunta de la decisión 3 - integración de información y trade-offs",
       "requiresJustification": true,
       "includesReflection": false,
-      "focusCue": "Considera cómo tus decisiones anteriores afectan esta elección final."
+      "focusCue": "Considera cómo tus decisiones anteriores afectan esta elección final.",
+      "thinkingScaffold": ["Coherencia con decisiones previas", "Trade-offs finales", "Visión de largo plazo"]
     }
   ],
   "reflectionPrompt": "Pregunta de reflexión al final de la simulación (Paso 4, separado de las decisiones)",
