@@ -18,6 +18,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Gauge,
+  Sparkles,
+  Trophy,
+  Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -49,6 +52,11 @@ const INDICATOR_ICONS: Record<string, React.ElementType> = {
   budgetImpact: DollarSign,
   operationalRisk: AlertTriangle,
   strategicFlexibility: Target,
+  revenue: DollarSign,
+  morale: Heart,
+  reputation: Star,
+  efficiency: TrendingUp,
+  trust: Users,
 };
 
 const INDICATOR_LABELS: Record<string, string> = {
@@ -56,6 +64,35 @@ const INDICATOR_LABELS: Record<string, string> = {
   budgetImpact: "Impacto Presupuestario",
   operationalRisk: "Riesgo Operacional",
   strategicFlexibility: "Flexibilidad Estratégica",
+  revenue: "Ingresos",
+  morale: "Moral del Equipo",
+  reputation: "Reputación de Marca",
+  efficiency: "Eficiencia Operacional",
+  trust: "Confianza de Stakeholders",
+};
+
+const INDICATOR_COLORS: Record<string, string> = {
+  revenue: "from-emerald-500/20 to-emerald-500/5 border-emerald-500/40",
+  morale: "from-rose-500/20 to-rose-500/5 border-rose-500/40",
+  reputation: "from-amber-500/20 to-amber-500/5 border-amber-500/40",
+  efficiency: "from-blue-500/20 to-blue-500/5 border-blue-500/40",
+  trust: "from-violet-500/20 to-violet-500/5 border-violet-500/40",
+  teamMorale: "from-rose-500/20 to-rose-500/5 border-rose-500/40",
+  budgetImpact: "from-emerald-500/20 to-emerald-500/5 border-emerald-500/40",
+  operationalRisk: "from-orange-500/20 to-orange-500/5 border-orange-500/40",
+  strategicFlexibility: "from-cyan-500/20 to-cyan-500/5 border-cyan-500/40",
+};
+
+const INDICATOR_ICON_COLORS: Record<string, string> = {
+  revenue: "text-emerald-600 dark:text-emerald-400",
+  morale: "text-rose-600 dark:text-rose-400",
+  reputation: "text-amber-600 dark:text-amber-400",
+  efficiency: "text-blue-600 dark:text-blue-400",
+  trust: "text-violet-600 dark:text-violet-400",
+  teamMorale: "text-rose-600 dark:text-rose-400",
+  budgetImpact: "text-emerald-600 dark:text-emerald-400",
+  operationalRisk: "text-orange-600 dark:text-orange-400",
+  strategicFlexibility: "text-cyan-600 dark:text-cyan-400",
 };
 
 function formatKpiValue(key: string, value: number): string {
@@ -165,8 +202,8 @@ export default function SessionResults() {
   }) || [];
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="h-14 border-b flex items-center justify-between px-4">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5">
+      <header className="h-14 border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -182,184 +219,301 @@ export default function SessionResults() {
           </div>
         </div>
         <div className="text-center">
-          <p className="text-sm font-medium">Resumen de Simulación</p>
+          <p className="text-sm font-medium">Tu Experiencia</p>
         </div>
         <div className="w-20" />
       </header>
 
       <main className="max-w-4xl mx-auto p-6 space-y-8">
+        {/* S10.1: Celebratory Hero Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="relative"
         >
-          <Badge className="mb-4" variant="outline">
-            Simulación Completada
-          </Badge>
-          <h1
-            className="text-3xl font-bold mb-2"
-            data-testid="text-scenario-title"
-          >
-            {scenario?.title || "Simulación de Negocios"}
-          </h1>
-          <p className="text-muted-foreground mb-6">
-            Has completado todas las decisiones de este escenario
-          </p>
+          {/* Decorative background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-chart-2/10 to-chart-3/10 rounded-3xl blur-xl opacity-60" />
+          
+          <Card className="relative overflow-hidden border-2 border-primary/20 bg-gradient-to-br from-card via-card to-primary/5 p-8 rounded-2xl">
+            {/* Sparkle decorations */}
+            <div className="absolute top-4 right-4">
+              <Sparkles className="w-6 h-6 text-primary/40 animate-pulse" />
+            </div>
+            <div className="absolute bottom-4 left-4">
+              <Sparkles className="w-4 h-4 text-chart-2/40 animate-pulse" style={{ animationDelay: '0.5s' }} />
+            </div>
 
-          <Card className="inline-block p-6">
-            <div className="flex items-center justify-center gap-3">
-              <CheckCircle2 className="w-10 h-10 text-primary" />
-              <div className="text-left">
-                <p className="text-lg font-semibold">Experiencia Completada</p>
-                <p className="text-sm text-muted-foreground">
-                  {turns?.length || 0} decisiones tomadas
-                </p>
+            <div className="text-center relative z-10">
+              {/* Completion badge */}
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-chart-2/20 to-chart-3/20 border border-chart-2/30 mb-6"
+              >
+                <Trophy className="w-4 h-4 text-chart-2" />
+                <span className="text-sm font-semibold text-chart-2">Experiencia Completada</span>
+              </motion.div>
+
+              <h1
+                className="text-4xl font-bold mb-3 bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text"
+                data-testid="text-scenario-title"
+              >
+                {scenario?.title || "Simulación de Negocios"}
+              </h1>
+              
+              <p className="text-lg text-muted-foreground mb-8">
+                Has navegado con éxito este escenario de negocios
+              </p>
+
+              {/* Stats cards */}
+              <div className="flex justify-center gap-4 flex-wrap">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="flex items-center gap-3 px-5 py-3 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20"
+                >
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Compass className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-2xl font-bold text-primary">{turns?.length || 0}</p>
+                    <p className="text-xs text-muted-foreground">Decisiones</p>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="flex items-center gap-3 px-5 py-3 rounded-xl bg-gradient-to-r from-chart-2/10 to-chart-2/5 border border-chart-2/20"
+                >
+                  <div className="w-10 h-10 rounded-full bg-chart-2/20 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-chart-2" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-2xl font-bold text-chart-2">100%</p>
+                    <p className="text-xs text-muted-foreground">Completado</p>
+                  </div>
+                </motion.div>
               </div>
             </div>
           </Card>
-
-          <Card className="mt-6 p-6 bg-primary/5 border-primary/20">
-            <p className="text-center text-muted-foreground leading-relaxed" data-testid="text-closure-message">
-              <span className="font-medium text-foreground">Has navegado decisiones complejas con trade-offs reales.</span>{" "}
-              Como en el mundo empresarial, no había respuestas perfectas — solo caminos diferentes con consecuencias distintas. 
-              Los dilemas que enfrentaste aquí reflejan situaciones que continúan evolucionando en la vida real. 
-              Lo que llevas contigo es la experiencia de haber reflexionado, decidido y observado el impacto de tus elecciones.
-            </p>
-          </Card>
         </motion.div>
 
+        {/* S10.1: Inspirational Message Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.2 }}
         >
-          <Card className="p-6">
-            <div className="flex items-center gap-2 mb-6">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold">
-                {useIndicators ? "Evolución de Indicadores" : "Evolución de la Situación"}
-              </h2>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              Estos son los cambios que resultaron de tus decisiones durante la simulación:
-            </p>
-            <div className="space-y-4">
-              {(useIndicators ? indicatorComparison : kpiComparison).map(
-                ({ key, label, initial, final, delta, Icon }) => (
-                  <div
-                    key={key}
-                    className="flex items-center gap-4"
-                    data-testid={`indicator-${key}`}
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">{label}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            {useIndicators ? initial : formatKpiValue(key, initial)}
-                          </span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="text-sm font-semibold">
-                            {useIndicators ? final : formatKpiValue(key, final)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary/70 rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(100, useIndicators ? final : (key === "revenue" ? (final / (initial || 100000)) * 50 : final))}%`,
-                            }}
-                          />
-                        </div>
-                        <div
-                          className={`flex items-center gap-1 text-xs font-medium ${
-                            delta >= 0 ? "text-chart-2" : "text-chart-4"
-                          }`}
-                        >
-                          {delta >= 0 ? (
-                            <TrendingUp className="w-3 h-3" />
-                          ) : (
-                            <TrendingDown className="w-3 h-3" />
-                          )}
-                          {delta >= 0 ? "+" : ""}
-                          {useIndicators
-                            ? delta
-                            : key === "revenue"
-                            ? `$${Math.abs(delta).toLocaleString()}`
-                            : `${delta}%`}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              )}
+          <Card className="relative overflow-hidden border-2 border-chart-3/30 bg-gradient-to-r from-chart-3/5 via-card to-chart-3/5 p-6 rounded-xl">
+            <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-chart-3 to-chart-2" />
+            <div className="pl-4">
+              <p className="text-base leading-relaxed" data-testid="text-closure-message">
+                <span className="font-semibold text-lg text-foreground block mb-2">
+                  Has navegado decisiones complejas con trade-offs reales.
+                </span>
+                <span className="text-muted-foreground">
+                  Como en el mundo empresarial, no había respuestas perfectas — solo caminos diferentes con consecuencias distintas. 
+                  Los dilemas que enfrentaste aquí reflejan situaciones que continúan evolucionando en la vida real. 
+                  Lo que llevas contigo es la experiencia de haber reflexionado, decidido y observado el impacto de tus elecciones.
+                </span>
+              </p>
             </div>
           </Card>
         </motion.div>
 
+        {/* S10.1: Indicator Evolution - Colorful Cards Grid */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">
+                {useIndicators ? "Evolución de Indicadores" : "Evolución de la Situación"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Los cambios que resultaron de tus decisiones
+              </p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(useIndicators ? indicatorComparison : kpiComparison).map(
+              ({ key, label, initial, final, delta, Icon }, index) => (
+                <motion.div
+                  key={key}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35 + index * 0.05 }}
+                >
+                  <Card
+                    className={`p-4 border-2 bg-gradient-to-br ${INDICATOR_COLORS[key] || 'from-primary/20 to-primary/5 border-primary/40'} rounded-xl hover-elevate transition-all`}
+                    data-testid={`indicator-${key}`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className={`w-10 h-10 rounded-lg bg-background/80 flex items-center justify-center ${INDICATOR_ICON_COLORS[key] || 'text-primary'}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div
+                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${
+                          delta >= 0 
+                            ? "bg-chart-2/20 text-chart-2" 
+                            : "bg-chart-4/20 text-chart-4"
+                        }`}
+                      >
+                        {delta >= 0 ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        {delta >= 0 ? "+" : ""}
+                        {useIndicators
+                          ? delta
+                          : key === "revenue"
+                          ? `$${Math.abs(delta).toLocaleString()}`
+                          : `${delta}%`}
+                      </div>
+                    </div>
+                    
+                    <h3 className="font-semibold text-sm mb-2">{label}</h3>
+                    
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-bold">
+                        {useIndicators ? final : formatKpiValue(key, final)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        desde {useIndicators ? initial : formatKpiValue(key, initial)}
+                      </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="mt-3 h-1.5 bg-background/50 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ 
+                          width: `${Math.min(100, useIndicators ? final : (key === "revenue" ? (final / (initial || 100000)) * 50 : final))}%` 
+                        }}
+                        transition={{ delay: 0.5 + index * 0.05, duration: 0.8 }}
+                        className="h-full bg-foreground/30 rounded-full"
+                      />
+                    </div>
+                  </Card>
+                </motion.div>
+              )
+            )}
+          </div>
+        </motion.div>
+
+        {/* S10.1: Final Feedback - Highlighted Card */}
         {scoreSummary?.feedback && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.4 }}
           >
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <MessageSquare className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Observaciones Finales</h2>
+            <Card className="relative overflow-hidden border-2 border-amber-500/30 bg-gradient-to-r from-amber-500/5 via-card to-amber-500/5 p-6 rounded-xl">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/20 flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold mb-2 text-amber-700 dark:text-amber-300">
+                    Observaciones Finales
+                  </h2>
+                  <p
+                    className="text-muted-foreground leading-relaxed"
+                    data-testid="text-final-feedback"
+                  >
+                    {scoreSummary.feedback}
+                  </p>
+                </div>
               </div>
-              <p
-                className="text-muted-foreground leading-relaxed"
-                data-testid="text-final-feedback"
-              >
-                {scoreSummary.feedback}
-              </p>
             </Card>
           </motion.div>
         )}
 
+        {/* S10.1: Decision Timeline - Enhanced Visual */}
         {turns && turns.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.5 }}
           >
-            <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Línea de Decisiones</h2>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-chart-1/20 to-chart-1/10 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-chart-1" />
               </div>
+              <div>
+                <h2 className="text-xl font-bold">Tu Recorrido</h2>
+                <p className="text-sm text-muted-foreground">
+                  Las decisiones que tomaste durante la experiencia
+                </p>
+              </div>
+            </div>
+
+            <Card className="p-6 border-2 border-muted rounded-xl">
               <ScrollArea className="h-96">
-                <div className="space-y-4 pr-4">
+                <div className="space-y-6 pr-4">
                   {turns.map((turn, index) => (
-                    <div key={turn.id} className="relative pl-6">
-                      <div className="absolute left-0 top-2 w-3 h-3 rounded-full bg-primary" />
-                      {index < turns.length - 1 && (
-                        <div className="absolute left-[5px] top-5 w-0.5 h-full bg-border" />
-                      )}
-                      <div className="space-y-2">
-                        <Badge variant="outline">Decisión {turn.turnNumber}</Badge>
-                        <div className="p-3 bg-muted/50 rounded-lg">
-                          <p className="text-sm font-medium mb-1">
-                            Tu Decisión:
-                          </p>
-                          <p className="text-sm text-muted-foreground">
+                    <motion.div 
+                      key={turn.id} 
+                      className="relative pl-8"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.6 + index * 0.1 }}
+                    >
+                      {/* Timeline connector */}
+                      <div className="absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b from-primary via-chart-2 to-chart-3" />
+                      
+                      {/* Decision number bubble */}
+                      <div className="absolute left-0 top-0 -translate-x-1/2 w-6 h-6 rounded-full bg-gradient-to-br from-primary to-chart-2 flex items-center justify-center text-xs font-bold text-primary-foreground shadow-lg">
+                        {turn.turnNumber}
+                      </div>
+
+                      <div className="space-y-3 pb-2">
+                        <Badge 
+                          variant="outline" 
+                          className="bg-primary/5 border-primary/30 text-primary font-semibold"
+                        >
+                          Decisión {turn.turnNumber}
+                        </Badge>
+                        
+                        {/* Student decision */}
+                        <div className="p-4 bg-gradient-to-r from-muted/80 to-muted/40 rounded-xl border border-muted">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center">
+                              <Users className="w-3 h-3 text-primary" />
+                            </div>
+                            <p className="text-sm font-semibold text-primary">Tu Decisión</p>
+                          </div>
+                          <p className="text-sm text-foreground leading-relaxed">
                             {turn.studentInput}
                           </p>
                         </div>
-                        <div className="p-3 bg-card border rounded-lg">
-                          <p className="text-sm font-medium mb-1">Consecuencia:</p>
-                          <p className="text-sm text-muted-foreground">
+                        
+                        {/* Consequence */}
+                        <div className="p-4 bg-card border-2 border-chart-2/20 rounded-xl">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded-full bg-chart-2/20 flex items-center justify-center">
+                              <Sparkles className="w-3 h-3 text-chart-2" />
+                            </div>
+                            <p className="text-sm font-semibold text-chart-2">Consecuencia</p>
+                          </div>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
                             {turn.agentResponse.narrative?.text || turn.agentResponse.feedback?.message}
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               </ScrollArea>
@@ -367,19 +521,34 @@ export default function SessionResults() {
           </motion.div>
         )}
 
-        <div className="flex justify-center gap-4 pt-4">
-          <Button variant="outline" onClick={() => navigate("/")}>
+        {/* S10.1: Action Buttons - More Prominent */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="flex justify-center gap-4 pt-6 pb-8"
+        >
+          <Button 
+            variant="outline" 
+            size="lg"
+            onClick={() => navigate("/")}
+            className="px-8"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
             Volver al Inicio
           </Button>
           {scenario && (
             <Button
+              size="lg"
               onClick={() => navigate(`/simulation/start/${scenario.id}`)}
               data-testid="button-try-again"
+              className="px-8 bg-gradient-to-r from-primary to-chart-2 hover:from-primary/90 hover:to-chart-2/90"
             >
+              <Trophy className="w-4 h-4 mr-2" />
               Intentar de Nuevo
             </Button>
           )}
-        </div>
+        </motion.div>
       </main>
     </div>
   );
