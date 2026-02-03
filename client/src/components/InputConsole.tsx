@@ -123,7 +123,7 @@ export function InputConsole({
         </motion.div>
       )}
 
-      {/* S4.1 LOCKED: Gentle validation message */}
+      {/* S6.B LOCKED: Rejection message with structure hint */}
       {validationError && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -133,12 +133,24 @@ export function InputConsole({
         >
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-            <div>
-              <span className="text-sm font-medium text-foreground block mb-1">
-                Necesito un poco más de detalle
-              </span>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Para simular consecuencias y mostrar el impacto, necesito tu razonamiento. Responde en 3–6 frases.
+            <div className="space-y-2">
+              {/* 1. Reason (1 sentence) */}
+              <p className="text-sm font-medium text-foreground">
+                Para continuar, necesito que conectes tu respuesta con el caso y expliques tu prioridad.
+              </p>
+              
+              {/* 2. How to fix (bullets) */}
+              <div className="text-sm text-muted-foreground">
+                <span className="font-medium">Sugerencia rápida:</span>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li>Menciona qué priorizas (equipo, tiempo, riesgo, etc.)</li>
+                  <li>Da 1 razón basada en el contexto</li>
+                </ul>
+              </div>
+              
+              {/* 3. Structure hint (template) */}
+              <p className="text-sm text-muted-foreground italic bg-background/50 px-2 py-1.5 rounded border border-border/50">
+                Estructura útil: "Prioritizo ____ porque ____. Esto implica ____."
               </p>
             </div>
           </div>

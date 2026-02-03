@@ -49,29 +49,29 @@ const NONSENSE_PATTERNS = [
 const MIN_INPUT_LENGTH = 3;
 
 /**
- * POC S4.1: Quick validation - LENIENT
+ * S6.B: Quick validation - LENIENT with LOCKED rejection messages
  * Only blocks on: empty, profanity, or clear nonsense
- * Returns null if validation passes, error message if fails
+ * Returns null if validation passes, structured error message if fails
  */
 function quickValidation(input: string): string | null {
   const trimmed = input.trim();
   
   // Block 1: Empty input only
   if (trimmed.length < MIN_INPUT_LENGTH) {
-    return "Por favor, escribe una respuesta.";
+    return "REJECTION_EMPTY"; // Signal for S6.B format
   }
   
   // Block 2: Offensive patterns (profanity/unsafe)
   for (const pattern of OFFENSIVE_PATTERNS) {
     if (pattern.test(trimmed)) {
-      return "Tu respuesta contiene lenguaje inapropiado. Por favor, reformula tu respuesta con un tono profesional.";
+      return "REJECTION_PROFANITY"; // Signal for S6.B format
     }
   }
   
   // Block 3: Clear nonsense/spam only
   for (const pattern of NONSENSE_PATTERNS) {
     if (pattern.test(trimmed)) {
-      return "Tu respuesta parece no estar relacionada con el caso. Por favor, inténtalo de nuevo.";
+      return "REJECTION_NONSENSE"; // Signal for S6.B format
     }
   }
   
@@ -171,12 +171,32 @@ Evalúa si cumple al menos uno de los criterios de relevancia+estructura.`;
 }
 
 /**
+ * S6.B LOCKED rejection message - always use this structure
+ * Never feels like "incorrect" - student knows how to fix quickly
+ */
+const S6B_REJECTION_MESSAGE = `Para continuar, necesito que conectes tu respuesta con el caso y expliques tu prioridad.`;
+
+/**
+ * Get specific rejection reason based on type
+ */
+function getS6BRejectionReason(type: string): string {
+  switch (type) {
+    case "REJECTION_EMPTY":
+      return "Tu respuesta está vacía.";
+    case "REJECTION_PROFANITY":
+      return "Tu respuesta contiene lenguaje que no podemos procesar.";
+    case "REJECTION_NONSENSE":
+      return "Tu respuesta no parece relacionada con el caso.";
+    default:
+      return S6B_REJECTION_MESSAGE;
+  }
+}
+
+/**
  * Main validation function - validates user input before simulation processing
  * 
- * @param input - The user's input text
- * @param caseContext - Context about the current case/scenario
- * @param options - Configuration options
- * @returns Validation result indicating if input is valid
+ * S6.B: Rejection only for profanity/unsafe, empty, or totally unrelated spam/nonsense
+ * Uses LOCKED rejection message structure
  */
 export async function validateSimulationInput(
   input: string,
@@ -197,8 +217,8 @@ export async function validateSimulationInput(
     console.log("[InputValidator] Quick validation failed:", quickResult);
     return {
       isValid: false,
-      rejectionReason: "Quick validation failed",
-      userMessage: quickResult
+      rejectionReason: quickResult,
+      userMessage: getS6BRejectionReason(quickResult)
     };
   }
   
@@ -207,7 +227,10 @@ export async function validateSimulationInput(
     const llmResult = await llmValidation(input, caseContext, options?.model);
     if (!llmResult.isValid) {
       console.log("[InputValidator] LLM validation failed:", llmResult.rejectionReason);
-      return llmResult;
+      return {
+        ...llmResult,
+        userMessage: S6B_REJECTION_MESSAGE
+      };
     }
   }
   
