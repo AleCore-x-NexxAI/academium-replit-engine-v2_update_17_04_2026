@@ -78,48 +78,52 @@ function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, 
 
   return (
     <Card
-      className="p-4 transition-all duration-300"
+      className="p-5 transition-all duration-300"
       data-testid={`indicator-card-${label.toLowerCase().replace(/\s+/g, "-")}`}
     >
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <span className="uppercase text-xs tracking-wide font-medium text-muted-foreground">
-            {label}
-          </span>
-          {info && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="max-w-xs p-3">
-                <div className="space-y-2 text-xs">
-                  <p className="font-medium">{info.description}</p>
-                  <div className="pt-1 border-t border-border/50">
-                    <p className="text-chart-2 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      <span>{info.upMeaning}</span>
-                    </p>
-                    <p className="text-chart-4 flex items-center gap-1 mt-1">
-                      <TrendingDown className="w-3 h-3" />
-                      <span>{info.downMeaning}</span>
-                    </p>
+      {/* S3.3: Larger indicator header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className={`${color} p-2 rounded-lg`}>{icon}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold text-foreground">
+              {label}
+            </span>
+            {info && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+                    <HelpCircle className="w-3.5 h-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs p-3">
+                  <div className="space-y-2 text-xs">
+                    <p className="font-medium">{info.description}</p>
+                    <div className="pt-1 border-t border-border/50">
+                      <p className="text-chart-2 flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        <span>{info.upMeaning}</span>
+                      </p>
+                      <p className="text-chart-4 flex items-center gap-1 mt-1">
+                        <TrendingDown className="w-3 h-3" />
+                        <span>{info.downMeaning}</span>
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
-        <div className={`${color} p-1.5 rounded-md`}>{icon}</div>
       </div>
 
-      <div className="flex items-end justify-between gap-2">
+      {/* S3.3: Larger value display */}
+      <div className="flex items-end justify-between gap-3">
         <motion.span
           key={value}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-2xl font-mono font-semibold"
+          className="text-3xl font-mono font-bold text-foreground"
         >
           {value}
         </motion.span>
@@ -130,8 +134,8 @@ function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, 
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className={`flex items-center gap-1 text-sm font-medium ${
-                isPositive ? "text-chart-2" : isNegative ? "text-chart-4" : ""
+              className={`flex items-center gap-1 text-base font-semibold px-2 py-1 rounded-md ${
+                isPositive ? "text-chart-2 bg-chart-2/10" : isNegative ? "text-chart-4 bg-chart-4/10" : ""
               }`}
             >
               {isPositive ? (
@@ -145,9 +149,10 @@ function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, 
         </AnimatePresence>
       </div>
 
-      <div className="mt-3 h-1.5 bg-muted rounded-full overflow-hidden">
+      {/* S3.3: Larger progress bar */}
+      <div className="mt-4 h-2 bg-muted rounded-full overflow-hidden">
         <motion.div
-          className="h-full rounded-full bg-primary/70"
+          className="h-full rounded-full bg-primary"
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, value)}%` }}
           transition={{ duration: 0.5, ease: "easeOut" }}
@@ -377,10 +382,14 @@ export function KPIDashboard({
         </div>
       )}
 
+      {/* S3.3: Larger indicators with better spacing */}
       <div className="p-6 flex-1 overflow-y-auto">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-4">
-          {useIndicators ? "Indicadores" : "Indicadores Clave"}
-        </h3>
+        <div className="flex items-center gap-2 mb-5">
+          <Activity className="w-5 h-5 text-primary" />
+          <h3 className="text-base font-semibold text-foreground">
+            {useIndicators ? "Indicadores" : "Indicadores Clave"}
+          </h3>
+        </div>
         <div className="space-y-4">
           {useIndicators ? (
             indicators.map((indicator) => {

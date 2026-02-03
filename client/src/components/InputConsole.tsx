@@ -144,27 +144,38 @@ export function InputConsole({
         </motion.div>
       )}
 
+      {/* S3.1: Decision Header Block - Visually unmistakable task */}
       {currentDecisionPoint?.prompt && !pendingRevision && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 p-4 bg-muted/30 rounded-lg border"
+          className="mb-4"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {decisionNumber && totalDecisions
-                ? `Decisión ${decisionNumber} de ${totalDecisions}`
-                : "Decisión"}
-            </span>
+          <Card className="p-5 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/30 border-l-4 border-l-primary">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                  <Send className="w-4 h-4 text-primary" />
+                </div>
+                <span className="text-sm font-semibold text-primary uppercase tracking-wide">
+                  Tu Decisión
+                </span>
+              </div>
+              <Badge variant="outline" className="bg-background text-xs">
+                {decisionNumber && totalDecisions
+                  ? `${decisionNumber} de ${totalDecisions}`
+                  : "Activa"}
+              </Badge>
+            </div>
+            <p className="text-base font-medium text-foreground leading-relaxed" data-testid="text-decision-prompt">
+              {currentDecisionPoint.prompt}
+            </p>
             {currentDecisionPoint.includesReflection && (
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs mt-3">
                 Incluye reflexión
               </Badge>
             )}
-          </div>
-          <p className="text-sm font-medium" data-testid="text-decision-prompt">
-            {currentDecisionPoint.prompt}
-          </p>
+          </Card>
         </motion.div>
       )}
 

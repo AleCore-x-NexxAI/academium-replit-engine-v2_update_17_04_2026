@@ -46,35 +46,43 @@ export function CaseContextPanel({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 border-b flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-primary" />
-          <span className="font-semibold">Documento del Caso</span>
+      {/* S3.2: Briefing Panel Header */}
+      <div className="p-4 border-b bg-gradient-to-r from-primary/5 to-transparent shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <FileText className="w-4 h-4 text-primary" />
+            </div>
+            <span className="font-semibold text-foreground">Tu Briefing</span>
+          </div>
+          {onToggle && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggle}
+              data-testid="button-toggle-case-panel"
+            >
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronUp className="w-4 h-4" />
+              )}
+            </Button>
+          )}
         </div>
-        {onToggle && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggle}
-            data-testid="button-toggle-case-panel"
-          >
-            {isExpanded ? (
-              <ChevronDown className="w-4 h-4" />
-            ) : (
-              <ChevronUp className="w-4 h-4" />
-            )}
-          </Button>
-        )}
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-5">
+          {/* Title Section */}
           <div>
-            <h2 className="text-lg font-bold mb-2" data-testid="text-case-title">
+            <h2 className="text-lg font-bold mb-2 text-foreground" data-testid="text-case-title">
               {scenario.title}
             </h2>
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="secondary">{industry}</Badge>
+              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                {industry}
+              </Badge>
               {companyName && (
                 <Badge variant="outline" className="flex items-center gap-1">
                   <Building2 className="w-3 h-3" />
@@ -86,36 +94,45 @@ export function CaseContextPanel({
 
           <Separator />
 
-          <Card className="p-4 bg-muted/30">
+          {/* S3.2: Role Panel - More prominent */}
+          <div className="p-4 rounded-lg bg-chart-1/5 border border-chart-1/20">
             <div className="flex items-center gap-2 mb-2">
-              <User className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">Tu Rol</span>
-            </div>
-            <p className="text-sm">{role}</p>
-          </Card>
-
-          {objective && (
-            <Card className="p-4 bg-muted/30">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="w-4 h-4 text-primary" />
-                <span className="font-medium text-sm">Objetivo</span>
+              <div className="w-7 h-7 rounded-md bg-chart-1/20 flex items-center justify-center">
+                <User className="w-4 h-4 text-chart-1" />
               </div>
-              <p className="text-sm">{objective}</p>
-            </Card>
+              <span className="text-xs font-bold uppercase tracking-wide text-chart-1">Tu Rol</span>
+            </div>
+            <p className="text-sm font-medium text-foreground">{role}</p>
+          </div>
+
+          {/* S3.2: Objective Panel - More prominent */}
+          {objective && (
+            <div className="p-4 rounded-lg bg-chart-2/5 border border-chart-2/20">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-7 h-7 rounded-md bg-chart-2/20 flex items-center justify-center">
+                  <Target className="w-4 h-4 text-chart-2" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wide text-chart-2">Objetivo</span>
+              </div>
+              <p className="text-sm text-foreground leading-relaxed">{objective}</p>
+            </div>
           )}
 
           <Separator />
 
-          <div>
+          {/* S3.2: Context Section - Collapsible but visible by default */}
+          <div className="rounded-lg border bg-muted/20 overflow-hidden">
             <button
               type="button"
               onClick={() => setShowFullContext(!showFullContext)}
-              className="w-full flex items-center justify-between py-2 hover-elevate rounded"
+              className="w-full flex items-center justify-between p-3 hover-elevate"
               data-testid="button-toggle-context"
             >
               <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-primary" />
-                <span className="font-medium">Contexto del Caso</span>
+                <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-primary" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-wide text-primary">Contexto</span>
               </div>
               {showFullContext ? (
                 <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -132,21 +149,21 @@ export function CaseContextPanel({
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <div className="pt-2 space-y-3">
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                  <div className="px-3 pb-3 space-y-3">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
                       {caseContext}
                     </p>
 
                     {coreChallenge && (
-                      <Card className="p-3 bg-primary/5 border-primary/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Target className="w-4 h-4 text-primary" />
-                          <span className="font-medium text-sm text-primary">
+                      <div className="p-3 rounded-md bg-primary/5 border border-primary/20">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Target className="w-3.5 h-3.5 text-primary" />
+                          <span className="font-semibold text-xs text-primary uppercase tracking-wide">
                             Desafío Central
                           </span>
                         </div>
-                        <p className="text-sm">{coreChallenge}</p>
-                      </Card>
+                        <p className="text-sm text-foreground">{coreChallenge}</p>
+                      </div>
                     )}
                   </div>
                 </motion.div>
