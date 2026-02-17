@@ -122,7 +122,7 @@ export async function extractInsights(sourceText: string): Promise<ExtractedInsi
       { role: "system", content: INSIGHT_EXTRACTOR_PROMPT },
       { role: "user", content: `Analyze this source material and extract key insights for scenario creation:\n\n${sourceText}` },
     ],
-    { responseFormat: "json", maxTokens: 2048 }
+    { responseFormat: "json", maxTokens: 2048, agentName: "authoringAssistant" }
   );
 
   const parsed = JSON.parse(response);
@@ -168,7 +168,7 @@ SUGGESTED DIFFICULTY: ${insights.suggestedDifficulty}${contextPrompt}
 Generate a WORLD-CLASS simulation scenario with rich detail in every field.` 
       },
     ],
-    { responseFormat: "json", maxTokens: 4096 }
+    { responseFormat: "json", maxTokens: 4096, agentName: "authoringAssistant" }
   );
 
   const parsed = JSON.parse(response);
@@ -269,7 +269,7 @@ ${userMessage}
 Respond helpfully and indicate any changes to make.`,
       },
     ],
-    { responseFormat: "json", maxTokens: 2048 }
+    { responseFormat: "json", maxTokens: 2048, agentName: "authoringAssistant" }
   );
 
   try {

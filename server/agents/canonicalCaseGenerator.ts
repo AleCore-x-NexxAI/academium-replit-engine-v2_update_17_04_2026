@@ -252,7 +252,7 @@ El caso debe durar 20-25 minutos para completar.
 Recuerda: 3 puntos de decisión exactamente, sin respuestas correctas, tono de mentoría.` 
       },
     ],
-    { responseFormat: "json", maxTokens: 4096 }
+    { responseFormat: "json", maxTokens: 4096, agentName: "canonicalCaseGenerator" }
   );
 
   const parsed = JSON.parse(response);

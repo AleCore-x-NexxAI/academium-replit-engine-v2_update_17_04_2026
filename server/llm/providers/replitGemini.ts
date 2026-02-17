@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { BaseProvider } from "./base";
-import type { ProviderKeyConfig } from "./types";
+import type { ProviderKeyConfig, GenerateResult } from "./types";
 import type { ChatMessage, CompletionOptions } from "../provider";
 
 export class ReplitGeminiProvider extends BaseProvider {
@@ -70,7 +70,7 @@ export class ReplitGeminiProvider extends BaseProvider {
     messages: ChatMessage[],
     options: CompletionOptions,
     _signal: AbortSignal
-  ): Promise<string> {
+  ): Promise<GenerateResult> {
     const model = options.model || "gemini-2.5-flash";
     const geminiMessages = this.convertToGeminiMessages(messages);
 
@@ -86,16 +86,22 @@ export class ReplitGeminiProvider extends BaseProvider {
       config: Object.keys(generationConfig).length > 0 ? generationConfig : undefined,
     });
 
-    const result = response.text || "";
+    const text = response.text || "";
 
-    if (options.responseFormat === "json" && result) {
+    if (options.responseFormat === "json" && text) {
       try {
-        JSON.parse(result);
+        JSON.parse(text);
       } catch {
-        throw new Error(`Replit Gemini returned invalid JSON: ${result.substring(0, 100)}...`);
+        throw new Error(`Replit Gemini returned invalid JSON: ${text.substring(0, 100)}...`);
       }
     }
 
-    return result;
+    return {
+      text,
+      inputTokens: (response as any).usageMetadata?.promptTokenCount || 0,
+      outputTokens: (response as any).usageMetadata?.candidatesTokenCount || 0,
+      totalTokens: (response as any).usageMetadata?.totalTokenCount || 0,
+      model,
+    };
   }
 }

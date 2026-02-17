@@ -9,6 +9,7 @@ import {
   jsonb,
   index,
   pgEnum,
+  serial,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -466,6 +467,35 @@ export const insertLlmProviderSchema = createInsertSchema(llmProviders).omit({
   createdAt: true,
   updatedAt: true,
 });
+
+// LLM Usage Logs - AI cost tracking
+export const llmUsageLogs = pgTable("llm_usage_logs", {
+  id: serial("id").primaryKey(),
+  provider: varchar("provider").notNull(),
+  model: varchar("model").notNull(),
+  inputTokens: integer("input_tokens").notNull(),
+  outputTokens: integer("output_tokens").notNull(),
+  totalTokens: integer("total_tokens").notNull(),
+  costUsd: varchar("cost_usd").notNull(),
+  agentName: varchar("agent_name"),
+  sessionId: integer("session_id"),
+  userId: varchar("user_id"),
+  durationMs: integer("duration_ms"),
+  success: boolean("success").default(true).notNull(),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_llm_usage_created").on(table.createdAt),
+  index("idx_llm_usage_provider").on(table.provider),
+  index("idx_llm_usage_session").on(table.sessionId),
+]);
+
+export const insertLlmUsageLogSchema = createInsertSchema(llmUsageLogs).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertLlmUsageLog = z.infer<typeof insertLlmUsageLogSchema>;
+export type LlmUsageLog = typeof llmUsageLogs.$inferSelect;
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;

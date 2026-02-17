@@ -20,6 +20,7 @@
 
 import { registry, routeRequest, hasAvailableSlots, jobQueue } from "./providers";
 import type { ProviderSlotInfo, QueuedJob } from "./providers";
+import { logUsage } from "./usageLogger";
 
 export type ProviderType = "openai" | "gemini";
 
@@ -42,6 +43,9 @@ export interface CompletionOptions {
   model?: SupportedModel;
   preferredProvider?: ProviderType;
   skipFailover?: boolean;
+  agentName?: string;
+  sessionId?: number;
+  userId?: string;
 }
 
 export interface ProviderStats {
@@ -95,13 +99,45 @@ export async function generateChatCompletion(
 ): Promise<string> {
   registry.initialize();
 
+  const start = Date.now();
   try {
     const result = await routeRequest(messages, options);
-    trackStats(result.provider, options.model || "gpt-4o", result.latencyMs, true);
+    const durationMs = Date.now() - start;
+    trackStats(result.provider, result.model || options.model || "gpt-4o", result.latencyMs, true);
+
+    logUsage({
+      provider: result.provider,
+      model: result.model || options.model || "unknown",
+      inputTokens: result.inputTokens,
+      outputTokens: result.outputTokens,
+      totalTokens: result.totalTokens,
+      durationMs,
+      success: true,
+      agentName: options.agentName,
+      sessionId: options.sessionId,
+      userId: options.userId,
+    }).catch(() => {});
+
     return result.result;
   } catch (error) {
+    const durationMs = Date.now() - start;
     const errMsg = error instanceof Error ? error.message : String(error);
     trackStats("unknown", options.model || "gpt-4o", 0, false, errMsg);
+
+    logUsage({
+      provider: "unknown",
+      model: options.model || "unknown",
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      durationMs,
+      success: false,
+      errorMessage: errMsg.substring(0, 500),
+      agentName: options.agentName,
+      sessionId: options.sessionId,
+      userId: options.userId,
+    }).catch(() => {});
+
     throw error;
   }
 }

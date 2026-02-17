@@ -15,6 +15,9 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import type { AgentContext } from "./agents/types";
 import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts } from "@shared/schema";
+import { llmUsageLogs } from "@shared/schema";
+import { db } from "./db";
+import { gte, desc } from "drizzle-orm";
 import { 
   extractInsights, 
   generateScenario, 
@@ -1982,6 +1985,137 @@ Be constructive and educational, not judgmental.`;
   });
 
   // =========================================================
+  // AI Cost Dashboard - Super Admin only
+  // =========================================================
+
+  app.get("/api/admin/ai-costs", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+
+      if (!user?.isSuperAdmin) {
+        return res.status(403).json({ message: "Super admin access required" });
+      }
+
+      const { period = "7d" } = req.query;
+
+      const now = new Date();
+      let since: Date;
+      switch (period) {
+        case "24h": since = new Date(now.getTime() - 24 * 60 * 60 * 1000); break;
+        case "7d": since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+        case "30d": since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+        case "all": since = new Date(0); break;
+        default: since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      }
+
+      const logs = await db.select().from(llmUsageLogs)
+        .where(gte(llmUsageLogs.createdAt, since))
+        .orderBy(desc(llmUsageLogs.createdAt));
+
+      const byProvider: Record<string, { calls: number; inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number; errors: number }> = {};
+      const byAgent: Record<string, { calls: number; inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number }> = {};
+      const bySession: Record<string, { calls: number; totalTokens: number; costUsd: number; userId: string | null }> = {};
+      const byDay: Record<string, { calls: number; totalTokens: number; costUsd: number }> = {};
+
+      let totalCost = 0;
+      let totalTokensAll = 0;
+      let totalCalls = 0;
+      let totalErrors = 0;
+
+      for (const log of logs) {
+        const cost = parseFloat(log.costUsd);
+        totalCost += cost;
+        totalTokensAll += log.totalTokens;
+        totalCalls++;
+        if (!log.success) totalErrors++;
+
+        const pKey = log.provider;
+        if (!byProvider[pKey]) byProvider[pKey] = { calls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0, errors: 0 };
+        byProvider[pKey].calls++;
+        byProvider[pKey].inputTokens += log.inputTokens;
+        byProvider[pKey].outputTokens += log.outputTokens;
+        byProvider[pKey].totalTokens += log.totalTokens;
+        byProvider[pKey].costUsd += cost;
+        if (!log.success) byProvider[pKey].errors++;
+
+        const aKey = log.agentName || "unknown";
+        if (!byAgent[aKey]) byAgent[aKey] = { calls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, costUsd: 0 };
+        byAgent[aKey].calls++;
+        byAgent[aKey].inputTokens += log.inputTokens;
+        byAgent[aKey].outputTokens += log.outputTokens;
+        byAgent[aKey].totalTokens += log.totalTokens;
+        byAgent[aKey].costUsd += cost;
+
+        if (log.sessionId) {
+          const sKey = String(log.sessionId);
+          if (!bySession[sKey]) bySession[sKey] = { calls: 0, totalTokens: 0, costUsd: 0, userId: log.userId };
+          bySession[sKey].calls++;
+          bySession[sKey].totalTokens += log.totalTokens;
+          bySession[sKey].costUsd += cost;
+        }
+
+        const day = log.createdAt.toISOString().split("T")[0];
+        if (!byDay[day]) byDay[day] = { calls: 0, totalTokens: 0, costUsd: 0 };
+        byDay[day].calls++;
+        byDay[day].totalTokens += log.totalTokens;
+        byDay[day].costUsd += cost;
+      }
+
+      res.json({
+        summary: {
+          totalCalls,
+          totalTokens: totalTokensAll,
+          totalCostUsd: parseFloat(totalCost.toFixed(6)),
+          totalErrors,
+          period,
+        },
+        byProvider: Object.entries(byProvider).map(([name, data]) => ({
+          name,
+          ...data,
+          costUsd: parseFloat(data.costUsd.toFixed(6)),
+        })),
+        byAgent: Object.entries(byAgent).map(([name, data]) => ({
+          name,
+          ...data,
+          costUsd: parseFloat(data.costUsd.toFixed(6)),
+        })),
+        bySession: Object.entries(bySession)
+          .map(([id, data]) => ({
+            sessionId: parseInt(id),
+            ...data,
+            costUsd: parseFloat(data.costUsd.toFixed(6)),
+          }))
+          .sort((a, b) => b.costUsd - a.costUsd)
+          .slice(0, 50),
+        byDay: Object.entries(byDay)
+          .map(([date, data]) => ({
+            date,
+            ...data,
+            costUsd: parseFloat(data.costUsd.toFixed(6)),
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+        recentLogs: logs.slice(0, 100).map(log => ({
+          id: log.id,
+          provider: log.provider,
+          model: log.model,
+          inputTokens: log.inputTokens,
+          outputTokens: log.outputTokens,
+          totalTokens: log.totalTokens,
+          costUsd: log.costUsd,
+          agentName: log.agentName,
+          sessionId: log.sessionId,
+          durationMs: log.durationMs,
+          success: log.success,
+          createdAt: log.createdAt,
+        })),
+      });
+    } catch (error) {
+      console.error("[Admin] AI costs query error:", error);
+      res.status(500).json({ message: "Failed to fetch AI cost data" });
+    }
+  });
+
   // AI Capacity Monitoring
   // =========================================================
 

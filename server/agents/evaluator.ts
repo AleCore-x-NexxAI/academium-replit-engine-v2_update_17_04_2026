@@ -144,7 +144,7 @@ Devuelve tu evaluación completa en JSON.`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      { responseFormat: "json", maxTokens: 1024, model: context.llmModel }
+      { responseFormat: "json", maxTokens: 1024, model: context.llmModel, agentName: "evaluator", sessionId: parseInt(context.sessionId) || undefined }
     );
 
     const parsed = JSON.parse(response);

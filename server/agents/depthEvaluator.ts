@@ -187,7 +187,7 @@ Si la respuesta no hace referencia a decisiones anteriores o no integra el conte
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      { responseFormat: "json", maxTokens: 512, model: options?.model }
+      { responseFormat: "json", maxTokens: 512, model: options?.model, agentName: "depthEvaluator" }
     );
 
     const parsed = JSON.parse(response);

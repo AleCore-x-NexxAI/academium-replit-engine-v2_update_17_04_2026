@@ -1,5 +1,5 @@
 import { BaseProvider } from "./base";
-import type { ProviderKeyConfig } from "./types";
+import type { ProviderKeyConfig, GenerateResult } from "./types";
 import type { ChatMessage, CompletionOptions } from "../provider";
 
 export class AnthropicProvider extends BaseProvider {
@@ -14,7 +14,7 @@ export class AnthropicProvider extends BaseProvider {
     messages: ChatMessage[],
     options: CompletionOptions,
     signal: AbortSignal
-  ): Promise<string> {
+  ): Promise<GenerateResult> {
     const keyIdx = this.keyIndex % this.anthropicKeys.length;
     this.keyIndex++;
     const key = this.anthropicKeys[keyIdx];
@@ -73,12 +73,21 @@ export class AnthropicProvider extends BaseProvider {
         .map((c: any) => c.text)
         .join("") || "";
 
+    const inputTokens = data.usage?.input_tokens || 0;
+    const outputTokens = data.usage?.output_tokens || 0;
+
     if (options.responseFormat === "json" && content) {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
           JSON.parse(jsonMatch[0]);
-          return jsonMatch[0];
+          return {
+            text: jsonMatch[0],
+            inputTokens,
+            outputTokens,
+            totalTokens: inputTokens + outputTokens,
+            model,
+          };
         } catch {
           throw new Error(`Anthropic returned invalid JSON: ${content.substring(0, 100)}...`);
         }
@@ -86,6 +95,12 @@ export class AnthropicProvider extends BaseProvider {
       throw new Error(`Anthropic returned no JSON object: ${content.substring(0, 100)}...`);
     }
 
-    return content;
+    return {
+      text: content,
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      model,
+    };
   }
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,9 +19,10 @@ import {
   ChevronRight,
   Check,
   X,
+  DollarSign,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -423,6 +425,21 @@ function LlmProviderForm({
   );
 }
 
+function AiCostLink() {
+  const [, navigate] = useLocation();
+  return (
+    <Card className="cursor-pointer hover-elevate" onClick={() => navigate("/admin/ai-costs")} data-testid="link-ai-costs">
+      <CardContent className="flex items-center gap-3 p-4">
+        <DollarSign className="w-5 h-5 text-primary" />
+        <div>
+          <p className="font-medium">Panel de Costos de IA</p>
+          <p className="text-sm text-muted-foreground">Ver costos reales, uso por proveedor y metricas de consumo</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function LlmProvidersSection() {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -618,6 +635,9 @@ export default function Settings() {
         <div className="space-y-6">
           <ProfileSection user={user} />
           
+          {user.isSuperAdmin && (
+            <AiCostLink />
+          )}
           {user.isSuperAdmin && <LlmProvidersSection />}
         </div>
       </div>

@@ -168,7 +168,7 @@ Devuelve SOLO JSON válido en el formato especificado.`;
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    { responseFormat: "json", model: context.llmModel }
+    { responseFormat: "json", model: context.llmModel, agentName: "domainExpert", sessionId: parseInt(context.sessionId) || undefined }
   );
 
   try {

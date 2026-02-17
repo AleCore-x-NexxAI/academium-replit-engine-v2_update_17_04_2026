@@ -20,6 +20,7 @@ import ScenarioAnalytics from "@/pages/ScenarioAnalytics";
 import SimulationManagement from "@/pages/SimulationManagement";
 import BugReports from "@/pages/BugReports";
 import Settings from "@/pages/Settings";
+import AiCostDashboard from "@/pages/AiCostDashboard";
 import NotFound from "@/pages/not-found";
 import { BugReportButton } from "@/components/BugReportButton";
 import { OnboardingModal } from "@/components/OnboardingModal";
@@ -86,6 +87,11 @@ function AuthenticatedApp() {
         <Route path="/settings">
           <RoleProtectedRoute allowedRoles={["admin"]}>
             <Settings />
+          </RoleProtectedRoute>
+        </Route>
+        <Route path="/admin/ai-costs">
+          <RoleProtectedRoute allowedRoles={["admin"]}>
+            <AiCostDashboard />
           </RoleProtectedRoute>
         </Route>
         <Route component={NotFound} />

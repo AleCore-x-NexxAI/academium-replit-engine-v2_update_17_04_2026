@@ -143,7 +143,7 @@ Return ONLY valid JSON matching the specified format.`;
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    { responseFormat: "json", model: context.llmModel }
+    { responseFormat: "json", model: context.llmModel, agentName: "narrator", sessionId: parseInt(context.sessionId) || undefined }
   );
 
   try {

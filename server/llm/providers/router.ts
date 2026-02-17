@@ -8,6 +8,10 @@ export interface RouteResult {
   provider: string;
   latencyMs: number;
   failoverAttempts: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  model: string;
 }
 
 function selectBestProvider(providers: ProviderAdapter[]): ProviderAdapter | null {
@@ -80,7 +84,7 @@ export async function routeRequest(
 
     const start = Date.now();
     try {
-      const result = await provider.generate(messages, providerOptions);
+      const genResult = await provider.generate(messages, providerOptions);
       const latency = Date.now() - start;
 
       console.log(
@@ -89,10 +93,14 @@ export async function routeRequest(
       );
 
       return {
-        result,
+        result: genResult.text,
         provider: provider.name,
         latencyMs: latency,
         failoverAttempts,
+        inputTokens: genResult.inputTokens,
+        outputTokens: genResult.outputTokens,
+        totalTokens: genResult.totalTokens,
+        model: genResult.model,
       };
     } catch (error) {
       failoverAttempts++;

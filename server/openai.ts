@@ -31,6 +31,9 @@ export async function generateChatCompletion(
     maxTokens?: number;
     responseFormat?: "json" | "text";
     model?: SupportedModel;
+    agentName?: string;
+    sessionId?: number;
+    userId?: string;
   }
 ): Promise<string> {
   return unifiedGenerate(messages, {
@@ -39,6 +42,9 @@ export async function generateChatCompletion(
     responseFormat: options?.responseFormat,
     model: options?.model,
     preferredProvider: "openai",
+    agentName: options?.agentName,
+    sessionId: options?.sessionId,
+    userId: options?.userId,
   });
 }
 

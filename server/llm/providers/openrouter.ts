@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { BaseProvider } from "./base";
-import type { ProviderKeyConfig } from "./types";
+import type { ProviderKeyConfig, GenerateResult } from "./types";
 import type { ChatMessage, CompletionOptions } from "../provider";
 import { getEquivalentModel } from "./types";
 
@@ -26,7 +26,7 @@ export class OpenRouterProvider extends BaseProvider {
     messages: ChatMessage[],
     options: CompletionOptions,
     signal: AbortSignal
-  ): Promise<string> {
+  ): Promise<GenerateResult> {
     const keyIdx = this.keyIndex % this.clients.length;
     this.keyIndex++;
     const client = this.clients[keyIdx];
@@ -56,6 +56,12 @@ export class OpenRouterProvider extends BaseProvider {
       }
     }
 
-    return content;
+    return {
+      text: content,
+      inputTokens: response.usage?.prompt_tokens || 0,
+      outputTokens: response.usage?.completion_tokens || 0,
+      totalTokens: response.usage?.total_tokens || 0,
+      model,
+    };
   }
 }

@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { BaseProvider } from "./base";
-import type { ProviderKeyConfig } from "./types";
+import type { ProviderKeyConfig, GenerateResult } from "./types";
 import type { ChatMessage, CompletionOptions } from "../provider";
 
 export class GeminiDirectProvider extends BaseProvider {
@@ -64,7 +64,7 @@ export class GeminiDirectProvider extends BaseProvider {
     messages: ChatMessage[],
     options: CompletionOptions,
     _signal: AbortSignal
-  ): Promise<string> {
+  ): Promise<GenerateResult> {
     const keyIdx = this.keyIndex % this.clients.length;
     this.keyIndex++;
     const client = this.clients[keyIdx];
@@ -84,16 +84,22 @@ export class GeminiDirectProvider extends BaseProvider {
       config: Object.keys(generationConfig).length > 0 ? generationConfig : undefined,
     });
 
-    const result = response.text || "";
+    const text = response.text || "";
 
-    if (options.responseFormat === "json" && result) {
+    if (options.responseFormat === "json" && text) {
       try {
-        JSON.parse(result);
+        JSON.parse(text);
       } catch {
-        throw new Error(`Gemini Direct returned invalid JSON: ${result.substring(0, 100)}...`);
+        throw new Error(`Gemini Direct returned invalid JSON: ${text.substring(0, 100)}...`);
       }
     }
 
-    return result;
+    return {
+      text,
+      inputTokens: (response as any).usageMetadata?.promptTokenCount || 0,
+      outputTokens: (response as any).usageMetadata?.candidatesTokenCount || 0,
+      totalTokens: (response as any).usageMetadata?.totalTokenCount || 0,
+      model,
+    };
   }
 }

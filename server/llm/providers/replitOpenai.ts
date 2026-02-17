@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { BaseProvider } from "./base";
-import type { ProviderKeyConfig } from "./types";
+import type { ProviderKeyConfig, GenerateResult } from "./types";
 import type { ChatMessage, CompletionOptions } from "../provider";
 
 export class ReplitOpenAIProvider extends BaseProvider {
@@ -23,7 +23,7 @@ export class ReplitOpenAIProvider extends BaseProvider {
     messages: ChatMessage[],
     options: CompletionOptions,
     signal: AbortSignal
-  ): Promise<string> {
+  ): Promise<GenerateResult> {
     const model = options.model || "gpt-4o";
 
     const response = await this.client.chat.completions.create(
@@ -39,6 +39,12 @@ export class ReplitOpenAIProvider extends BaseProvider {
       { signal }
     );
 
-    return response.choices[0]?.message?.content || "";
+    return {
+      text: response.choices[0]?.message?.content || "",
+      inputTokens: response.usage?.prompt_tokens || 0,
+      outputTokens: response.usage?.completion_tokens || 0,
+      totalTokens: response.usage?.total_tokens || 0,
+      model,
+    };
   }
 }

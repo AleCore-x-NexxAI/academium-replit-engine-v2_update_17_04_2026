@@ -156,7 +156,8 @@ RESPUESTA DEL ESTUDIANTE:
       ],
       { 
         responseFormat: "json",
-        model: model || "gpt-4o-mini"
+        model: model || "gpt-4o-mini",
+        agentName: "inputValidator"
       }
     );
 

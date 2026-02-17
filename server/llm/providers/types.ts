@@ -1,5 +1,13 @@
 import type { ChatMessage, CompletionOptions } from "../provider";
 
+export interface GenerateResult {
+  text: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  model: string;
+}
+
 export interface ProviderAdapter {
   readonly name: string;
   readonly type: ProviderType;
@@ -13,7 +21,7 @@ export interface ProviderAdapter {
   healthy: boolean;
   rateLimitedUntil: number;
 
-  generate(messages: ChatMessage[], options: CompletionOptions): Promise<string>;
+  generate(messages: ChatMessage[], options: CompletionOptions): Promise<GenerateResult>;
   checkHealth(): Promise<boolean>;
   warmUp(): Promise<void>;
 }

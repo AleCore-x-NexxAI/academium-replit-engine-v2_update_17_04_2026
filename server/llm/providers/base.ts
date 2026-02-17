@@ -1,6 +1,6 @@
 import pLimit from "p-limit";
 import type { ChatMessage, CompletionOptions } from "../provider";
-import type { ProviderAdapter, ProviderType, ProviderKeyConfig } from "./types";
+import type { ProviderAdapter, ProviderType, ProviderKeyConfig, GenerateResult } from "./types";
 
 const EMA_ALPHA = 0.3;
 const RATE_LIMIT_COOLDOWN_MS = 30000;
@@ -66,7 +66,7 @@ export abstract class BaseProvider implements ProviderAdapter {
     }
   }
 
-  async generate(messages: ChatMessage[], options: CompletionOptions): Promise<string> {
+  async generate(messages: ChatMessage[], options: CompletionOptions): Promise<GenerateResult> {
     return this.limiter(async () => {
       this.activeRequests++;
       this.totalRequests++;
@@ -111,7 +111,7 @@ export abstract class BaseProvider implements ProviderAdapter {
     messages: ChatMessage[],
     options: CompletionOptions,
     signal: AbortSignal
-  ): Promise<string>;
+  ): Promise<GenerateResult>;
 
   async checkHealth(): Promise<boolean> {
     try {
