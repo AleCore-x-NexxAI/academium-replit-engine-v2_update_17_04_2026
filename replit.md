@@ -27,16 +27,27 @@ The system employs event-driven updates with optimistic UI, a hierarchical agent
 
 ### Third-Party Services
 - **Replit Infrastructure**: Replit Auth (OpenID Connect), Replit Object Storage (via Google Cloud Storage client), Replit AI Integrations (OpenAI and Gemini proxies).
-- **AI/LLM Services**: OpenAI API (GPT-4o, GPT-4o-mini) and Google Gemini API (gemini-2.5-flash, gemini-2.5-pro) with automatic failover.
+- **AI/LLM Services**: Multi-provider architecture supporting up to 6 providers (OpenRouter, Anthropic, OpenAI Direct, Gemini Direct, Replit OpenAI Proxy, Replit Gemini Proxy).
 
-### LLM Provider Architecture
-- **Unified Provider Layer** (`server/llm/provider.ts`): Abstraction supporting both OpenAI and Gemini
-- **Automatic Failover**: If primary provider fails (rate limit, timeout), automatically switches to secondary
-- **Retry with Backoff**: Exponential backoff with 3 retries per provider before failover
-- **Rate Limiting**: Max 3 concurrent requests per provider to prevent quota exhaustion
-- **Model Mapping**: Automatic equivalent model selection during failover (gpt-4o ↔ gemini-2.5-pro)
-- **Provider Stats**: Logging for latency, success/failure, and failover tracking
-- **Graceful Degradation**: Users see "thinking" animation during retries, no error messages during failover
+### LLM Provider Architecture (February 2026 - Multi-Provider Scale)
+- **Provider Registry** (`server/llm/providers/registry.ts`): Auto-discovers providers from env vars, tracks health/capacity
+- **Smart Router** (`server/llm/providers/router.ts`): Least-loaded routing with EMA latency tracking, cross-provider failover
+- **6 Supported Providers**: OpenRouter, Anthropic Direct, OpenAI Direct, Gemini Direct, Replit OpenAI Proxy, Replit Gemini Proxy
+- **Multi-Key Support**: Each provider accepts comma-separated API keys (e.g., `OPENROUTER_API_KEYS=key1,key2`) for increased quota
+- **Model Equivalence**: Automatic model mapping during failover (gpt-4o ↔ claude-sonnet-4 ↔ gemini-2.5-pro)
+- **Turn Queue** (`server/llm/turnQueue.ts`): When all providers saturated, returns 202 + job ID; frontend polls for results
+- **Monitoring**: `GET /api/monitoring/ai-capacity` returns per-provider stats, queue depth, total capacity
+- **Queue Status**: `GET /api/queue/status/:jobId` returns job status (queued/processing/completed/failed) with results
+- **Warm-up**: On server start, pings all providers to verify connectivity
+- **Frontend Queue UI**: Shows queue position and estimated wait time in SimulationFeed when queued
+- **Backward Compatible**: `generateChatCompletion()` interface unchanged; all agents work without modifications
+
+### Environment Variables for AI Providers
+- `OPENROUTER_API_KEYS`: Comma-separated OpenRouter API keys (optional)
+- `ANTHROPIC_API_KEYS`: Comma-separated Anthropic API keys (optional)
+- `OPENAI_DIRECT_API_KEYS`: Comma-separated OpenAI Direct API keys (optional)
+- `GEMINI_DIRECT_API_KEYS`: Comma-separated Google Gemini Direct API keys (optional)
+- Replit proxies (OpenAI + Gemini) are always available as fallback without keys
 
 ### Database
 - **PostgreSQL**: Accessed via Neon serverless driver.
