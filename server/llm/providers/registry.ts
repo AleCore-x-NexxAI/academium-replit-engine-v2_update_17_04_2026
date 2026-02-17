@@ -42,6 +42,9 @@ class ProviderRegistry {
     }
 
     const openRouterKeys = parseKeys(process.env.OPENROUTER_API_KEYS);
+    if (process.env.OPENROUTER2_API_KEY) {
+      openRouterKeys.push({ apiKey: process.env.OPENROUTER2_API_KEY.trim() });
+    }
     if (openRouterKeys.length > 0) {
       try {
         this.providers.push(new OpenRouterProvider(openRouterKeys, 30));
@@ -124,6 +127,7 @@ class ProviderRegistry {
   }
 
   getStatus(): ProviderSlotInfo[] {
+    const now = Date.now();
     return this.getProviders().map((p) => ({
       name: p.name,
       type: p.type,
@@ -131,6 +135,8 @@ class ProviderRegistry {
       maxConcurrent: p.maxConcurrent,
       availableSlots: Math.max(0, p.maxConcurrent - p.activeRequests),
       healthy: p.healthy,
+      rateLimited: p.rateLimitedUntil > now,
+      rateLimitedSecondsLeft: p.rateLimitedUntil > now ? Math.ceil((p.rateLimitedUntil - now) / 1000) : 0,
       avgLatencyMs: Math.round(p.avgLatencyMs),
       totalRequests: p.totalRequests,
       totalErrors: p.totalErrors,

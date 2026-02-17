@@ -3,6 +3,19 @@ import type { ChatMessage, CompletionOptions } from "../provider";
 import type { ProviderAdapter, ProviderType, ProviderKeyConfig } from "./types";
 
 const EMA_ALPHA = 0.3;
+const RATE_LIMIT_COOLDOWN_MS = 30000;
+
+function isRateLimitError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return (
+    msg.includes("429") ||
+    msg.includes("RATELIMIT_EXCEEDED") ||
+    msg.toLowerCase().includes("quota") ||
+    msg.toLowerCase().includes("rate limit") ||
+    msg.toLowerCase().includes("too many requests") ||
+    msg.toLowerCase().includes("resource exhausted")
+  );
+}
 
 export abstract class BaseProvider implements ProviderAdapter {
   readonly name: string;
@@ -14,6 +27,7 @@ export abstract class BaseProvider implements ProviderAdapter {
   totalErrors = 0;
   avgLatencyMs = 0;
   healthy = true;
+  rateLimitedUntil = 0;
 
   protected limiter: ReturnType<typeof pLimit>;
   protected keys: ProviderKeyConfig[];
@@ -72,6 +86,13 @@ export abstract class BaseProvider implements ProviderAdapter {
         this.totalErrors++;
         const elapsed = Date.now() - start;
         this.updateLatency(elapsed);
+
+        if (isRateLimitError(error)) {
+          this.rateLimitedUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+          console.warn(
+            `[LLM] ${this.name} rate-limited, skipping for ${RATE_LIMIT_COOLDOWN_MS / 1000}s`
+          );
+        }
 
         if (this.totalRequests > 5 && this.totalErrors / this.totalRequests > 0.5) {
           this.healthy = false;

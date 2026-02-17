@@ -11,11 +11,20 @@ export interface RouteResult {
 }
 
 function selectBestProvider(providers: ProviderAdapter[]): ProviderAdapter | null {
+  const now = Date.now();
   const available = providers.filter(
-    (p) => p.healthy && p.activeRequests < p.maxConcurrent
+    (p) => p.healthy && p.activeRequests < p.maxConcurrent && p.rateLimitedUntil < now
   );
 
-  if (available.length === 0) return null;
+  if (available.length === 0) {
+    const withoutRateLimit = providers.filter(
+      (p) => p.healthy && p.activeRequests < p.maxConcurrent
+    );
+    if (withoutRateLimit.length > 0) {
+      return withoutRateLimit[0];
+    }
+    return null;
+  }
 
   available.sort((a, b) => {
     const aSlots = a.maxConcurrent - a.activeRequests;

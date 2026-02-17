@@ -10,6 +10,7 @@ export interface ProviderAdapter {
   totalErrors: number;
   avgLatencyMs: number;
   healthy: boolean;
+  rateLimitedUntil: number;
 
   generate(messages: ChatMessage[], options: CompletionOptions): Promise<string>;
   checkHealth(): Promise<boolean>;
