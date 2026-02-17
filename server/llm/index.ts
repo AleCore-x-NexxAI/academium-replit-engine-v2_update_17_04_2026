@@ -1,14 +1,16 @@
 /**
- * LLM Module - Unified provider abstraction
- * 
- * This module provides a single interface for both OpenAI and Gemini providers
- * with automatic failover, retry logic, and rate limiting.
+ * LLM Module - Multi-provider abstraction with load balancing
  */
 
 export {
   generateChatCompletion,
   isRateLimitError,
   getProviderStats,
+  hasAvailableSlots,
+  enqueueRequest,
+  getJobStatus,
+  getCapacityStatus,
+  warmUpProviders,
   openai,
   gemini,
   type ChatMessage,

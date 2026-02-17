@@ -1,0 +1,50 @@
+SimuLearn Engine — Fix AI Concurrency to Support 50 Students
+What Happened (Load Test Results)
+We ran k6 load tests against the production app. The server, database, pages, and APIs are all perfect — zero issues. The ONLY problem is AI concurrency.
+Here are the actual numbers:
+
+2 students: Decisions take 16s average. 100% success. Great experience.
+10 students: Decisions take 39s average, up to 90s. Only 50% of simulations completed. Students are waiting over a minute.
+20 students: Decisions take 81s average. Most requests timeout at 120s. 52% error rate. 13 timeouts. Only 1 out of 20 simulations completed. Completely broken.
+
+The root cause is simple: the app has a hard limit of 8 concurrent AI requests. When more than 8 students submit at the same time, the rest queue up behind them. Each decision takes ~15 seconds of AI processing, so student #9 waits 15 seconds before their request even starts. Student #20 waits over 90 seconds. By then the request times out.
+Everything else is fine. Pages load in 200ms. APIs respond in 400ms. Database is fast. The ONLY bottleneck is how many AI requests can run in parallel.
+What We Need
+50 students must be able to submit decisions at the same time and all get responses in under 30 seconds, with less than 5% error rate. No student should ever see a timeout or a spinner longer than 30-40 seconds.
+How to Fix It
+There are two layers to this. The first layer is the real solution — massively increase how many AI requests can run in parallel by using multiple providers and accounts. The second layer is a safety net — if somehow all providers are overwhelmed at the same time, gracefully queue requests with live progress feedback instead of timing out.
+Layer 1: Multi-Provider Parallel AI Requests (The Real Fix)
+Right now all AI requests go through one provider with one API key, capped at 8 concurrent. Instead, set up multiple providers and distribute requests across all of them in parallel. Each provider has its own independent rate limit, so the total capacity is the sum of all of them.
+Set up these providers:
+OpenRouter (https://openrouter.ai) — This is an API aggregator that gives you access to Claude, GPT-4o, Gemini, Llama, and 200+ other models through a single API endpoint. The key advantage is that each underlying model provider has independent rate limits through OpenRouter, so you can effectively multiply your concurrency. Use the OpenAI-compatible API format. Target 30-40 concurrent requests through OpenRouter alone by distributing across multiple models (Claude Sonnet, GPT-4o, Gemini 2.0 Flash).
+Anthropic Direct (https://docs.anthropic.com) — Keep the existing direct Anthropic integration but increase the concurrent request limit to 20-25. We have high-tier API access. Use Claude Sonnet 4 as the primary model.
+OpenAI Direct (https://platform.openai.com) — Add OpenAI as another direct provider. GPT-4o produces similar quality output for simulation feedback. Target 15-20 concurrent requests.
+Google Vertex AI / Gemini (https://ai.google.dev) — Add Gemini 2.0 Flash as a fast, cheap provider for high-load scenarios. It's the fastest of all these models and has very generous rate limits. Target 30 concurrent requests.
+Multiple API keys per provider — For each provider, we can use multiple API keys from different accounts or organizations. Each key has its own rate limit. So if one Anthropic key allows 20 concurrent, two keys allow 40. Set this up for at least Anthropic and OpenRouter.
+The total target capacity should be at minimum 100 concurrent AI requests, ideally 120-150. That gives comfortable headroom for 50 students even if some providers are slow.
+Build a load balancer service that:
+
+Keeps track of how many active requests each provider currently has.
+When a new request comes in, routes it to the provider with the most available capacity.
+If a provider returns an error or is slow, automatically retries with the next available provider.
+Tracks average response time per provider and prefers faster providers when multiple have capacity.
+Logs which provider handled each request for cost monitoring and debugging.
+Exposes a status endpoint (GET /api/monitoring/ai-capacity) that shows current utilization across all providers — how many requests are active, how many slots are available, which providers are healthy.
+
+All providers need to receive the same prompt format and return the same structured response format. Build an adapter layer so the rest of the app doesn't care which provider processed the request. The narrative, indicators, and feedback format must be identical regardless of whether Claude, GPT-4o, or Gemini generated it.
+For the prompt sent to each provider, include explicit instructions in the system prompt about the exact JSON response format expected so that all models return consistent output. Test each provider individually to make sure the simulation output quality is acceptable before adding it to the rotation.
+Layer 2: Graceful Queue with Live Feedback (Safety Net)
+This only activates if Layer 1 is completely saturated — meaning all 100+ concurrent slots across all providers are full. Instead of the request timing out with an error, do this:
+
+The server returns HTTP 202 (Accepted) immediately with a job ID, queue position, and estimated wait time.
+The frontend switches from a generic spinner to a queue status display showing: "Your decision is being processed. Position 3 in queue. Estimated wait: 20 seconds."
+The frontend polls a status endpoint every 1-2 seconds to get updated queue position.
+When the job completes, the poll returns the full AI response and the frontend continues normally.
+Use Redis + BullMQ (or any job queue) for the backend queue. Process queued jobs as soon as a provider slot opens up.
+
+The key UX requirement: a student should NEVER see a hanging spinner with no information. Either they get a fast response (Layer 1 working), or they see a live queue position countdown (Layer 2 fallback). Never a mystery timeout.
+Additional Changes
+Remove or raise the current rate limiter. The existing 8-concurrent-request limit is the primary cause of all failures. With the multi-provider setup, this limit should be raised to match total provider capacity (100+). Keep a rate limiter, but set it at something like 120 concurrent requests as a safety ceiling to prevent runaway costs, not as a performance bottleneck.
+Add request timeout handling. Set a 90-second timeout per AI request. If a provider doesn't respond in 90 seconds, cancel that request and retry with a different provider immediately. The student should never wait longer than the timeout — the system should transparently retry.
+Add a warm-up mechanism. When a class session starts (or when the first student hits the app), make a lightweight AI request to each provider to "wake them up" and verify they're responsive. Cold starts on serverless AI endpoints can add 5-10 seconds to the first request.
+Connection pooling. Make sure HTTP connections to AI providers are kept alive and reused, not opened fresh for each request. This saves 200-500ms per request.

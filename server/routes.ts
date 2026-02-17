@@ -9,6 +9,8 @@ import { DEFAULT_NARRATOR_PROMPT } from "./agents/narrator";
 import { DEFAULT_DOMAIN_EXPERT_PROMPT } from "./agents/domainExpert";
 import { validateSimulationInput } from "./agents/inputValidator";
 import { SUPPORTED_MODELS } from "./openai";
+import { getCapacityStatus, getJobStatus as getLLMJobStatus } from "./llm";
+import { turnQueue, type TurnJob } from "./llm/turnQueue";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import type { AgentContext } from "./agents/types";
@@ -587,59 +589,72 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       // S9.1: Check if we're in the reflection step (Step 4)
       const isReflectionStep = session.currentState.isReflectionStep === true;
-      
-      let result;
-      if (isReflectionStep) {
-        // S9.1: Use loose reflection processing
-        result = await processReflection(context);
-      } else {
-        // Normal decision processing
-        result = await processStudentTurn(context, revisionAttempts);
-      }
 
-      // If revision is required, don't save the turn yet - just update session state and return
-      if (result.requiresRevision) {
-        await storage.updateSimulationSession(sessionId, {
-          currentState: result.updatedState,
+      // Helper: process the turn and save results
+      const processTurnAndSave = async () => {
+        let turnResult;
+        if (isReflectionStep) {
+          turnResult = await processReflection(context);
+        } else {
+          turnResult = await processStudentTurn(context, revisionAttempts);
+        }
+
+        if (turnResult.requiresRevision) {
+          await storage.updateSimulationSession(sessionId, {
+            currentState: turnResult.updatedState,
+          });
+          return turnResult;
+        }
+
+        await storage.createTurn({
+          sessionId,
+          turnNumber: session.currentState.turnCount + 1,
+          studentInput: input,
+          agentResponse: turnResult,
         });
-        return res.json(result);
-      }
 
-      // Answer accepted - save the turn
-      await storage.createTurn({
-        sessionId,
-        turnNumber: session.currentState.turnCount + 1,
-        studentInput: input,
-        agentResponse: result,
-      });
+        let sessionUpdate: any = {
+          currentState: turnResult.updatedState,
+          status: turnResult.isGameOver ? "completed" : "active",
+        };
 
-      let sessionUpdate: any = {
-        currentState: result.updatedState,
-        status: result.isGameOver ? "completed" : "active",
+        if (turnResult.isGameOver) {
+          const competencies = turnResult.competencyScores || {
+            strategicThinking: 3,
+            ethicalReasoning: 3,
+            decisionDecisiveness: 3,
+            stakeholderEmpathy: 3,
+          };
+          const competencyValues = Object.values(competencies) as number[];
+          const avgCompetency = competencyValues.reduce((a, b) => a + b, 0) / competencyValues.length;
+          const overallScore = Math.round((avgCompetency / 5) * 100);
+
+          sessionUpdate.scoreSummary = {
+            finalKpis: turnResult.updatedState.kpis,
+            competencies,
+            overallScore,
+            feedback: turnResult.feedback.message,
+          };
+        }
+
+        await storage.updateSimulationSession(sessionId, sessionUpdate);
+        return turnResult;
       };
 
-      if (result.isGameOver) {
-        const competencies = result.competencyScores || {
-          strategicThinking: 3,
-          ethicalReasoning: 3,
-          decisionDecisiveness: 3,
-          stakeholderEmpathy: 3,
-        };
-        
-        const competencyValues = Object.values(competencies) as number[];
-        const avgCompetency = competencyValues.reduce((a, b) => a + b, 0) / competencyValues.length;
-        const overallScore = Math.round((avgCompetency / 5) * 100);
-
-        sessionUpdate.scoreSummary = {
-          finalKpis: result.updatedState.kpis,
-          competencies,
-          overallScore,
-          feedback: result.feedback.message,
-        };
+      // Check if AI providers are saturated — if so, queue the turn
+      if (turnQueue.shouldQueue()) {
+        const job = turnQueue.enqueue(sessionId, processTurnAndSave);
+        return res.status(202).json({
+          queued: true,
+          jobId: job.id,
+          position: job.position,
+          estimatedWaitMs: job.estimatedWaitMs,
+          message: "Tu decisión está en cola de procesamiento.",
+        });
       }
 
-      await storage.updateSimulationSession(sessionId, sessionUpdate);
-
+      // Providers have capacity — process synchronously
+      const result = await processTurnAndSave();
       res.json(result);
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -1963,6 +1978,42 @@ Be constructive and educational, not judgmental.`;
     } catch (error) {
       console.error("Error joining simulation:", error);
       res.status(500).json({ message: "Failed to join simulation" });
+    }
+  });
+
+  // =========================================================
+  // AI Capacity Monitoring
+  // =========================================================
+
+  app.get("/api/monitoring/ai-capacity", async (_req: any, res) => {
+    try {
+      const status = getCapacityStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Error getting AI capacity:", error);
+      res.status(500).json({ message: "Failed to get AI capacity status" });
+    }
+  });
+
+  app.get("/api/queue/status/:jobId", async (req: any, res) => {
+    try {
+      const { jobId } = req.params;
+
+      // Check turn queue first, then LLM queue
+      const turnJob = turnQueue.getJobStatus(jobId);
+      if (turnJob) {
+        return res.json(turnJob);
+      }
+
+      const llmJob = getLLMJobStatus(jobId);
+      if (llmJob) {
+        return res.json(llmJob);
+      }
+
+      return res.status(404).json({ message: "Job not found or expired" });
+    } catch (error) {
+      console.error("Error getting queue status:", error);
+      res.status(500).json({ message: "Failed to get queue status" });
     }
   });
 }

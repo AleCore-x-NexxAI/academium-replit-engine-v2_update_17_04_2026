@@ -9,6 +9,7 @@ interface SimulationFeedProps {
   history: HistoryEntry[];
   isTyping: boolean;
   thinkingSteps?: { message: string; completed: boolean }[];
+  queueStatus?: { position: number; estimatedWaitMs: number } | null;
 }
 
 const npcAvatars: Record<string, { initial: string; color: string }> = {
@@ -184,10 +185,50 @@ function TypingDots() {
   );
 }
 
+function QueueIndicator({ position, estimatedWaitMs }: { position: number; estimatedWaitMs: number }) {
+  const waitSec = Math.ceil(estimatedWaitMs / 1000);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="flex gap-3"
+      data-testid="queue-indicator"
+    >
+      <Avatar className="w-8 h-8 shrink-0">
+        <AvatarFallback className="bg-muted">
+          <Bot className="w-4 h-4" />
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="bg-card border rounded-2xl rounded-bl-md px-4 py-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <motion.div
+              className="w-2 h-2 rounded-full bg-chart-4"
+              animate={{ scale: [1, 1.3, 1] }}
+              transition={{ repeat: Infinity, duration: 1.2 }}
+            />
+            <span className="text-sm text-foreground">
+              {position > 0
+                ? `Tu decisión está en cola (posición ${position})`
+                : "Procesando tu decisión..."}
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground block pl-4">
+            Tiempo estimado: ~{waitSec > 60 ? `${Math.ceil(waitSec / 60)} min` : `${waitSec}s`}
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export function SimulationFeed({
   history,
   isTyping,
   thinkingSteps,
+  queueStatus,
 }: SimulationFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -217,7 +258,9 @@ export function SimulationFeed({
         ))}
 
         <AnimatePresence>
-          {isTyping && thinkingSteps && thinkingSteps.length > 0 ? (
+          {queueStatus ? (
+            <QueueIndicator position={queueStatus.position} estimatedWaitMs={queueStatus.estimatedWaitMs} />
+          ) : isTyping && thinkingSteps && thinkingSteps.length > 0 ? (
             <ThinkingIndicator steps={thinkingSteps} />
           ) : isTyping ? (
             <TypingDots />

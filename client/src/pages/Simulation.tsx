@@ -172,6 +172,54 @@ export default function Simulation() {
 
   const MAX_AUTO_RETRIES = 3;
   const RETRY_DELAYS = [2000, 4000, 6000];
+  const [queueStatus, setQueueStatus] = useState<{ position: number; estimatedWaitMs: number } | null>(null);
+
+  const pollForResult = async (jobId: string): Promise<TurnResponse> => {
+    const MAX_POLLS = 120;
+    const POLL_INTERVAL = 1500;
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+
+      try {
+        const res = await fetch(`/api/queue/status/${jobId}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            throw new Error("El trabajo expiró. Por favor intenta de nuevo.");
+          }
+          continue;
+        }
+
+        const job = await res.json();
+
+        if (job.status === "queued" || job.status === "processing") {
+          setQueueStatus({
+            position: job.position || 0,
+            estimatedWaitMs: job.estimatedWaitMs || 15000,
+          });
+          continue;
+        }
+
+        setQueueStatus(null);
+
+        if (job.status === "completed" && job.result) {
+          return job.result as TurnResponse;
+        }
+
+        if (job.status === "failed") {
+          throw new Error(job.error || "Error al procesar tu decisión.");
+        }
+      } catch (error: any) {
+        if (error.message?.includes("expiró") || error.message?.includes("Error al procesar")) {
+          setQueueStatus(null);
+          throw error;
+        }
+      }
+    }
+
+    setQueueStatus(null);
+    throw new Error("El procesamiento tardó demasiado. Por favor intenta de nuevo.");
+  };
 
   const submitMutation = useMutation({
     mutationFn: async (input: string) => {
@@ -183,7 +231,18 @@ export default function Simulation() {
             input,
             revisionAttempts: pendingRevision ? revisionAttempts : 0,
           });
-          return (await response.json()) as TurnResponse;
+
+          const data = await response.json();
+
+          if (response.status === 202 && data.queued && data.jobId) {
+            setQueueStatus({
+              position: data.position || 1,
+              estimatedWaitMs: data.estimatedWaitMs || 15000,
+            });
+            return await pollForResult(data.jobId);
+          }
+
+          return data as TurnResponse;
         } catch (error: any) {
           lastError = error;
           const errorMessage = error?.message || "";
@@ -294,6 +353,7 @@ export default function Simulation() {
       }
       setProcessing(false);
       setThinkingSteps([]);
+      setQueueStatus(null);
     },
   });
 
@@ -446,6 +506,7 @@ export default function Simulation() {
               history={history}
               isTyping={isProcessing}
               thinkingSteps={thinkingSteps}
+              queueStatus={queueStatus}
             />
           </div>
 
