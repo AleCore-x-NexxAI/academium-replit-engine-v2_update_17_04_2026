@@ -96,30 +96,34 @@ async function llmValidation(
   caseContext: { title: string; objective: string; recentHistory?: string },
   model?: SupportedModel
 ): Promise<InputValidationResult> {
-  const systemPrompt = `Eres un filtro ULTRA-PERMISIVO para una simulación educativa. Tu trabajo es ACEPTAR casi todo.
+  const systemPrompt = `Eres un validador EQUILIBRADO para una simulación educativa de negocios.
 
-TU SESGO PREDETERMINADO ES: isValid = true
+Tu objetivo: verificar que el estudiante está PENSANDO sobre el caso — no solo escribiendo algo para pasar.
 
-RECHAZA ÚNICAMENTE si la respuesta cumple TODAS estas condiciones a la vez:
-1. NO contiene ninguna palabra relacionada con negocios, decisiones, estrategia, equipo, presupuesto, clientes, mercado, producto, servicio, riesgo, prioridad, o cualquier tema profesional
-2. Y NO hace referencia a ningún elemento del caso (personas, situaciones, recursos, objetivos)
-3. Y NO expresa ninguna intención, opinión o preferencia sobre qué hacer
+ACEPTA si la respuesta muestra ALGÚN razonamiento conectado al caso:
+- Menciona una acción concreta que tomaría ("Voy a reasignar recursos a marketing")
+- Explica un por qué conectado al contexto ("porque el equipo está desmotivado")
+- Reconoce un trade-off o consecuencia ("esto puede afectar el presupuesto")
+- Hace referencia a elementos del caso (stakeholders, situación, recursos, objetivos)
+- Expresa una posición con justificación mínima ("Priorizo al equipo porque necesitamos cohesión")
 
-Esto significa que DEBES ACEPTAR respuestas como:
-- "Voy a priorizar la calidad" ✓
-- "Creo que deberíamos invertir más" ✓
-- "Me enfoco en el equipo" ✓
-- "Elijo la opción A" ✓
-- "Hay que ser más cuidadosos con el presupuesto" ✓
-- "No estoy seguro pero creo que lo mejor es esperar" ✓
-- "Reducir costos" ✓
-- Cualquier respuesta que mencione una acción, decisión u opinión ✓
+RECHAZA si la respuesta cae en alguna de estas categorías:
+- Texto sin sentido, caracteres aleatorios o spam
+- Contenido ofensivo o inapropiado
+- Respuestas vagas SIN conexión al caso: "sí", "no sé", "la mejor opción", "porque sí", "elijo esa"
+- Respuestas genéricas que aplican a cualquier caso sin demostrar que leyeron este: "Hay que tomar buenas decisiones" o "Es importante analizar bien"
+- Respuestas que solo repiten la pregunta sin añadir razonamiento propio
 
-SOLO RECHAZA:
-- Texto completamente aleatorio sin ningún significado
-- Contenido que no tiene absolutamente nada que ver con tomar una decisión
+EJEMPLOS:
+- "Voy a priorizar la calidad del producto sobre la velocidad de lanzamiento" → ACEPTA (acción concreta con trade-off)
+- "Creo que deberíamos invertir en capacitación del equipo para mejorar la eficiencia" → ACEPTA (acción + justificación)
+- "Me enfoco en reducir costos operativos aunque sacrifique algo de innovación" → ACEPTA (decisión + trade-off)
+- "Sí, eso" → RECHAZA (sin razonamiento)
+- "Porque es lo mejor" → RECHAZA (genérica, sin conexión al caso)
+- "Hay que analizar las opciones con cuidado" → RECHAZA (genérica, no dice qué haría)
+- "Priorizo la calidad" → ACEPTA (breve pero indica una decisión clara)
 
-EN CASO DE DUDA: ACEPTA. Es mejor aceptar una respuesta mediocre que bloquear a un estudiante.
+EN CASO DE DUDA: ACEPTA. Es preferible dejar pasar una respuesta corta pero con sentido que bloquear a un estudiante que sí está pensando.
 
 Responde en JSON:
 {
@@ -129,11 +133,12 @@ Responde en JSON:
 
   const userPrompt = `CASO: ${caseContext.title}
 OBJETIVO: ${caseContext.objective}
+${caseContext.recentHistory ? `CONTEXTO RECIENTE:\n${caseContext.recentHistory}` : ""}
 
-RESPUESTA A VALIDAR:
+RESPUESTA DEL ESTUDIANTE:
 "${input}"
 
-Evalúa si cumple al menos uno de los criterios de relevancia+estructura.`;
+¿La respuesta muestra razonamiento conectado al caso? Responde en JSON.`;
 
   try {
     const response = await generateChatCompletion(
