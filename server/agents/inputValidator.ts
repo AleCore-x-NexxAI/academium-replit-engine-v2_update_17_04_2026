@@ -100,12 +100,12 @@ async function llmValidation(
 
 Tu objetivo: verificar que el estudiante está PENSANDO sobre el caso — no solo escribiendo algo para pasar.
 
-ACEPTA si la respuesta muestra ALGÚN razonamiento conectado al caso:
+ACEPTA si la respuesta muestra razonamiento conectado al caso:
 - Menciona una acción concreta que tomaría ("Voy a reasignar recursos a marketing")
 - Explica un por qué conectado al contexto ("porque el equipo está desmotivado")
 - Reconoce un trade-off o consecuencia ("esto puede afectar el presupuesto")
 - Hace referencia a elementos del caso (stakeholders, situación, recursos, objetivos)
-- Expresa una posición con justificación mínima ("Priorizo al equipo porque necesitamos cohesión")
+- Expresa una posición con justificación ("Priorizo al equipo porque necesitamos cohesión")
 
 RECHAZA si la respuesta cae en alguna de estas categorías:
 - Texto sin sentido, caracteres aleatorios o spam
@@ -114,20 +114,28 @@ RECHAZA si la respuesta cae en alguna de estas categorías:
 - Respuestas genéricas que aplican a cualquier caso sin demostrar que leyeron este: "Hay que tomar buenas decisiones" o "Es importante analizar bien"
 - Respuestas que solo repiten la pregunta sin añadir razonamiento propio
 
-EJEMPLOS:
-- "Voy a priorizar la calidad del producto sobre la velocidad de lanzamiento" → ACEPTA (acción concreta con trade-off)
-- "Creo que deberíamos invertir en capacitación del equipo para mejorar la eficiencia" → ACEPTA (acción + justificación)
-- "Me enfoco en reducir costos operativos aunque sacrifique algo de innovación" → ACEPTA (decisión + trade-off)
-- "Sí, eso" → RECHAZA (sin razonamiento)
-- "Porque es lo mejor" → RECHAZA (genérica, sin conexión al caso)
-- "Hay que analizar las opciones con cuidado" → RECHAZA (genérica, no dice qué haría)
-- "Priorizo la calidad" → ACEPTA (breve pero indica una decisión clara)
+PIDE ELABORAR (needsElaboration) si la respuesta tiene la idea correcta pero es demasiado breve (menos de ~15 palabras) y le falta explicar el por qué o las consecuencias:
+- "Priorizo la calidad" → PIDE ELABORAR (buena dirección, pero falta el por qué o qué sacrifica)
+- "Reducir costos" → PIDE ELABORAR (acción clara, pero no explica cómo o por qué)
+- "Elijo la opción A" → PIDE ELABORAR (decisión sin razonamiento)
+- "Me enfoco en el equipo" → PIDE ELABORAR (intención correcta, falta justificación)
 
-EN CASO DE DUDA: ACEPTA. Es preferible dejar pasar una respuesta corta pero con sentido que bloquear a un estudiante que sí está pensando.
+EJEMPLOS COMPLETOS:
+- "Voy a priorizar la calidad del producto sobre la velocidad de lanzamiento" → ACEPTA
+- "Creo que deberíamos invertir en capacitación del equipo para mejorar la eficiencia" → ACEPTA
+- "Me enfoco en reducir costos operativos aunque sacrifique algo de innovación" → ACEPTA
+- "Sí, eso" → RECHAZA
+- "Porque es lo mejor" → RECHAZA
+- "Priorizo la calidad" → PIDE ELABORAR
+- "Reducir costos" → PIDE ELABORAR
+
+EN CASO DE DUDA entre RECHAZAR y PEDIR ELABORAR: pide elaborar.
+EN CASO DE DUDA entre ACEPTAR y PEDIR ELABORAR: acepta.
 
 Responde en JSON:
 {
   "isValid": true/false,
+  "needsElaboration": true/false,
   "reason": "breve explicación"
 }`;
 
@@ -154,11 +162,19 @@ RESPUESTA DEL ESTUDIANTE:
 
     const result = JSON.parse(response);
     
+    if (result.needsElaboration && !result.isValid) {
+      return {
+        isValid: false,
+        rejectionReason: result.reason,
+        userMessage: "Vas por buen camino. Elabora un poco más tu respuesta — explica el por qué de tu decisión o qué consecuencias anticipas."
+      };
+    }
+    
     if (!result.isValid) {
       return {
         isValid: false,
         rejectionReason: result.reason,
-        userMessage: "Tu respuesta no pudo procesarse. Por favor, inténtalo de nuevo."
+        userMessage: S6B_REJECTION_MESSAGE
       };
     }
     
