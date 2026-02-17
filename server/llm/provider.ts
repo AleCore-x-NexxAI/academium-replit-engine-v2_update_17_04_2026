@@ -68,8 +68,8 @@ const gemini = new GoogleGenAI({
 });
 
 // Rate limiters per provider to prevent quota exhaustion
-const openaiLimit = pLimit(3); // Max 3 concurrent OpenAI requests
-const geminiLimit = pLimit(3); // Max 3 concurrent Gemini requests
+const openaiLimit = pLimit(8); // Max 8 concurrent OpenAI requests (supports ~20 simultaneous students)
+const geminiLimit = pLimit(8); // Max 8 concurrent Gemini requests (supports ~20 simultaneous students)
 
 // Track stats for logging
 const providerStats: ProviderStats[] = [];
