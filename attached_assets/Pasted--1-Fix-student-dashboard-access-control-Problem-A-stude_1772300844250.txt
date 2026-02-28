@@ -1,0 +1,35 @@
+	1.	Fix student dashboard access control
+	•	Problem: A student can access simulation information on the student dashboard that should not be visible before the simulation is properly started.
+	•	Required fix:
+	•	Enforce access rules so a student only sees simulations they are allowed to enter and only in the correct state.
+	•	If the simulation is not started for that student, block access and show a clear message instead.
+	•	Acceptance criteria:
+	•	Trying to open a simulation that is not started for that student always shows a “not started” message.
+	•	Students cannot see or enter simulations in states they should not access.
+	2.	Fix student completion status in professor view
+	•	Problem: In the professor view, students who have finished a simulation are still marked as “in progress” instead of “completed”.
+	•	Required fix:
+	•	Correct the logic that updates the student status when they finish a simulation.
+	•	Ensure the professor view shows the real status for each student.
+	•	Acceptance criteria:
+	•	When a student reaches the end of the simulation and clicks finish, their status changes to “completed” in the professor view.
+	•	The counts for “in progress” and “completed” match the real data.
+	3.	Show student identity instead of only an ID
+	•	Problem: In the professor view, students are shown only by an internal ID or code. The professor cannot see who the student actually is.
+	•	Required fix:
+	•	Replace or extend the current ID field with clear identity info, using:
+	•	student name (preferred), or
+	•	student email, if name is not available.
+	•	Keep the internal ID in the backend, but show a human readable label in the UI.
+	•	Acceptance criteria:
+	•	Professor lists show each student with name and/or email, not just an opaque ID.
+	•	Sorting and filtering still work after this change.
+	4.	Fix error when deleting a student from a case
+	•	Problem: When the professor tries to delete a student from a simulation or case, an error pops up and the delete action fails.
+	•	Required fix:
+	•	Identify and fix the backend and frontend paths that handle student removal from a case.
+	•	Handle related records safely (results, logs, attempts) so the delete works without breaking data integrity.
+	•	Acceptance criteria:
+	•	Professor can remove a student from a simulation without any error.
+	•	The removed student no longer appears in the list for that simulation.
+	•	Other students and their data are not affected.
