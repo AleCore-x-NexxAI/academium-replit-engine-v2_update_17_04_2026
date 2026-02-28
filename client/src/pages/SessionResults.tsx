@@ -23,6 +23,7 @@ import {
   Compass,
   ChevronDown,
   Lightbulb,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -107,10 +108,8 @@ interface IndicatorCardProps {
 
 function IndicatorResultCard({ item, index, useIndicators, explanations, direction }: IndicatorCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const { key, label, initial, final: finalVal, delta, Icon } = item;
+  const { key, label, initial, final: finalVal, Icon } = item;
   const hasExplanations = explanations && explanations.length > 0;
-
-  const isPositive = direction === "down_better" ? delta <= 0 : delta >= 0;
 
   return (
     <motion.div
@@ -128,30 +127,9 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
           <div className={`w-10 h-10 rounded-lg bg-background/80 flex items-center justify-center ${INDICATOR_ICON_COLORS[key] || 'text-primary'}`}>
             <Icon className="w-5 h-5" />
           </div>
-          <div className="flex items-center gap-1.5">
-            <div
-              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${
-                isPositive
-                  ? "bg-chart-2/20 text-chart-2" 
-                  : "bg-chart-4/20 text-chart-4"
-              }`}
-            >
-              {delta >= 0 ? (
-                <TrendingUp className="w-3 h-3" />
-              ) : (
-                <TrendingDown className="w-3 h-3" />
-              )}
-              {delta >= 0 ? "+" : ""}
-              {useIndicators
-                ? delta
-                : key === "revenue"
-                ? `$${Math.abs(delta).toLocaleString()}`
-                : `${delta}%`}
-            </div>
-            {hasExplanations && (
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
-            )}
-          </div>
+          {hasExplanations && (
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          )}
         </div>
         
         <h3 className="font-semibold text-sm mb-1">{label}</h3>
@@ -161,13 +139,20 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
           </p>
         )}
         
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold">
-            {useIndicators ? finalVal : formatKpiValue(key, finalVal)}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            desde {useIndicators ? initial : formatKpiValue(key, initial)}
-          </span>
+        <div className="flex items-center gap-3 mt-2">
+          <div className="text-center" data-testid={`indicator-${key}-start`}>
+            <span className="text-xs text-muted-foreground block">Inicio</span>
+            <span className="text-lg font-semibold">
+              {useIndicators ? initial : formatKpiValue(key, initial)}
+            </span>
+          </div>
+          <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+          <div className="text-center" data-testid={`indicator-${key}-end`}>
+            <span className="text-xs text-muted-foreground block">Final</span>
+            <span className="text-2xl font-bold">
+              {useIndicators ? finalVal : formatKpiValue(key, finalVal)}
+            </span>
+          </div>
         </div>
 
         <div className="mt-3 h-1.5 bg-background/50 rounded-full overflow-hidden">
