@@ -1264,9 +1264,23 @@ Be constructive and educational, not judgmental.`;
 
   // ==================== Canonical Case Generation ====================
   
+  const TRADEOFF_LABELS: Record<string, string> = {
+    cost_quality: "Costo vs. Calidad",
+    speed_accuracy: "Velocidad vs. Precisión",
+    short_long_term: "Corto vs. Largo plazo",
+    risk_reward: "Riesgo vs. Recompensa",
+    individual_team: "Individual vs. Equipo",
+    innovation_stability: "Innovación vs. Estabilidad",
+  };
+
   const generateCanonicalCaseSchema = z.object({
     topic: z.string().min(5, "El tema debe tener al menos 5 caracteres"),
     additionalContext: z.string().optional(),
+    discipline: z.string().optional(),
+    targetLevel: z.string().optional(),
+    scenarioObjective: z.string().optional(),
+    tradeoffFocus: z.array(z.string()).optional(),
+    customTradeoff: z.string().optional(),
   });
 
   app.post("/api/canonical-case/generate", isAuthenticated, async (req: any, res) => {
@@ -1283,9 +1297,24 @@ Be constructive and educational, not judgmental.`;
         return res.status(400).json({ message: "Datos inválidos", errors: parseResult.error.errors });
       }
 
-      const { topic, additionalContext } = parseResult.data;
+      const { topic, additionalContext, tradeoffFocus, customTradeoff } = parseResult.data;
 
-      const canonicalCase = await generateCanonicalCase(topic, additionalContext);
+      const tradeoffParts: string[] = [];
+      if (tradeoffFocus && tradeoffFocus.length > 0) {
+        const labels = tradeoffFocus.map(id => TRADEOFF_LABELS[id] || id);
+        tradeoffParts.push(`Tensiones predefinidas: ${labels.join(", ")}`);
+      }
+      if (customTradeoff && customTradeoff.trim()) {
+        tradeoffParts.push(`Trade-off personalizado del profesor: ${customTradeoff.trim()}`);
+      }
+
+      let builtContext = additionalContext || "";
+      if (tradeoffParts.length > 0) {
+        const tradeoffSection = `\nEnfoque de trade-offs que el caso debe incorporar en sus decisiones, focus cues y thinking scaffolds:\n${tradeoffParts.join("\n")}`;
+        builtContext = builtContext ? `${builtContext}\n${tradeoffSection}` : tradeoffSection;
+      }
+
+      const canonicalCase = await generateCanonicalCase(topic, builtContext || undefined);
       const scenarioData = convertCanonicalToScenarioData(canonicalCase);
 
       const initialMessage: DraftConversationMessage = {

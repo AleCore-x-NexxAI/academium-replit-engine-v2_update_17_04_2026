@@ -125,6 +125,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [targetLevel, setTargetLevel] = useState("Pregrado");
   const [scenarioObjective, setScenarioObjective] = useState("");
   const [tradeoffFocus, setTradeoffFocus] = useState<string[]>([]);
+  const [customTradeoff, setCustomTradeoff] = useState("");
   const [draftId, setDraftId] = useState<string | null>(null);
   const [canonicalCase, setCanonicalCase] = useState<CanonicalCaseData | null>(null);
   const [scenarioData, setScenarioData] = useState<GeneratedScenarioData | null>(null);
@@ -154,6 +155,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         targetLevel,
         scenarioObjective,
         tradeoffFocus,
+        customTradeoff: customTradeoff.trim() || undefined,
       });
       return response.json() as Promise<GenerateResponse>;
     },
@@ -317,7 +319,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const toggleTradeoff = (id: string) => {
     if (tradeoffFocus.includes(id)) {
       setTradeoffFocus(tradeoffFocus.filter((t) => t !== id));
-    } else if (tradeoffFocus.length < 2) {
+    } else {
       setTradeoffFocus([...tradeoffFocus, id]);
     }
   };
@@ -439,10 +441,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             {/* NEW: Enfoque de tradeoff */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Enfoque de tradeoff</Label>
-                <HelpIcon content="Selecciona 1-2 tensiones principales que el estudiante deberá navegar." />
+                <Label className="text-base font-semibold">Enfoque de trade-off</Label>
+                <HelpIcon content="Opcional: selecciona tensiones predefinidas, escribe la tuya, o combínalas. El caso se puede generar sin trade-offs." />
               </div>
-              <p className="text-sm text-muted-foreground">Selecciona hasta 2 opciones</p>
+              <p className="text-sm text-muted-foreground">Opcional — selecciona, escribe, o combina</p>
               <div className="flex flex-wrap gap-2">
                 {TRADEOFF_OPTIONS.map((option) => {
                   const isSelected = tradeoffFocus.includes(option.id);
@@ -454,7 +456,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                         isSelected 
                           ? "bg-primary text-primary-foreground" 
                           : "hover:bg-primary/10"
-                      } ${tradeoffFocus.length >= 2 && !isSelected ? "opacity-50 cursor-not-allowed" : ""}`}
+                      }`}
                       onClick={() => toggleTradeoff(option.id)}
                       data-testid={`chip-tradeoff-${option.id}`}
                     >
@@ -464,6 +466,13 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   );
                 })}
               </div>
+              <Input
+                value={customTradeoff}
+                onChange={(e) => setCustomTradeoff(e.target.value)}
+                placeholder="O escribe tu propio trade-off. Ej: Transparencia vs. Confidencialidad"
+                className="mt-2"
+                data-testid="input-custom-tradeoff"
+              />
             </div>
 
             {/* Generate button */}
@@ -506,6 +515,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               setTopic("");
               setScenarioObjective("");
               setTradeoffFocus([]);
+              setCustomTradeoff("");
             }}
             data-testid="button-regenerate"
           >
