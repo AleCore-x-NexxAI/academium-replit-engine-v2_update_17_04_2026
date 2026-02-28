@@ -465,6 +465,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ message: "Scenario not found" });
       }
 
+      const user = await storage.getUser(userId);
+      const isStudentRole = user?.role === "student" && !user?.isSuperAdmin;
+      if (isStudentRole && !scenario.isStarted) {
+        return res.status(403).json({ message: "El profesor aún no ha iniciado esta simulación." });
+      }
+
       // No more "resume" flow - exiting always means abandonment
       // Users can start new sessions anytime (previous sessions are either completed or abandoned)
 
@@ -1574,7 +1580,7 @@ Be constructive and educational, not judgmental.`;
       if (!scenario) {
         return res.status(404).json({ message: "Scenario not found" });
       }
-      if (scenario.authorId !== userId && req.dbUser.role !== "admin") {
+      if (scenario.authorId !== userId && req.dbUser.role !== "admin" && !req.dbUser.isSuperAdmin) {
         return res.status(403).json({ message: "Not authorized to delete this session" });
       }
 

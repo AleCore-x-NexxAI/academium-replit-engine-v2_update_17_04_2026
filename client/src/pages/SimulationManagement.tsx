@@ -36,6 +36,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Scenario, SimulationSession, User } from "@shared/schema";
 
+interface SessionWithUser extends SimulationSession {
+  user?: User;
+  turnCount?: number;
+}
+
 interface ScenarioWithEnrollments extends Scenario {
   enrolledStudents?: Array<{
     id: string;
@@ -68,7 +73,7 @@ export default function SimulationManagement() {
     enabled: !!scenarioId,
   });
 
-  const { data: sessions } = useQuery<SimulationSession[]>({
+  const { data: sessions } = useQuery<SessionWithUser[]>({
     queryKey: ["/api/professor/scenarios", scenarioId, "sessions"],
     enabled: !!scenarioId,
   });
@@ -140,6 +145,19 @@ export default function SimulationManagement() {
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudieron agregar los estudiantes.", variant: "destructive" });
+    },
+  });
+
+  const deleteSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      await apiRequest("DELETE", `/api/professor/sessions/${sessionId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios", scenarioId, "sessions"] });
+      toast({ title: "Estudiante eliminado", description: "La sesión del estudiante ha sido eliminada." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -469,30 +487,53 @@ export default function SimulationManagement() {
                 <CardContent>
                   {sessions && sessions.length > 0 ? (
                     <div className="space-y-2">
-                      {sessions.map((session) => (
-                        <div 
-                          key={session.id} 
-                          className="flex items-center justify-between p-3 rounded-lg border"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                              <Users className="w-4 h-4" />
+                      {sessions.map((session) => {
+                        const studentName = [session.user?.firstName, session.user?.lastName].filter(Boolean).join(" ");
+                        const displayName = studentName || session.user?.email || session.userId;
+                        return (
+                          <div 
+                            key={session.id} 
+                            className="flex items-center justify-between p-3 rounded-lg border"
+                            data-testid={`student-row-${session.id}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                                <Users className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm" data-testid={`text-student-name-${session.id}`}>
+                                  {displayName}
+                                </p>
+                                {studentName && session.user?.email && (
+                                  <p className="text-xs text-muted-foreground">{session.user.email}</p>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium text-sm">
-                                {session.userId}
-                              </p>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={
+                                session.status === "completed" ? "default" :
+                                session.status === "active" ? "secondary" : "outline"
+                              }>
+                                {session.status === "completed" ? "Completado" :
+                                 session.status === "active" ? "En progreso" : "Inscrito"}
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  if (confirm("¿Eliminar este estudiante de la simulación?")) {
+                                    deleteSessionMutation.mutate(session.id);
+                                  }
+                                }}
+                                disabled={deleteSessionMutation.isPending}
+                                data-testid={`button-delete-student-${session.id}`}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
                             </div>
                           </div>
-                          <Badge variant={
-                            session.status === "completed" ? "default" :
-                            session.status === "active" ? "secondary" : "outline"
-                          }>
-                            {session.status === "completed" ? "Completado" :
-                             session.status === "active" ? "En progreso" : "Inscrito"}
-                          </Badge>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
