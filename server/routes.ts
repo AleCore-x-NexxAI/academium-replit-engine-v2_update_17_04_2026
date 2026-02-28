@@ -524,30 +524,39 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const scenarioLlmModel = session.scenario?.llmModel as import("./openai").SupportedModel | undefined;
       const scenarioAgentPrompts = session.scenario?.agentPrompts as import("@shared/schema").AgentPrompts | undefined;
       
+      // Determine if the current decision point is MCQ without justification required
+      const currentDecisionNum = session.currentState.currentDecision || 1;
+      const decisionPoints = initialState?.decisionPoints as Array<{ format?: string; requiresJustification?: boolean }> | undefined;
+      const currentDP = decisionPoints?.[currentDecisionNum - 1];
+      const isMcqNoJustification = currentDP?.format === "multiple_choice" && !currentDP?.requiresJustification;
+
       // CRITICAL: Validate input BEFORE any main processing
-      // This ensures offensive/nonsense inputs don't advance the simulation
-      const recentHistory = (session.currentState.history as HistoryEntry[])
-        .slice(-4)
-        .map(h => `${h.role}: ${h.content}`)
-        .join("\n");
-      
-      const validationResult = await validateSimulationInput(
-        input,
-        {
-          title: session.scenario?.title || "Business Simulation",
-          objective: initialState?.objective || "Navigate the challenge",
-          recentHistory,
-        },
-        { model: "gpt-4o-mini" } // Use cheaper model for validation
-      );
-      
-      if (!validationResult.isValid) {
-        console.log(`[Turn] Input validation failed for session ${sessionId}: ${validationResult.rejectionReason}`);
-        return res.status(400).json({
-          message: "validation_failed",
-          validationError: true,
-          userMessage: validationResult.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada y relacionada con el caso.",
-        });
+      // Skip validation for MCQ decisions where the professor set requiresJustification=false
+      // (the student only needs to pick an option, no reasoning required)
+      if (!isMcqNoJustification) {
+        const recentHistory = (session.currentState.history as HistoryEntry[])
+          .slice(-4)
+          .map(h => `${h.role}: ${h.content}`)
+          .join("\n");
+        
+        const validationResult = await validateSimulationInput(
+          input,
+          {
+            title: session.scenario?.title || "Business Simulation",
+            objective: initialState?.objective || "Navigate the challenge",
+            recentHistory,
+          },
+          { model: "gpt-4o-mini" }
+        );
+        
+        if (!validationResult.isValid) {
+          console.log(`[Turn] Input validation failed for session ${sessionId}: ${validationResult.rejectionReason}`);
+          return res.status(400).json({
+            message: "validation_failed",
+            validationError: true,
+            userMessage: validationResult.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada y relacionada con el caso.",
+          });
+        }
       }
       
       const context: AgentContext = {
