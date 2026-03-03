@@ -20,6 +20,7 @@ export const sessionStatusEnum = pgEnum("session_status", ["active", "completed"
 export const narrativeMoodEnum = pgEnum("narrative_mood", ["neutral", "positive", "negative", "crisis"]);
 export const draftStatusEnum = pgEnum("draft_status", ["gathering", "generating", "reviewing", "published", "abandoned"]);
 export const bugReportStatusEnum = pgEnum("bug_report_status", ["new", "reviewed", "resolved", "dismissed"]);
+export const turnEventTypeEnum = pgEnum("turn_event_type", ["input_rejected", "input_accepted", "agent_call", "turn_completed", "turn_error"]);
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -496,6 +497,35 @@ export const insertLlmUsageLogSchema = createInsertSchema(llmUsageLogs).omit({
 });
 export type InsertLlmUsageLog = z.infer<typeof insertLlmUsageLogSchema>;
 export type LlmUsageLog = typeof llmUsageLogs.$inferSelect;
+
+export const turnEvents = pgTable("turn_events", {
+  id: serial("id").primaryKey(),
+  sessionId: varchar("session_id").references(() => simulationSessions.id).notNull(),
+  userId: varchar("user_id"),
+  eventType: turnEventTypeEnum("event_type").notNull(),
+  turnNumber: integer("turn_number"),
+  rawStudentInput: text("raw_student_input"),
+  eventData: jsonb("event_data").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("idx_turn_events_session").on(table.sessionId),
+  index("idx_turn_events_type").on(table.eventType),
+  index("idx_turn_events_created").on(table.createdAt),
+]);
+
+export const turnEventsRelations = relations(turnEvents, ({ one }) => ({
+  session: one(simulationSessions, {
+    fields: [turnEvents.sessionId],
+    references: [simulationSessions.id],
+  }),
+}));
+
+export const insertTurnEventSchema = createInsertSchema(turnEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertTurnEvent = z.infer<typeof insertTurnEventSchema>;
+export type TurnEvent = typeof turnEvents.$inferSelect;
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;

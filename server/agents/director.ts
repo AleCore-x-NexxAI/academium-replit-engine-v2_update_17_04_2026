@@ -6,6 +6,7 @@ import { generateNarrative } from "./narrator";
 import { evaluateDepth } from "./depthEvaluator";
 import { generateChatCompletion, SupportedModel } from "../openai";
 import { HARD_PROHIBITIONS, MENTOR_TONE, MISUSE_HANDLING } from "./guardrails";
+import { storage } from "../storage";
 
 const MAX_REVISIONS = 2;
 
@@ -64,7 +65,7 @@ async function interpretIntent(
   input: string,
   history: HistoryEntry[],
   scenario: { title: string; context: string },
-  options?: { customPrompt?: string; model?: SupportedModel }
+  options?: { customPrompt?: string; model?: SupportedModel; sessionId?: string }
 ): Promise<{ isValid: boolean; interpretedAction?: string; helpfulPrompt?: string }> {
   try {
     const recentContext = history.slice(-4).map(h => `${h.role}: ${h.content}`).join("\n");
@@ -84,7 +85,7 @@ STUDENT'S LATEST INPUT: "${input}"
 
 Interpret this input as a simulation action. Find the business decision in their words.` },
       ],
-      { responseFormat: "json", maxTokens: 256, model: options?.model, agentName: "director", sessionId: parseInt(context.sessionId) || undefined }
+      { responseFormat: "json", maxTokens: 256, model: options?.model, agentName: "director", sessionId: options?.sessionId ? parseInt(options.sessionId) : undefined }
     );
     
     const parsed = JSON.parse(response);
@@ -302,12 +303,26 @@ export async function processStudentTurn(
   context: AgentContext,
   revisionAttempts: number = 0
 ): Promise<DirectorOutput> {
+  const intentStart = Date.now();
   const intentResult = await interpretIntent(
     context.studentInput,
     context.history as HistoryEntry[],
     { title: context.scenario.title, context: `${context.scenario.domain} - ${context.scenario.objective}` },
-    { customPrompt: context.agentPrompts?.director, model: context.llmModel }
+    { customPrompt: context.agentPrompts?.director, model: context.llmModel, sessionId: context.sessionId }
   );
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: context.currentDecision || context.turnCount + 1,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      agentName: "director",
+      durationMs: Date.now() - intentStart,
+      isValid: intentResult.isValid,
+      interpretedAction: intentResult.interpretedAction,
+      helpfulPrompt: intentResult.helpfulPrompt,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log director agent_call:", err));
 
   if (!intentResult.isValid) {
     const helpPrompt = intentResult.helpfulPrompt || 
@@ -355,12 +370,26 @@ export async function processStudentTurn(
     studentInput: intentResult.interpretedAction || context.studentInput,
   };
 
-  // DEPTH EVALUATION: Check if answer needs more depth before processing consequences
+  const depthStart = Date.now();
   const depthResult = await evaluateDepth(
     interpretedContext,
     revisionAttempts,
     { model: context.llmModel }
   );
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: context.currentDecision || context.turnCount + 1,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      agentName: "depthEvaluator",
+      durationMs: Date.now() - depthStart,
+      isDeepEnough: depthResult.isDeepEnough,
+      strengthsAcknowledged: depthResult.strengthsAcknowledged,
+      revisionPrompt: depthResult.revisionPrompt,
+      revisionAttempts,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log depthEvaluator agent_call:", err));
 
   if (!depthResult.isDeepEnough && depthResult.revisionPrompt) {
     // Answer is weak - ask for revision without showing consequences
@@ -408,11 +437,42 @@ export async function processStudentTurn(
     };
   }
 
-  // Answer is deep enough - proceed with full processing
+  const agentsStart = Date.now();
   const [evaluation, kpiImpact] = await Promise.all([
     evaluateDecision(interpretedContext),
     calculateKPIImpact(interpretedContext),
   ]);
+  const agentsDuration = Date.now() - agentsStart;
+
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: context.currentDecision || context.turnCount + 1,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      agentName: "evaluator",
+      durationMs: agentsDuration,
+      feedbackScore: evaluation.feedback?.score,
+      feedbackMessage: evaluation.feedback?.message,
+      feedbackHint: evaluation.feedback?.hint,
+      competencyScores: evaluation.competencyScores,
+      flags: evaluation.flags,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log evaluator agent_call:", err));
+
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: context.currentDecision || context.turnCount + 1,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      agentName: "domainExpert",
+      durationMs: agentsDuration,
+      kpiDeltas: kpiImpact.kpiDeltas,
+      indicatorDeltas: kpiImpact.indicatorDeltas,
+      metricExplanations: kpiImpact.metricExplanations,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log domainExpert agent_call:", err));
 
   const newKpis = applyKPIDeltas(context.currentKpis, kpiImpact.kpiDeltas);
 
@@ -420,7 +480,22 @@ export async function processStudentTurn(
     ...interpretedContext,
     currentKpis: newKpis,
   };
+  const narrativeStart = Date.now();
   const narrative = await generateNarrative(narrativeContext, kpiImpact, evaluation);
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: context.currentDecision || context.turnCount + 1,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      agentName: "narrator",
+      durationMs: Date.now() - narrativeStart,
+      mood: narrative.mood,
+      speaker: narrative.speaker,
+      narrativeLength: narrative.text?.length,
+      suggestedOptions: narrative.suggestedOptions,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log narrator agent_call:", err));
 
   const isGameOver = checkGameOver(newKpis, interpretedContext);
 

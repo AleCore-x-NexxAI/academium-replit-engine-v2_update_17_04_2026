@@ -503,6 +503,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/simulations/:sessionId/turn", isAuthenticated, async (req: any, res) => {
+    let currentDecisionNum = 0;
     try {
       const userId = req.user.claims.sub;
       const { sessionId } = req.params;
@@ -531,7 +532,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const scenarioAgentPrompts = session.scenario?.agentPrompts as import("@shared/schema").AgentPrompts | undefined;
       
       // Determine if the current decision point is MCQ without justification required
-      const currentDecisionNum = session.currentState.currentDecision || 1;
+      currentDecisionNum = session.currentState.currentDecision || 1;
       const decisionPoints = initialState?.decisionPoints as Array<{ format?: string; requiresJustification?: boolean }> | undefined;
       const currentDP = decisionPoints?.[currentDecisionNum - 1];
       const isMcqNoJustification = currentDP?.format === "multiple_choice" && !currentDP?.requiresJustification;
@@ -557,12 +558,48 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         
         if (!validationResult.isValid) {
           console.log(`[Turn] Input validation failed for session ${sessionId}: ${validationResult.rejectionReason}`);
+          storage.createTurnEvent({
+            sessionId,
+            userId,
+            eventType: "input_rejected",
+            turnNumber: currentDecisionNum,
+            rawStudentInput: input,
+            eventData: {
+              reason: validationResult.rejectionReason,
+              userMessage: validationResult.userMessage,
+              decisionPointNumber: currentDecisionNum,
+            },
+          }).catch(err => console.error("[TurnEvent] Failed to log input_rejected:", err));
           return res.status(400).json({
             message: "validation_failed",
             validationError: true,
             userMessage: validationResult.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada y relacionada con el caso.",
           });
         }
+
+        storage.createTurnEvent({
+          sessionId,
+          userId,
+          eventType: "input_accepted",
+          turnNumber: currentDecisionNum,
+          rawStudentInput: input,
+          eventData: {
+            decisionPointNumber: currentDecisionNum,
+            validatedBy: "llm",
+          },
+        }).catch(err => console.error("[TurnEvent] Failed to log input_accepted:", err));
+      } else {
+        storage.createTurnEvent({
+          sessionId,
+          userId,
+          eventType: "input_accepted",
+          turnNumber: currentDecisionNum,
+          rawStudentInput: input,
+          eventData: {
+            decisionPointNumber: currentDecisionNum,
+            validatedBy: "mcq_bypass",
+          },
+        }).catch(err => console.error("[TurnEvent] Failed to log mcq input_accepted:", err));
       }
       
       const context: AgentContext = {
@@ -672,7 +709,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       // Providers have capacity — process synchronously
+      const turnStartTime = Date.now();
       const result = await processTurnAndSave();
+      
+      storage.createTurnEvent({
+        sessionId,
+        userId,
+        eventType: "turn_completed",
+        turnNumber: currentDecisionNum,
+        rawStudentInput: input,
+        eventData: {
+          durationMs: Date.now() - turnStartTime,
+          isGameOver: result.isGameOver,
+          isReflection: isReflectionStep,
+          requiresRevision: result.requiresRevision || false,
+          feedbackScore: result.feedback?.score,
+          feedbackMessage: result.feedback?.message,
+          narrativeMood: result.narrative?.mood,
+          indicatorDeltas: result.indicatorDeltas,
+          narrativeText: result.narrative?.text,
+          options: result.options,
+        },
+      }).catch(err => console.error("[TurnEvent] Failed to log turn_completed:", err));
+      
       res.json(result);
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -689,6 +748,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         errorMsg.toLowerCase().includes("resource exhausted");
       
       console.error(`[Turn Error] Session ${req.params.sessionId} | LLM=${isLLMError} | ${errorMsg}`);
+      
+      storage.createTurnEvent({
+        sessionId: req.params.sessionId,
+        userId: req.user?.claims?.sub,
+        eventType: "turn_error",
+        turnNumber: currentDecisionNum,
+        rawStudentInput: req.body?.input,
+        eventData: {
+          error: errorMsg,
+          isLLMError,
+          stack: error?.stack?.substring(0, 500),
+        },
+      }).catch(err => console.error("[TurnEvent] Failed to log turn_error:", err));
       
       if (isLLMError) {
         return res.status(503).json({
@@ -1528,6 +1600,32 @@ Be constructive and educational, not judgmental.`;
     } catch (error) {
       console.error("Error fetching session conversation:", error);
       res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
+  app.get("/api/professor/sessions/:sessionId/events", isAuthenticated, isProfessorOrAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { sessionId } = req.params;
+
+      const session = await storage.getSimulationSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ message: "Session not found" });
+      }
+
+      const scenario = await storage.getScenario(session.scenarioId);
+      if (!scenario) {
+        return res.status(404).json({ message: "Scenario not found" });
+      }
+      if (scenario.authorId !== userId && req.dbUser.role !== "admin" && !req.dbUser.isSuperAdmin) {
+        return res.status(403).json({ message: "Not authorized to view this session's events" });
+      }
+
+      const events = await storage.getTurnEvents(sessionId);
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching session events:", error);
+      res.status(500).json({ message: "Failed to fetch session events" });
     }
   });
 

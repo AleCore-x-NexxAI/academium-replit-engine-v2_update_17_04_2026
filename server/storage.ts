@@ -7,6 +7,7 @@ import {
   bugReports,
   llmProviders,
   studentEnrollments,
+  turnEvents,
   type User,
   type UpsertUser,
   type Scenario,
@@ -26,6 +27,8 @@ import {
   type LlmProvider,
   type InsertLlmProvider,
   type StudentEnrollment,
+  type TurnEvent,
+  type InsertTurnEvent,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, or, inArray } from "drizzle-orm";
@@ -120,6 +123,9 @@ export interface IStorage {
   enrollStudentsByEmail(scenarioId: string, emails: string[]): Promise<{ added: number; notFound: string[] }>;
   getScenariosForStudent(studentId: string): Promise<Scenario[]>;
   getGlobalDemoScenarios(): Promise<Scenario[]>;
+
+  createTurnEvent(event: InsertTurnEvent): Promise<TurnEvent>;
+  getTurnEvents(sessionId: string): Promise<TurnEvent[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -797,6 +803,19 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return demos;
+  }
+
+  async createTurnEvent(event: InsertTurnEvent): Promise<TurnEvent> {
+    const [created] = await db.insert(turnEvents).values(event).returning();
+    return created;
+  }
+
+  async getTurnEvents(sessionId: string): Promise<TurnEvent[]> {
+    return await db
+      .select()
+      .from(turnEvents)
+      .where(eq(turnEvents.sessionId, sessionId))
+      .orderBy(turnEvents.createdAt);
   }
 }
 
