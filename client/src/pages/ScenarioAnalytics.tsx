@@ -3,6 +3,7 @@ import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  ArrowRight,
   Users,
   Clock,
   CheckCircle,
@@ -21,6 +22,15 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Heart,
+  Star,
+  Target,
+  AlertTriangle,
+  Lightbulb,
+  Gauge,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -47,7 +57,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Scenario, SimulationSession, Turn, User, TurnEvent } from "@shared/schema";
+import type { Scenario, SimulationSession, Turn, User, TurnEvent, Indicator, MetricExplanation } from "@shared/schema";
 
 interface SessionWithUserInfo extends SimulationSession {
   user?: User;
@@ -440,6 +450,211 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
   );
 }
 
+const RESULT_INDICATOR_ICONS: Record<string, React.ElementType> = {
+  teamMorale: Users, budgetImpact: DollarSign, operationalRisk: AlertTriangle,
+  strategicFlexibility: Target, revenue: DollarSign, morale: Heart,
+  reputation: Star, efficiency: TrendingUp, trust: Users,
+};
+
+const RESULT_INDICATOR_LABELS: Record<string, string> = {
+  teamMorale: "Moral del Equipo", budgetImpact: "Impacto Presupuestario",
+  operationalRisk: "Riesgo Operacional", strategicFlexibility: "Flexibilidad Estratégica",
+  revenue: "Ingresos", morale: "Moral del Equipo", reputation: "Reputación de Marca",
+  efficiency: "Eficiencia Operacional", trust: "Confianza de Stakeholders",
+};
+
+function ResultsViewer({ sessionId }: { sessionId: string }) {
+  const { data, isLoading } = useQuery<ConversationData>({
+    queryKey: ["/api/professor/sessions", sessionId, "conversation"],
+  });
+  const [expandedIndicators, setExpandedIndicators] = useState<Set<string>>(new Set());
+
+  if (isLoading) {
+    return <div className="p-4"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
+  }
+
+  if (!data?.turns || data.turns.length === 0) {
+    return (
+      <div className="p-8 text-center space-y-2">
+        <Gauge className="w-8 h-8 text-muted-foreground mx-auto" />
+        <p className="text-muted-foreground">Sin resultados disponibles</p>
+        <p className="text-xs text-muted-foreground">El estudiante no completó ninguna decisión.</p>
+      </div>
+    );
+  }
+
+  const session = data.session;
+  const scenario = (session as any).scenario as Scenario | undefined;
+  const currentState = session.currentState as any;
+  const initialState = scenario?.initialState as any;
+
+  const finalIndicators: Indicator[] = currentState?.indicators || [];
+  const initialIndicators: Indicator[] = initialState?.indicators || [];
+
+  const indicatorExplanations: Record<string, Array<{ turnNumber: number; shortReason: string; causalChain: string[] }>> = {};
+  for (const turn of data.turns) {
+    const explanations = (turn.agentResponse as any)?.metricExplanations;
+    if (explanations) {
+      for (const [indicatorId, explanation] of Object.entries(explanations)) {
+        if (!indicatorExplanations[indicatorId]) {
+          indicatorExplanations[indicatorId] = [];
+        }
+        const exp = explanation as MetricExplanation;
+        indicatorExplanations[indicatorId].push({
+          turnNumber: turn.turnNumber,
+          shortReason: exp.shortReason || "",
+          causalChain: exp.causalChain || [],
+        });
+      }
+    }
+  }
+
+  const comparison = finalIndicators.length > 0
+    ? finalIndicators.map((indicator) => {
+        const initial = initialIndicators.find((i) => i.id === indicator.id);
+        return {
+          key: indicator.id,
+          label: RESULT_INDICATOR_LABELS[indicator.id] || indicator.label,
+          initial: initial?.value ?? indicator.value,
+          final: indicator.value,
+          delta: initial ? indicator.value - initial.value : 0,
+          direction: indicator.direction || "up_better",
+          Icon: RESULT_INDICATOR_ICONS[indicator.id] || Gauge,
+        };
+      })
+    : Object.entries(currentState?.kpis || {}).map(([key, val]) => ({
+        key,
+        label: RESULT_INDICATOR_LABELS[key] || key,
+        initial: (initialState?.kpis as any)?.[key] ?? 50,
+        final: val as number,
+        delta: ((val as number) - ((initialState?.kpis as any)?.[key] ?? 50)),
+        direction: "up_better" as const,
+        Icon: RESULT_INDICATOR_ICONS[key] || Gauge,
+      }));
+
+  const toggleIndicator = (key: string) => {
+    setExpandedIndicators(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const getDeltaColor = (delta: number, direction: string) => {
+    const rounded = Math.round(delta);
+    if (rounded === 0) return "text-muted-foreground";
+    const isGood = direction === "down_better" ? rounded < 0 : rounded > 0;
+    return isGood ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
+  };
+
+  if (comparison.length === 0) {
+    return (
+      <div className="p-8 text-center space-y-2">
+        <Gauge className="w-8 h-8 text-muted-foreground mx-auto" />
+        <p className="text-muted-foreground">Sin datos de indicadores</p>
+        <p className="text-xs text-muted-foreground">Esta sesión no tiene información de indicadores registrada.</p>
+      </div>
+    );
+  }
+
+  return (
+    <ScrollArea className="h-[500px]">
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <BarChart3 className="w-4 h-4 text-primary" />
+          <h3 className="font-semibold text-sm">Indicadores: Inicio vs. Final</h3>
+        </div>
+
+        <div className="space-y-3">
+          {comparison.map((item) => {
+            const exps = indicatorExplanations[item.key];
+            const hasExps = exps && exps.length > 0;
+            const isExpanded = expandedIndicators.has(item.key);
+            const IconComponent = item.Icon;
+
+            return (
+              <Card key={item.key} className="p-4" data-testid={`result-indicator-${item.key}`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <IconComponent className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.direction === "down_better" ? "Menor es mejor" : "Mayor es mejor"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-center">
+                      <span className="text-xs text-muted-foreground block">Inicio</span>
+                      <span className="text-sm font-semibold">{Math.round(item.initial)}</span>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                    <div className="text-center">
+                      <span className="text-xs text-muted-foreground block">Final</span>
+                      <span className="text-lg font-bold">{Math.round(item.final)}</span>
+                    </div>
+                    <Badge variant="outline" className={`font-mono text-xs ${getDeltaColor(item.delta, item.direction)}`}>
+                      {item.delta > 0 ? "+" : ""}{Math.round(item.delta)}
+                    </Badge>
+                  </div>
+                </div>
+
+                {hasExps ? (
+                  <div className="mt-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 justify-start text-xs"
+                      onClick={() => toggleIndicator(item.key)}
+                      data-testid={`button-why-result-${item.key}`}
+                    >
+                      <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                      {isExpanded ? "Ocultar detalles" : "Ver por qué cambió"}
+                      <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </Button>
+
+                    {isExpanded && (
+                      <div className="mt-2 pl-4 border-l-2 border-amber-500/30 space-y-3">
+                        {exps.map((exp, i) => (
+                          <div key={i} className="text-xs space-y-1">
+                            <p className="font-medium text-foreground/80">
+                              Decisión {exp.turnNumber}: {exp.shortReason}
+                            </p>
+                            {exp.causalChain.length > 0 && (
+                              <ul className="pl-3 space-y-0.5">
+                                {exp.causalChain.map((chain, ci) => (
+                                  <li key={ci} className="text-muted-foreground leading-relaxed">{chain}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : item.delta !== 0 ? (
+                  <p className="mt-2 text-xs text-muted-foreground italic">
+                    Detalles de explicación no disponibles para esta sesión.
+                  </p>
+                ) : null}
+              </Card>
+            );
+          })}
+        </div>
+
+        {data.turns.length > 0 && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground">
+              Basado en {data.turns.length} decisión{data.turns.length !== 1 ? "es" : ""} del estudiante.
+            </p>
+          </div>
+        )}
+      </div>
+    </ScrollArea>
+  );
+}
+
 function SessionDetailDialog({ session }: { session: SessionWithUserInfo }) {
   return (
     <Dialog>
@@ -454,8 +669,11 @@ function SessionDetailDialog({ session }: { session: SessionWithUserInfo }) {
             {session.user?.firstName} {session.user?.lastName} - Detalle de Sesión
           </DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="conversation">
+        <Tabs defaultValue="results">
           <TabsList className="w-full">
+            <TabsTrigger value="results" className="flex-1" data-testid="tab-results">
+              Resultados
+            </TabsTrigger>
             <TabsTrigger value="conversation" className="flex-1" data-testid="tab-conversation">
               Decisiones
             </TabsTrigger>
@@ -463,6 +681,9 @@ function SessionDetailDialog({ session }: { session: SessionWithUserInfo }) {
               Registro de Eventos
             </TabsTrigger>
           </TabsList>
+          <TabsContent value="results">
+            <ResultsViewer sessionId={session.id} />
+          </TabsContent>
           <TabsContent value="conversation">
             <ConversationViewer sessionId={session.id} />
           </TabsContent>
