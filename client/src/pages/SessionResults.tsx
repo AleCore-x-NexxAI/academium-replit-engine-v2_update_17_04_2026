@@ -104,12 +104,17 @@ interface IndicatorCardProps {
   useIndicators: boolean;
   explanations?: Array<{ turnNumber: number; shortReason: string; causalChain: string[] }>;
   direction?: string;
+  defaultExpanded?: boolean;
 }
 
-function IndicatorResultCard({ item, index, useIndicators, explanations, direction }: IndicatorCardProps) {
-  const [expanded, setExpanded] = useState(false);
+function IndicatorResultCard({ item, index, useIndicators, explanations, direction, defaultExpanded = false }: IndicatorCardProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const { key, label, initial, final: finalVal, Icon } = item;
   const hasExplanations = explanations && explanations.length > 0;
+
+  useEffect(() => {
+    if (defaultExpanded) setExpanded(true);
+  }, [defaultExpanded]);
 
   return (
     <motion.div
@@ -119,17 +124,13 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
       transition={{ delay: 0.35 + index * 0.05 }}
     >
       <Card
-        className={`p-4 border-2 bg-gradient-to-br ${INDICATOR_COLORS[key] || 'from-primary/20 to-primary/5 border-primary/40'} rounded-xl transition-all ${hasExplanations ? 'cursor-pointer' : ''}`}
+        className={`p-4 border-2 bg-gradient-to-br ${INDICATOR_COLORS[key] || 'from-primary/20 to-primary/5 border-primary/40'} rounded-xl transition-all`}
         data-testid={`indicator-${key}`}
-        onClick={() => hasExplanations && setExpanded(!expanded)}
       >
         <div className="flex items-start justify-between mb-3">
           <div className={`w-10 h-10 rounded-lg bg-background/80 flex items-center justify-center ${INDICATOR_ICON_COLORS[key] || 'text-primary'}`}>
             <Icon className="w-5 h-5" />
           </div>
-          {hasExplanations && (
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} />
-          )}
         </div>
         
         <h3 className="font-semibold text-sm mb-1">{label}</h3>
@@ -166,6 +167,24 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
           />
         </div>
 
+        {hasExplanations && (
+          <div className="mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 bg-background/60 border-foreground/15"
+              onClick={() => setExpanded(!expanded)}
+              data-testid={`button-why-${key}`}
+            >
+              <Lightbulb className="w-4 h-4 text-amber-500" />
+              <span className="text-xs font-medium">
+                {expanded ? "Ocultar detalles" : "Ver por qué cambió"}
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ml-auto ${expanded ? 'rotate-180' : ''}`} />
+            </Button>
+          </div>
+        )}
+
         <AnimatePresence>
           {expanded && hasExplanations && (
             <motion.div
@@ -175,11 +194,7 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
               transition={{ duration: 0.3 }}
               className="overflow-hidden"
             >
-              <div className="mt-4 pt-3 border-t border-foreground/10 space-y-3">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Por qué cambió</span>
-                </div>
+              <div className="mt-3 pt-3 border-t border-foreground/10 space-y-3">
                 {explanations!.map((exp, i) => (
                   <div key={i} className="text-xs space-y-1">
                     <p className="font-medium text-foreground/80">
@@ -476,19 +491,36 @@ export default function SessionResults() {
             </div>
           </div>
           
+          {Object.keys(indicatorExplanations).length > 0 && (
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <Lightbulb className="w-4 h-4 text-amber-500" />
+              <p className="text-sm text-muted-foreground" data-testid="text-why-hint">
+                Toca <span className="font-medium text-foreground">"Ver por qué cambió"</span> en cada indicador para entender el impacto de tus decisiones.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {(useIndicators ? indicatorComparison : kpiComparison).map(
-              (item, index) => (
-                <IndicatorResultCard
-                  key={item.key}
-                  item={item}
-                  index={index}
-                  useIndicators={!!useIndicators}
-                  explanations={indicatorExplanations[item.key]}
-                  direction={(item as any).direction}
-                />
-              )
-            )}
+            {(() => {
+              const items = useIndicators ? indicatorComparison : kpiComparison;
+              let firstWithExplanations = true;
+              return items.map((item, index) => {
+                const hasExp = indicatorExplanations[item.key] && indicatorExplanations[item.key].length > 0;
+                const shouldAutoExpand = hasExp && firstWithExplanations;
+                if (shouldAutoExpand) firstWithExplanations = false;
+                return (
+                  <IndicatorResultCard
+                    key={item.key}
+                    item={item}
+                    index={index}
+                    useIndicators={!!useIndicators}
+                    explanations={indicatorExplanations[item.key]}
+                    direction={(item as any).direction}
+                    defaultExpanded={shouldAutoExpand}
+                  />
+                );
+              });
+            })()}
           </div>
         </motion.div>
 

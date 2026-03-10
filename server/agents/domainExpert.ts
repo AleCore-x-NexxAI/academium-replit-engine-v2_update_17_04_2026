@@ -53,6 +53,13 @@ Para CADA indicador que cambia, debes proveer:
    - Por qué el indicador se movió
    - Por qué la magnitud fue menor/moderada/mayor
 
+### REGLA 4B: CALIDAD DE EXPLICACIONES (OBLIGATORIA)
+Las explicaciones deben ser ÚNICAS y ESPECÍFICAS a esta decisión concreta:
+- **shortReason**: CITA o parafrasea las palabras exactas del estudiante. Si el estudiante dijo "voy a reducir el equipo de marketing", di "Reducción del equipo de marketing impacta la moral (-8)". NUNCA uses frases genéricas como "La decisión afecta positivamente".
+- **causalChain**: Cada bullet DEBE mencionar elementos específicos del escenario (nombre de la empresa, stakeholders concretos, productos, situación del mercado). NUNCA uses lenguaje genérico de negocios que aplique a cualquier caso.
+- **VARIEDAD**: NO empieces todos los bullets de causalChain de la misma manera. Usa diferentes estructuras de oración y vocabulario cada vez. NO repitas patrones como "Lo que decidiste: X. Esto desencadenó: Y." en cada turno — reformula creativamente.
+- **TEST DE UNICIDAD**: Si dos estudiantes con decisiones DIFERENTES recibirían el mismo shortReason o causalChain, entonces está MAL — es demasiado genérico. Reescríbelo.
+
 ### REGLA 5: COSTO DE OPORTUNIDAD
 ⚠️ CADA decisión DEBE cambiar AL MENOS UN indicador NEGATIVAMENTE.
 - No existen decisiones "perfectas" sin consecuencias
@@ -70,12 +77,9 @@ ${indicatorJsonFields}
   },
   "metricExplanations": {
     "<indicatorId>": {
-      "shortReason": "<Una línea: 'Indicador +X: razón breve'>",
+      "shortReason": "<Una línea específica citando la decisión del estudiante y el impacto numérico>",
       "causalChain": [
-        "Lo que decidiste: <descripción>",
-        "Esto desencadenó: <mecanismo>",
-        "Por eso el indicador se movió: <explicación>",
-        "Magnitud <menor/moderada/mayor> porque: <justificación>"
+        "<2-4 bullets con lenguaje variado explicando: qué decidió, qué mecanismo activó, por qué el indicador se movió, y la magnitud. NO uses siempre el mismo formato — varía la estructura de cada bullet.>"
       ],
       "tier": <1, 2, o 3>
     }
