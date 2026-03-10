@@ -21,7 +21,7 @@ export default function Landing() {
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
               <Brain className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold">Scenario+</span>
+            <span className="text-xl font-bold">Academium</span>
           </div>
           <Button asChild data-testid="button-login">
             <a href="/select-role">
@@ -82,7 +82,7 @@ export default function Landing() {
               className="text-center mb-16"
             >
               <h2 className="text-3xl font-bold mb-4">
-                Cómo Funciona Scenario+
+                Cómo Funciona Academium
               </h2>
               <p className="text-muted-foreground max-w-xl mx-auto">
                 Nuestro sistema de IA multi-agente crea experiencias de aprendizaje
@@ -212,7 +212,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-primary" />
-            <span className="font-semibold">Scenario+</span>
+            <span className="font-semibold">Academium</span>
           </div>
           <p className="text-sm text-muted-foreground">
             Plataforma de aprendizaje experiencial impulsada por IA

@@ -27,7 +27,7 @@ OUTPUT A JSON OBJECT with these fields:
 
 Be thorough and creative - these insights will drive an AI-powered simulation where students make real-time decisions.`;
 
-const SCENARIO_ARCHITECT_PROMPT = `You are a MASTER SCENARIO ARCHITECT for Scenario+ - an AI-powered business simulation platform for MBA education.
+const SCENARIO_ARCHITECT_PROMPT = `You are a MASTER SCENARIO ARCHITECT for Academium - an AI-powered business simulation platform for MBA education.
 
 Your mission: Create EXCEPTIONAL, IMMERSIVE simulation scenarios that rival top-tier business school case studies.
 
@@ -83,7 +83,7 @@ QUALITY STANDARDS:
 - KPIs should be tailored to the scenario (adjust starting values based on context)
 - Rubric should have 4-6 criteria totaling weight = 1.0`;
 
-const REFINEMENT_ASSISTANT_PROMPT = `You are a SCENARIO REFINEMENT ASSISTANT for Scenario+. You help professors improve their AI-generated scenarios through conversation.
+const REFINEMENT_ASSISTANT_PROMPT = `You are a SCENARIO REFINEMENT ASSISTANT for Academium. You help professors improve their AI-generated scenarios through conversation.
 
 You have access to the current generated scenario and should:
 1. Answer questions about any aspect of the scenario

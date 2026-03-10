@@ -170,7 +170,7 @@ async function ensureSystemUser() {
     await db.insert(users).values({
       id: "system",
       email: "system@scenariox.edu",
-      firstName: "Scenario+",
+      firstName: "Academium",
       lastName: "System",
       role: "admin",
     });

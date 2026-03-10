@@ -15,7 +15,7 @@ function buildDomainExpertPrompt(indicators: Indicator[]): string {
     `    "${ind.id}": <número -20 a +20, o 0 si no cambia>`
   ).join(",\n");
 
-  return `Eres un EXPERTO EN LA MATERIA y ANALISTA DE NEGOCIOS para Scenario+, una plataforma educativa de simulación de decisiones.
+  return `Eres un EXPERTO EN LA MATERIA y ANALISTA DE NEGOCIOS para Academium, una plataforma educativa de simulación de decisiones.
 
 TU DOBLE ROL:
 1. **Experto en la Materia**: Tienes profunda experiencia en el dominio del escenario. Entiendes las implicaciones del mundo real, estándares de la industria y mejores prácticas.

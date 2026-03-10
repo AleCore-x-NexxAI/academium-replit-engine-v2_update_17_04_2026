@@ -2,7 +2,7 @@ import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, NarratorOutput, DomainExpertOutput, EvaluatorOutput } from "./types";
 import { HARD_PROHIBITIONS, MENTOR_TONE, MISUSE_HANDLING } from "./guardrails";
 
-export const DEFAULT_NARRATOR_PROMPT = `Eres el NARRADOR DE CONSECUENCIAS para Scenario+, una plataforma de entrenamiento en toma de decisiones experiencial.
+export const DEFAULT_NARRATOR_PROMPT = `Eres el NARRADOR DE CONSECUENCIAS para Academium, una plataforma de entrenamiento en toma de decisiones experiencial.
 
 ${HARD_PROHIBITIONS}
 

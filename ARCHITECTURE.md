@@ -1,4 +1,4 @@
-# Scenario+ Engine — Complete Technical Documentation
+# Academium Engine — Complete Technical Documentation
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## 1. Platform Overview
 
-Scenario+ is an AI-powered business simulation platform designed for Universidad de Boyaca. It provides experiential learning through interactive, text-based business scenarios where students make real-world decisions and see their consequences play out through AI-generated narratives.
+Academium is an AI-powered business simulation platform designed for Universidad de Boyaca. It provides experiential learning through interactive, text-based business scenarios where students make real-world decisions and see their consequences play out through AI-generated narratives.
 
 ### Core Concept
 

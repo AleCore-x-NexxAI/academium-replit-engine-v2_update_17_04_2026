@@ -1,4 +1,4 @@
-# Scenario+ Load Testing Guide
+# Academium Load Testing Guide
 
 ## Quick Start
 
@@ -109,7 +109,7 @@ k6 run \
 After the test runs, you will see a summary like this:
 
 ```
-SCENARIO+ LOAD TEST RESULTS
+ACADEMIUM LOAD TEST RESULTS
 ============================================================
 {
   "results": {

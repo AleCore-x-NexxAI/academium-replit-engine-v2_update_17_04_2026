@@ -52,7 +52,7 @@ export function OnboardingModal({ user }: OnboardingModalProps) {
     {
       icon: Crown,
       title: "¡Bienvenido, Super Administrador!",
-      description: "Se te ha otorgado acceso completo a Scenario+ como probador beta. Esto significa que puedes explorar todas las funciones desde cada perspectiva: estudiante, profesor y administrador.",
+      description: "Se te ha otorgado acceso completo a Academium como probador beta. Esto significa que puedes explorar todas las funciones desde cada perspectiva: estudiante, profesor y administrador.",
       highlight: "¡Gracias por ayudarnos a probar esta plataforma!",
     },
     {

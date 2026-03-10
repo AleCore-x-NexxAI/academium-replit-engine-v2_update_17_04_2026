@@ -1,7 +1,7 @@
-# Scenario+ Engine
+# Academium Engine
 
 ## Overview
-Scenario+ is an AI-powered business simulation platform for experiential learning, allowing students to practice real-world decision-making in dynamic, text-based scenarios. Professors can author and customize simulation blueprints. The platform uses a multi-agent AI architecture to generate immersive narratives, evaluate student decisions, calculate business impacts, and provide real-time feedback. Key features include an interactive student "cockpit" with KPI dashboards, a professor authoring studio, and a multi-agent AI engine for narrative generation, competency assessment, and business logic. The project aims to provide an immersive, reflective learning experience focused on decision-making processes and to empower educators with flexible content creation tools.
+Academium is an AI-powered business simulation platform for experiential learning, allowing students to practice real-world decision-making in dynamic, text-based scenarios. Professors can author and customize simulation blueprints. The platform uses a multi-agent AI architecture to generate immersive narratives, evaluate student decisions, calculate business impacts, and provide real-time feedback. Key features include an interactive student "cockpit" with KPI dashboards, a professor authoring studio, and a multi-agent AI engine for narrative generation, competency assessment, and business logic. The project aims to provide an immersive, reflective learning experience focused on decision-making processes and to empower educators with flexible content creation tools.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.

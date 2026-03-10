@@ -3,7 +3,7 @@ import type { AgentContext, EvaluatorOutput } from "./types";
 import { COMPETENCY_DEFINITIONS } from "./types";
 import { HARD_PROHIBITIONS, MENTOR_TONE } from "./guardrails";
 
-export const DEFAULT_EVALUATOR_PROMPT = `Eres un OBSERVADOR DE COMPETENCIAS para Scenario+, una plataforma de entrenamiento en toma de decisiones experiencial.
+export const DEFAULT_EVALUATOR_PROMPT = `Eres un OBSERVADOR DE COMPETENCIAS para Academium, una plataforma de entrenamiento en toma de decisiones experiencial.
 
 ${HARD_PROHIBITIONS}
 

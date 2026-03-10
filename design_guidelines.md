@@ -1,4 +1,4 @@
-# Scenario+ Engine Design Guidelines
+# Academium Engine Design Guidelines
 
 ## Design Approach
 

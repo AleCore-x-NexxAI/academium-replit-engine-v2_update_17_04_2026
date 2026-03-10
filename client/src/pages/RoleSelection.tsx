@@ -136,7 +136,7 @@ export default function RoleSelection() {
               <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
                 <Brain className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">Scenario+</span>
+              <span className="text-xl font-bold">Academium</span>
             </a>
           </div>
           <Button variant="ghost" asChild>
@@ -262,7 +262,7 @@ export default function RoleSelection() {
             </DialogTitle>
             <DialogDescription>
               Para registrarte como Super Administrador, ingresa el código de
-              acceso proporcionado por el equipo de Scenario+.
+              acceso proporcionado por el equipo de Academium.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

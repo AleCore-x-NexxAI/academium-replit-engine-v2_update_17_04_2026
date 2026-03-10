@@ -16,7 +16,7 @@ export class OpenRouterProvider extends BaseProvider {
           baseURL: "https://openrouter.ai/api/v1",
           defaultHeaders: {
             "HTTP-Referer": "https://scenarioplus.replit.app",
-            "X-Title": "Scenario+",
+            "X-Title": "Academium",
           },
         })
     );

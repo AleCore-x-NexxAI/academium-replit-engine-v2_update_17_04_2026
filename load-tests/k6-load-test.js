@@ -1,5 +1,5 @@
 /**
- * Scenario+ Load Test Script for k6
+ * Academium Load Test Script for k6
  * 
  * Tests three scenarios:
  *   1. Browsing load — unauthenticated page/asset requests
@@ -474,7 +474,7 @@ export function handleSummary(data) {
   }
 
   console.log("\n" + "=".repeat(60));
-  console.log("  SCENARIO+ LOAD TEST RESULTS");
+  console.log("  ACADEMIUM LOAD TEST RESULTS");
   console.log("=".repeat(60));
   console.log(JSON.stringify(summary, null, 2));
   console.log("=".repeat(60) + "\n");

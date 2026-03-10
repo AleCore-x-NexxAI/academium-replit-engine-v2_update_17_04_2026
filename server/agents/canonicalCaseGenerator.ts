@@ -1,5 +1,5 @@
 /**
- * Scenario+ Canonical Case Generator
+ * Academium Canonical Case Generator
  * 
  * STRUCTURE LOCKED for POC v1.0
  * See server/agents/constants.ts for version roadmap.
@@ -21,7 +21,7 @@ import type {
 import { generateChatCompletion } from "../openai";
 import { POC_VERSION, STRUCTURE_LOCK_NOTICE } from "./constants";
 
-const CANONICAL_CASE_GENERATOR_PROMPT = `Eres un ARQUITECTO DE CASOS DE NEGOCIOS CANÓNICOS para Scenario+, una plataforma de simulación de negocios impulsada por IA para educación universitaria en América Latina.
+const CANONICAL_CASE_GENERATOR_PROMPT = `Eres un ARQUITECTO DE CASOS DE NEGOCIOS CANÓNICOS para Academium, una plataforma de simulación de negocios impulsada por IA para educación universitaria en América Latina.
 
 ${STRUCTURE_LOCK_NOTICE}
 

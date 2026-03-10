@@ -402,7 +402,7 @@ export default function Simulation() {
           </Button>
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-primary" />
-            <span className="font-semibold hidden sm:inline">Scenario+</span>
+            <span className="font-semibold hidden sm:inline">Academium</span>
           </div>
         </div>
 

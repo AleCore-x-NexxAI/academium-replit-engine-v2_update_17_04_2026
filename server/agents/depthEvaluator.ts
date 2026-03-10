@@ -13,7 +13,7 @@ import { HARD_PROHIBITIONS, MENTOR_TONE, MISUSE_HANDLING } from "./guardrails";
  * 
  * NON-BLOCKING mentor nudges for improvement
  */
-export const DEFAULT_DEPTH_EVALUATOR_PROMPT = `Eres un EVALUADOR de RELEVANCIA + ESTRUCTURA para Scenario+.
+export const DEFAULT_DEPTH_EVALUATOR_PROMPT = `Eres un EVALUADOR de RELEVANCIA + ESTRUCTURA para Academium.
 
 ${HARD_PROHIBITIONS}
 
