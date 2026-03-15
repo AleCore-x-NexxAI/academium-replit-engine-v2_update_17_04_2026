@@ -49,3 +49,6 @@ SUPER_ADMIN_CODE = "simulearn9060"
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[objectStorage]
+defaultBucketID = "replit-objstore-bc84bf9b-bf73-4374-ab20-1096a5e8d343"
