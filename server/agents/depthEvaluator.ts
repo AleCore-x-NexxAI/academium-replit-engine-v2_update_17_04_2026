@@ -1,5 +1,6 @@
 import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, DepthEvaluatorOutput } from "./types";
+import type { DecisionPoint } from "@shared/schema";
 import { HARD_PROHIBITIONS, MENTOR_TONE, MISUSE_HANDLING } from "./guardrails";
 
 /**
@@ -62,6 +63,43 @@ FORMATO DE SALIDA (JSON):
   "hasTradeoff": true/false
 }`;
 
+export const STRICT_DEPTH_EVALUATOR_PROMPT = `Eres un EVALUADOR de PROFUNDIDAD RIGUROSO para Academium.
+
+${HARD_PROHIBITIONS}
+
+${MENTOR_TONE}
+
+${MISUSE_HANDLING}
+
+=== MODO RIGUROSO: Requiere AL MENOS 2 DE 3 DIMENSIONES ===
+
+ACEPTA (isDeepEnough = true) SOLO si la respuesta cumple AL MENOS DOS de estas tres dimensiones:
+1. PRIORIDAD: Indica qué optimiza ("Prioritizo X", "Mi prioridad es", "Lo más importante")
+2. REFERENCIA AL CASO: Menciona algún elemento específico del escenario (stakeholders, recursos, situación concreta)
+3. TRADE-OFF/RIESGO: Reconoce explícitamente una desventaja o riesgo ("aunque", "el riesgo es", "acepto que", "sacrifico")
+
+EJEMPLOS QUE DEBEN PASAR (2+ dimensiones):
+- "Prioritizo la calidad del producto aunque eso retrase el lanzamiento." ✓ (prioridad + trade-off)
+- "Elijo invertir en el equipo porque su moral está baja y eso afecta la productividad." ✓ (prioridad + referencia al caso)
+- "El presupuesto es limitado, así que acepto el riesgo de no contratar más personal." ✓ (referencia + trade-off)
+
+EJEMPLOS QUE DEBEN PEDIR REVISIÓN (solo 1 dimensión):
+- "Elijo la opción A." ✗ (ninguna dimensión)
+- "Prioritizo la calidad." ✗ (solo prioridad, sin contexto ni trade-off)
+
+Si pides revisión, explica qué dimensión(es) falta(n) de forma constructiva.
+
+FORMATO DE SALIDA (JSON):
+{
+  "isDeepEnough": true/false,
+  "revisionPrompt": "<solo si isDeepEnough=false, máximo 1 oración constructiva>",
+  "missingConsiderations": [],
+  "strengthsAcknowledged": "<qué hizo bien>",
+  "hasPriority": true/false,
+  "hasCaseReference": true/false,
+  "hasTradeoff": true/false
+}`;
+
 // S4.2: Only 1 revision max to keep flow smooth
 const MAX_REVISIONS = 1;
 
@@ -107,37 +145,66 @@ export async function evaluateDepth(
     };
   }
   
-  // S4.2: Quick relevance+structure check (no LLM needed for obvious cases)
-  const studentInput = context.studentInput?.trim() || "";
-  const relevance = hasRelevanceStructure(studentInput);
-  
-  if (relevance.passes) {
-    // Build appropriate mentor nudge based on what's missing
-    let nudge = "";
-    if (!relevance.hasPriority && !relevance.hasTradeoff) {
-      nudge = " Para hacerla más sólida, añade qué priorizas y por qué.";
-    } else if (!relevance.hasTradeoff) {
-      nudge = " ¿Qué trade-off estás aceptando?";
-    }
-    
-    return {
-      isDeepEnough: true,
-      strengthsAcknowledged: `Tu respuesta es válida.${nudge}`,
-    };
-  }
-  
-  // For very short inputs without clear structure, still be lenient
-  if (studentInput.length >= 20) {
-    return {
-      isDeepEnough: true,
-      strengthsAcknowledged: "Tu respuesta es válida. Para hacerla más sólida, añade qué priorizas y por qué.",
-    };
-  }
-
   // Get current decision point configuration
   const currentDecisionNum = context.currentDecision || 1;
   const decisionPoint = context.decisionPoints?.find(dp => dp.number === currentDecisionNum);
+  const strictness = decisionPoint?.depthStrictness || "standard";
   
+  const studentInput = context.studentInput?.trim() || "";
+
+  // S5/S6.2: LENIENT mode — skip regex and LLM, accept unless trivially short
+  if (strictness === "lenient") {
+    if (studentInput.length < 10) {
+      return {
+        isDeepEnough: false,
+        revisionPrompt: "Tu respuesta es muy breve. Agrega un poco más de detalle sobre tu decisión.",
+        missingConsiderations: ["detalle mínimo"],
+      };
+    }
+    return {
+      isDeepEnough: true,
+      strengthsAcknowledged: "Tu respuesta es válida.",
+    };
+  }
+
+  // S4.2: Quick relevance+structure check (no LLM needed for obvious cases)
+  const relevance = hasRelevanceStructure(studentInput);
+  
+  // S5/S6.2: STRICT mode — require 2 of 3 dimensions via regex, fall through to LLM if borderline
+  if (strictness === "strict") {
+    const dimensionCount = [relevance.hasPriority, relevance.hasTradeoff, relevance.hasCaseRef].filter(Boolean).length;
+    if (dimensionCount >= 2) {
+      return {
+        isDeepEnough: true,
+        strengthsAcknowledged: "Tu respuesta demuestra profundidad analítica.",
+      };
+    }
+    // Fall through to LLM with strict prompt for borderline cases
+  } else {
+    // STANDARD mode: existing behavior
+    if (relevance.passes) {
+      let nudge = "";
+      if (!relevance.hasPriority && !relevance.hasTradeoff) {
+        nudge = " Para hacerla más sólida, añade qué priorizas y por qué.";
+      } else if (!relevance.hasTradeoff) {
+        nudge = " ¿Qué trade-off estás aceptando?";
+      }
+      
+      return {
+        isDeepEnough: true,
+        strengthsAcknowledged: `Tu respuesta es válida.${nudge}`,
+      };
+    }
+    
+    // For very short inputs without clear structure, still be lenient
+    if (studentInput.length >= 20) {
+      return {
+        isDeepEnough: true,
+        strengthsAcknowledged: "Tu respuesta es válida. Para hacerla más sólida, añade qué priorizas y por qué.",
+      };
+    }
+  }
+
   // Build context about what this decision requires
   const requiresJustification = decisionPoint?.requiresJustification ?? true;
   const includesReflection = decisionPoint?.includesReflection ?? false;
@@ -179,7 +246,7 @@ Esta es la última decisión del escenario. El estudiante DEBE demostrar SÍNTES
 3. Cómo las consecuencias previas influyen en esta decisión final
 Si la respuesta no hace referencia a decisiones anteriores o no integra el contexto acumulado, solicita revisión pidiendo que conecte esta decisión con lo aprendido en las decisiones previas.` : ""}`;
 
-  const systemPrompt = options?.customPrompt || DEFAULT_DEPTH_EVALUATOR_PROMPT;
+  const systemPrompt = options?.customPrompt || (strictness === "strict" ? STRICT_DEPTH_EVALUATOR_PROMPT : DEFAULT_DEPTH_EVALUATOR_PROMPT);
 
   try {
     const response = await generateChatCompletion(

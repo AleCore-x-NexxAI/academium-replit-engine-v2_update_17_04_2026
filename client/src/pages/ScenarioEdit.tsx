@@ -48,7 +48,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Scenario, AgentPrompts } from "@shared/schema";
+import type { Scenario, AgentPrompts, DecisionPoint } from "@shared/schema";
 
 interface ScenarioConfig {
   llmModel: string;
@@ -114,6 +114,7 @@ export default function ScenarioEdit() {
   const [llmModel, setLlmModel] = useState("gpt-4o");
   const [agentPrompts, setAgentPrompts] = useState<AgentPrompts>({});
   const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>({});
+  const [decisionPoints, setDecisionPoints] = useState<DecisionPoint[]>([]);
 
   const { data: scenario, isLoading: scenarioLoading, error: scenarioError } = useQuery<Scenario>({
     queryKey: ["/api/scenarios", scenarioId],
@@ -187,8 +188,19 @@ export default function ScenarioEdit() {
           ? initialState.learningObjectives.join("\n")
           : "",
       });
+      if (Array.isArray(initialState?.decisionPoints)) {
+        setDecisionPoints(initialState.decisionPoints);
+      }
     }
   }, [scenario, form]);
+
+  const handleDepthStrictnessChange = (dpIndex: number, value: string) => {
+    setDecisionPoints(prev => {
+      const updated = [...prev];
+      updated[dpIndex] = { ...updated[dpIndex], depthStrictness: value as "lenient" | "standard" | "strict" };
+      return updated;
+    });
+  };
 
   const updateMutation = useMutation({
     mutationFn: async (data: ScenarioFormData) => {
@@ -215,6 +227,7 @@ export default function ScenarioEdit() {
           difficultyLevel: data.difficultyLevel,
           keyConstraints: data.keyConstraintsText?.split("\n").filter(Boolean) || [],
           learningObjectives: data.learningObjectivesText?.split("\n").filter(Boolean) || [],
+          decisionPoints: decisionPoints.length > 0 ? decisionPoints : currentState.decisionPoints,
         },
       };
       const response = await apiRequest("PUT", `/api/scenarios/${scenarioId}`, updatedScenario);
@@ -575,6 +588,54 @@ export default function ScenarioEdit() {
               </div>
             </Card>
             
+            {decisionPoints.length > 0 && (
+              <Card className="p-6">
+                <div className="flex items-center gap-2 mb-6">
+                  <Settings2 className="w-5 h-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Puntos de Decisión</h2>
+                  <Badge variant="outline" className="text-xs">{decisionPoints.length}</Badge>
+                </div>
+                <div className="space-y-4">
+                  {decisionPoints.map((dp, idx) => (
+                    <div key={idx} className="p-4 border rounded-lg space-y-3">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium" data-testid={`text-decision-prompt-${idx}`}>
+                            Decisión {dp.number}: {dp.prompt}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {dp.format === "multiple_choice" ? "Opción múltiple" : "Respuesta escrita"}
+                            {dp.requiresJustification ? " · Requiere justificación" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                          Exigencia de Profundidad:
+                        </label>
+                        <Select
+                          value={dp.depthStrictness || "standard"}
+                          onValueChange={(value) => handleDepthStrictnessChange(idx, value)}
+                        >
+                          <SelectTrigger className="w-[180px]" data-testid={`select-depth-strictness-${idx}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="lenient">Flexible</SelectItem>
+                            <SelectItem value="standard">Estándar</SelectItem>
+                            <SelectItem value="strict">Rigurosa</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-4">
+                  Flexible: acepta casi cualquier respuesta relevante. Estándar: requiere al menos un criterio de profundidad. Rigurosa: requiere al menos dos dimensiones de razonamiento.
+                </p>
+              </Card>
+            )}
+
             {/* AI Configuration Section */}
             {configData && (
               <Card className="p-6">

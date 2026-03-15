@@ -236,6 +236,8 @@ export interface DecisionPoint {
   focusCue?: string; // e.g., "Considera el impacto en el equipo, los plazos y el riesgo."
   // S5.1: Thinking scaffold - 2-3 bullets to guide reasoning (NO answers, NO best practices)
   thinkingScaffold?: string[]; // e.g., ["Impacto en el equipo", "Riesgo vs velocidad", "Consecuencias a corto vs largo plazo"]
+  // S5/S6.2: Professor-configured depth strictness per decision
+  depthStrictness?: "lenient" | "standard" | "strict";
 }
 
 // POC Indicator - Constitution Section 9: each indicator has name, definition, directionality, and tooltip
