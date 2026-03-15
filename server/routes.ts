@@ -1371,6 +1371,7 @@ Be constructive and educational, not judgmental.`;
     scenarioObjective: z.string().optional(),
     tradeoffFocus: z.array(z.string()).optional(),
     customTradeoff: z.string().optional(),
+    stepCount: z.number().int().min(3).max(10).optional(),
   });
 
   app.post("/api/canonical-case/generate", isAuthenticated, async (req: any, res) => {
@@ -1387,7 +1388,7 @@ Be constructive and educational, not judgmental.`;
         return res.status(400).json({ message: "Datos inválidos", errors: parseResult.error.errors });
       }
 
-      const { topic, additionalContext, tradeoffFocus, customTradeoff } = parseResult.data;
+      const { topic, additionalContext, tradeoffFocus, customTradeoff, stepCount } = parseResult.data;
 
       const tradeoffParts: string[] = [];
       if (tradeoffFocus && tradeoffFocus.length > 0) {
@@ -1404,7 +1405,7 @@ Be constructive and educational, not judgmental.`;
         builtContext = builtContext ? `${builtContext}\n${tradeoffSection}` : tradeoffSection;
       }
 
-      const canonicalCase = await generateCanonicalCase(topic, builtContext || undefined);
+      const canonicalCase = await generateCanonicalCase(topic, builtContext || undefined, stepCount);
       const scenarioData = convertCanonicalToScenarioData(canonicalCase);
 
       const initialMessage: DraftConversationMessage = {

@@ -19,7 +19,7 @@ export const VERSION_ROADMAP = {
     status: "LOCKED",
     features: [
       "Canonical Case Structure (120-180 word context)",
-      "3 Decision Points (multiple choice → analytical → integrative)",
+      "Configurable Decision Points (3–10, default 3; multiple choice → analytical → integrative)",
       "4 POC Indicators (teamMorale, budgetHealth, operationalRisk, strategicFlexibility)",
       "Lightweight Reflection (1 optional prompt)",
       "Multi-agent orchestration (Director, Narrator, Evaluator, DomainExpert, DepthEvaluator)",
@@ -55,21 +55,17 @@ export const VERSION_ROADMAP = {
   },
 };
 
+export const DEFAULT_DECISIONS = 3;
+export const MIN_DECISIONS = 3;
+export const MAX_DECISIONS = 10;
+
 export const STRUCTURE_LOCK_NOTICE = `
-=== ESTRUCTURA CANÓNICA BLOQUEADA (POC ${POC_VERSION}) ===
+=== ESTRUCTURA CANÓNICA (POC ${POC_VERSION}) ===
 
-Esta estructura está BLOQUEADA para el POC de febrero.
-NO modificar sin documentación explícita y etiqueta de versión.
-
-Componentes bloqueados:
+Componentes base:
 - Formato de caso Harvard (120-180 palabras contexto)
-- Exactamente 3 puntos de decisión
+- Puntos de decisión configurables (${MIN_DECISIONS}–${MAX_DECISIONS}, por defecto ${DEFAULT_DECISIONS})
 - 4 indicadores POC
 - 1 prompt de reflexión opcional
-- Duración objetivo: 20-25 minutos
-
-Cambios futuros requieren:
-1. Documentación explícita del cambio
-2. Etiqueta de versión (v2.x, v3.x)
-3. Compatibilidad hacia atrás donde sea posible
+- Duración objetivo: proporcional al número de decisiones
 `;

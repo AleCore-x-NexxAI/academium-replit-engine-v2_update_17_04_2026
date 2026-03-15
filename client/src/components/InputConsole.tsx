@@ -191,7 +191,7 @@ export function InputConsole({
                   <CheckCircle2 className="w-4 h-4 text-chart-3" />
                 </div>
                 <span className="text-sm font-semibold text-chart-3 uppercase tracking-wide">
-                  Paso 4: Reflexión
+                  Paso {(totalDecisions || 3) + 1}: Reflexión
                 </span>
               </div>
               <Badge variant="outline" className="bg-background text-xs">

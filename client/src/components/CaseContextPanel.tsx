@@ -219,11 +219,11 @@ export function CaseContextPanel({
                           {dp.number}
                         </Badge>
                         <span className="truncate">
-                          {dp.format === "multiple_choice"
+                          {dp.number === 1
                             ? "Orientación"
-                            : dp.number === 2
-                            ? "Análisis"
-                            : "Integración"}
+                            : dp.number === (decisionPoints?.length || 3)
+                            ? "Integración"
+                            : "Análisis"}
                         </span>
                       </div>
                     );

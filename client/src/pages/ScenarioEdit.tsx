@@ -202,6 +202,27 @@ export default function ScenarioEdit() {
     });
   };
 
+  const handleDecisionCountChange = (newCount: number) => {
+    setDecisionPoints(prev => {
+      if (newCount <= prev.length) {
+        return prev.slice(0, newCount);
+      }
+      const additions: DecisionPoint[] = [];
+      for (let i = prev.length; i < newCount; i++) {
+        additions.push({
+          number: i + 1,
+          format: "written",
+          prompt: `Decisión ${i + 1} — pendiente de configurar`,
+          requiresJustification: true,
+          includesReflection: false,
+          focusCue: "Considera los factores clave antes de decidir.",
+          depthStrictness: "standard",
+        });
+      }
+      return [...prev, ...additions];
+    });
+  };
+
   const updateMutation = useMutation({
     mutationFn: async (data: ScenarioFormData) => {
       const currentState = scenario?.initialState as any || {};
@@ -228,6 +249,7 @@ export default function ScenarioEdit() {
           keyConstraints: data.keyConstraintsText?.split("\n").filter(Boolean) || [],
           learningObjectives: data.learningObjectivesText?.split("\n").filter(Boolean) || [],
           decisionPoints: decisionPoints.length > 0 ? decisionPoints : currentState.decisionPoints,
+          totalDecisions: decisionPoints.length > 0 ? decisionPoints.length : (currentState.totalDecisions || currentState.decisionPoints?.length || 3),
         },
       };
       const response = await apiRequest("PUT", `/api/scenarios/${scenarioId}`, updatedScenario);
@@ -590,10 +612,32 @@ export default function ScenarioEdit() {
             
             {decisionPoints.length > 0 && (
               <Card className="p-6">
-                <div className="flex items-center gap-2 mb-6">
-                  <Settings2 className="w-5 h-5 text-primary" />
-                  <h2 className="text-lg font-semibold">Puntos de Decisión</h2>
-                  <Badge variant="outline" className="text-xs">{decisionPoints.length}</Badge>
+                <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="w-5 h-5 text-primary" />
+                    <h2 className="text-lg font-semibold">Puntos de Decisión</h2>
+                    <Badge variant="outline" className="text-xs">{decisionPoints.length}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      Total:
+                    </label>
+                    <Select
+                      value={String(decisionPoints.length)}
+                      onValueChange={(v) => handleDecisionCountChange(Number(v))}
+                    >
+                      <SelectTrigger className="w-[160px]" data-testid="select-decision-count">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 8 }, (_, i) => i + 3).map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n} decisiones{n === 3 ? " (estándar)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="space-y-4">
                   {decisionPoints.map((dp, idx) => (

@@ -126,6 +126,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [scenarioObjective, setScenarioObjective] = useState("");
   const [tradeoffFocus, setTradeoffFocus] = useState<string[]>([]);
   const [customTradeoff, setCustomTradeoff] = useState("");
+  const [stepCount, setStepCount] = useState(3);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [canonicalCase, setCanonicalCase] = useState<CanonicalCaseData | null>(null);
   const [scenarioData, setScenarioData] = useState<GeneratedScenarioData | null>(null);
@@ -156,6 +157,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         scenarioObjective,
         tradeoffFocus,
         customTradeoff: customTradeoff.trim() || undefined,
+        stepCount,
       });
       return response.json() as Promise<GenerateResponse>;
     },
@@ -442,6 +444,25 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             {/* NEW: Enfoque de tradeoff */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
+                <Label className="text-base font-semibold">Número de Decisiones</Label>
+                <HelpIcon content="Cuántos puntos de decisión tendrá la simulación. Mínimo 3, máximo 10. Más decisiones implican una simulación más larga." />
+              </div>
+              <Select value={String(stepCount)} onValueChange={(v) => setStepCount(Number(v))}>
+                <SelectTrigger className="w-[200px]" data-testid="select-step-count">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 8 }, (_, i) => i + 3).map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n} decisiones{n === 3 ? " (estándar)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
                 <Label className="text-base font-semibold">Enfoque de trade-off</Label>
                 <HelpIcon content="Opcional: selecciona tensiones predefinidas, escribe la tuya, o combínalas. El caso se puede generar sin trade-offs." />
               </div>
@@ -638,7 +659,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
           {canonicalCase.decisionPoints.map((dp, dpIndex) => (
             <EditableSection
               key={dp.number}
-              title={`Decisión ${dp.number}: ${dp.format === "multiple_choice" ? "Orientación" : dp.number === 2 ? "Analítica" : "Integrativa"}`}
+              title={`Decisión ${dp.number}: ${dp.number === 1 ? "Orientación" : dp.number === canonicalCase.decisionPoints.length ? "Integrativa" : "Analítica"}`}
               icon={Target}
               defaultExpanded={dpIndex === 0}
             >

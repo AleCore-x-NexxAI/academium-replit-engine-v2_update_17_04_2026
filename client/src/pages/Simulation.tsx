@@ -422,7 +422,7 @@ export default function Simulation() {
           </p>
           <p className="text-xs text-muted-foreground">
             {isReflectionStep
-              ? "Paso 4: Reflexión"
+              ? `Paso ${totalDecisions + 1}: Reflexión`
               : totalDecisions > 0
               ? `Decisión ${currentDecision} de ${totalDecisions}`
               : `Turno ${session.currentState.turnCount + 1}`}

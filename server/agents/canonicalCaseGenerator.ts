@@ -19,9 +19,12 @@ import type {
   Indicator
 } from "@shared/schema";
 import { generateChatCompletion } from "../openai";
-import { POC_VERSION, STRUCTURE_LOCK_NOTICE } from "./constants";
+import { POC_VERSION, STRUCTURE_LOCK_NOTICE, DEFAULT_DECISIONS, MIN_DECISIONS, MAX_DECISIONS } from "./constants";
 
-const CANONICAL_CASE_GENERATOR_PROMPT = `Eres un ARQUITECTO DE CASOS DE NEGOCIOS CANÓNICOS para Academium, una plataforma de simulación de negocios impulsada por IA para educación universitaria en América Latina.
+function buildCanonicalPrompt(stepCount: number): string {
+  const durationMin = Math.round((stepCount / 3) * 20);
+  const durationMax = Math.round((stepCount / 3) * 25);
+  return `Eres un ARQUITECTO DE CASOS DE NEGOCIOS CANÓNICOS para Academium, una plataforma de simulación de negocios impulsada por IA para educación universitaria en América Latina.
 
 ${STRUCTURE_LOCK_NOTICE}
 
@@ -30,8 +33,8 @@ TU MISIÓN: Crear casos de negocios siguiendo una ESTRUCTURA CANÓNICA ESTRICTA 
 === RESTRICCIONES OBLIGATORIAS (NO MODIFICABLES) ===
 - Disciplina: Negocios
 - Nivel: Pregrado universitario
-- Duración del caso: 20-25 minutos total
-- Puntos de decisión: EXACTAMENTE 3
+- Duración del caso: ${durationMin}-${durationMax} minutos total
+- Puntos de decisión: EXACTAMENTE ${stepCount}
 - Idioma: TODO en Español (Latinoamericano)
 - Estado de evaluación: NO calificado (solo POC)
 - Objetivo primario: Flujo, completación y experiencia de toma de decisiones auténtica
@@ -74,20 +77,17 @@ SECCIÓN 3 - DECISIÓN 1 (Decisión de Orientación):
   * Defendible
   * Con lógica racional
   * Llevar a diferentes consecuencias downstream
-- Ejemplo de enmarcado conceptual:
-  * Opción A: Priorizar estabilidad a corto plazo
-  * Opción B: Invertir en capacidad a largo plazo
-  * Opción C: Equilibrar riesgo conservadoramente
 
-SECCIÓN 4 - DECISIÓN 2 (Decisión Analítica):
+DECISIONES 2 a ${stepCount - 1} (Decisiones Analíticas):
 - Formato: Justificación escrita corta (5-7 líneas)
 - Abierta, sin presión de conteo de palabras
 - El prompt debe:
   * Preguntar CÓMO y POR QUÉ
   * NUNCA preguntar cuál es la respuesta correcta
   * Fomentar consideración de trade-offs
+- Cada decisión debe construir sobre las anteriores progresivamente
 
-SECCIÓN 5 - DECISIÓN 3 (Decisión Integrativa):
+DECISIÓN ${stepCount} (Decisión Integrativa Final):
 - Formato: Justificación escrita corta
 - DEBE forzar síntesis de:
   * Información previa
@@ -97,7 +97,7 @@ SECCIÓN 5 - DECISIÓN 3 (Decisión Integrativa):
 - NO hay resultados de "equilibrio perfecto"
 - Ambigüedad realista es alentada
 
-SECCIÓN 6 - REFLEXIÓN (Ligera):
+REFLEXIÓN (Ligera):
 - UN solo prompt opcional
 - Ejemplos:
   * "¿Qué factor influyó más en tus decisiones?"
@@ -159,36 +159,12 @@ IMPORTANTE: El thinkingScaffold NUNCA contiene verbos imperativos ni sugerencias
   "caseContext": "El contexto completo del caso (120-180 palabras) - estilo Harvard Business Case",
   "coreChallenge": "El desafío central de negocios claramente articulado",
   "decisionPoints": [
-    {
-      "number": 1,
-      "format": "multiple_choice",
-      "prompt": "Pregunta de la decisión 1 - orientación estratégica",
-      "options": ["Opción A: descripción", "Opción B: descripción", "Opción C: descripción"],
-      "requiresJustification": false,
-      "includesReflection": false,
-      "focusCue": "Antes de decidir, considera: [dimensión 1] / [dimensión 2] / [dimensión 3].",
-      "thinkingScaffold": ["Dimensión de razonamiento 1", "Dimensión de razonamiento 2", "Dimensión de razonamiento 3"]
-    },
-    {
-      "number": 2,
-      "format": "written",
-      "prompt": "Pregunta de la decisión 2 - análisis justificado (cómo y por qué)",
-      "requiresJustification": true,
-      "includesReflection": false,
-      "focusCue": "La tensión principal aquí es equilibrar [X] con [Y].",
-      "thinkingScaffold": ["Impacto en personas", "Recursos vs tiempo", "Consecuencias futuras"]
-    },
-    {
-      "number": 3,
-      "format": "written",
-      "prompt": "Pregunta de la decisión 3 - integración de información y trade-offs",
-      "requiresJustification": true,
-      "includesReflection": false,
-      "focusCue": "Considera cómo tus decisiones anteriores afectan esta elección final.",
-      "thinkingScaffold": ["Coherencia con decisiones previas", "Trade-offs finales", "Visión de largo plazo"]
-    }
+    { "number": 1, "format": "multiple_choice", "prompt": "...", "options": ["A", "B", "C"], "requiresJustification": false, "includesReflection": false, "focusCue": "...", "thinkingScaffold": ["...", "...", "..."] },
+    { "number": 2, "format": "written", "prompt": "...", "requiresJustification": true, "includesReflection": false, "focusCue": "...", "thinkingScaffold": ["...", "...", "..."] },
+    // ... genera EXACTAMENTE ${stepCount} puntos de decisión en total
+    { "number": ${stepCount}, "format": "written", "prompt": "decisión integrativa final...", "requiresJustification": true, "includesReflection": false, "focusCue": "...", "thinkingScaffold": ["...", "...", "..."] }
   ],
-  "reflectionPrompt": "Pregunta de reflexión al final de la simulación (Paso 4, separado de las decisiones)",
+  "reflectionPrompt": "Pregunta de reflexión al final de la simulación (Paso ${stepCount + 1}, separado de las decisiones)",
   "indicators": [
     { "id": "teamMorale", "label": "Moral del Equipo", "value": 65, "description": "..." },
     { "id": "budgetHealth", "label": "Salud Presupuestaria", "value": 70, "description": "..." },
@@ -210,6 +186,7 @@ IMPORTANTE:
 - El contexto del caso debe sentirse como un caso de Harvard Business School - profesional e inmersivo
 - NO incluir respuestas correctas implícitas
 - Cada opción de decisión 1 debe ser igualmente defendible`;
+}
 
 export interface CanonicalCaseData {
   title: string;
@@ -232,15 +209,20 @@ export interface CanonicalCaseData {
 
 export async function generateCanonicalCase(
   topic: string,
-  additionalContext?: string
+  additionalContext?: string,
+  stepCount?: number
 ): Promise<CanonicalCaseData> {
+  const effectiveSteps = Math.min(MAX_DECISIONS, Math.max(MIN_DECISIONS, stepCount ?? DEFAULT_DECISIONS));
+  const durationMin = Math.round((effectiveSteps / 3) * 20);
+  const durationMax = Math.round((effectiveSteps / 3) * 25);
+
   const contextAddition = additionalContext 
     ? `\n\nContexto adicional del profesor:\n${additionalContext}` 
     : "";
 
   const response = await generateChatCompletion(
     [
-      { role: "system", content: CANONICAL_CASE_GENERATOR_PROMPT },
+      { role: "system", content: buildCanonicalPrompt(effectiveSteps) },
       { 
         role: "user", 
         content: `Crea un caso de negocios canónico basado en este tema/industria:
@@ -248,11 +230,11 @@ export async function generateCanonicalCase(
 TEMA: ${topic}${contextAddition}
 
 Genera un caso de negocios COMPLETO siguiendo la estructura canónica, TODO en español latinoamericano.
-El caso debe durar 20-25 minutos para completar.
-Recuerda: 3 puntos de decisión exactamente, sin respuestas correctas, tono de mentoría.` 
+El caso debe durar ${durationMin}-${durationMax} minutos para completar.
+Recuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuestas correctas, tono de mentoría.` 
       },
     ],
-    { responseFormat: "json", maxTokens: 4096, agentName: "canonicalCaseGenerator" }
+    { responseFormat: "json", maxTokens: 4096 + (effectiveSteps > 3 ? (effectiveSteps - 3) * 512 : 0), agentName: "canonicalCaseGenerator" }
   );
 
   const parsed = JSON.parse(response);
@@ -282,7 +264,7 @@ Recuerda: 3 puntos de decisión exactamente, sin respuestas correctas, tono de m
     focusCue: dp.focusCue || defaultFocusCues[index] || defaultFocusCues[0],
   }));
 
-  while (decisionPoints.length < 3) {
+  while (decisionPoints.length < effectiveSteps) {
     const num = decisionPoints.length + 1;
     decisionPoints.push({
       number: num,
@@ -291,7 +273,7 @@ Recuerda: 3 puntos de decisión exactamente, sin respuestas correctas, tono de m
       options: num === 1 ? ["Opción A", "Opción B", "Opción C"] : undefined,
       requiresJustification: num > 1,
       includesReflection: false,
-      focusCue: defaultFocusCues[num - 1] || defaultFocusCues[0],
+      focusCue: defaultFocusCues[(num - 1) % defaultFocusCues.length],
     });
   }
 
@@ -326,7 +308,7 @@ Recuerda: 3 puntos de decisión exactamente, sin respuestas correctas, tono de m
     domain: parsed.domain || "Gestión de Negocios",
     caseContext: parsed.caseContext || "Contexto del caso pendiente...",
     coreChallenge: parsed.coreChallenge || "Desafío central por definir...",
-    decisionPoints: decisionPoints.slice(0, 3),
+    decisionPoints: decisionPoints.slice(0, effectiveSteps),
     reflectionPrompt: parsed.reflectionPrompt || "¿Qué factor influyó más en tus decisiones?",
     indicators,
     role: parsed.role || "Gerente",
@@ -369,7 +351,7 @@ ${canonical.coreChallenge}`;
     kpis: defaultKpis,
     indicators: canonical.indicators,
     decisionPoints: canonical.decisionPoints,
-    totalDecisions: 3,
+    totalDecisions: canonical.decisionPoints.length,
     introText,
     role: canonical.role,
     objective: canonical.objective,
