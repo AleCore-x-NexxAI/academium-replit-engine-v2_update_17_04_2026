@@ -684,7 +684,7 @@ interface CohortAnalyticsData {
     totalAttempts: number;
     nudgeRate: number;
   }>;
-  styleProfiles: Array<{ key: string; label: string; count: number }>;
+  styleProfiles: Array<{ key: string; label: string; count: number; representativePhrases?: string[] }>;
   classStrengths: Array<{ name: string; averageScore: number; sampleSize: number }>;
 }
 
@@ -901,21 +901,32 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
           <p className="text-sm text-muted-foreground mb-4">
             Tendencias observadas en los estilos de toma de decisiones de la clase.
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="space-y-3">
             {data.styleProfiles.map((profile) => {
               const IconComp = PROFILE_ICONS[profile.key] || Target;
               const colorClass = PROFILE_COLORS[profile.key] || "bg-muted text-foreground";
               return (
                 <div
                   key={profile.key}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-lg ${colorClass}`}
+                  className={`rounded-lg ${colorClass} p-4`}
                   data-testid={`profile-${profile.key}`}
                 >
-                  <IconComp className="w-5 h-5" />
-                  <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <IconComp className="w-5 h-5" />
                     <p className="font-medium text-sm">{profile.label}</p>
-                    <p className="text-xs opacity-80">{profile.count} estudiante{profile.count !== 1 ? "s" : ""}</p>
+                    <Badge variant="outline" className="ml-auto text-xs">
+                      {profile.count} estudiante{profile.count !== 1 ? "s" : ""}
+                    </Badge>
                   </div>
+                  {profile.representativePhrases && profile.representativePhrases.length > 0 && (
+                    <div className="space-y-1 mt-2">
+                      {profile.representativePhrases.map((phrase, idx) => (
+                        <p key={idx} className="text-xs opacity-70 italic pl-7 truncate">
+                          "{phrase}"
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}

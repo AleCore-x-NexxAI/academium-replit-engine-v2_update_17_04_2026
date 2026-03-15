@@ -1732,10 +1732,9 @@ Be constructive and educational, not judgmental.`;
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      const sessions = await storage.getSessionsByScenario(scenarioId);
-      const activeSessions = sessions.filter(s => s.status === "completed" || s.status === "active");
+      const allSessions = await storage.getSessionsByScenario(scenarioId);
 
-      if (activeSessions.length === 0) {
+      if (allSessions.length === 0) {
         return res.json({
           totalStudents: 0,
           decisionDistribution: [],
@@ -1755,7 +1754,7 @@ Be constructive and educational, not judgmental.`;
       const allTurns: Array<{ turnNumber: number; studentInput: string; agentResponse: any; sessionId: string }> = [];
       const allEvents: Array<{ turnNumber: number | null; eventType: string; eventData: any; sessionId: string }> = [];
 
-      for (const session of activeSessions) {
+      for (const session of allSessions) {
         const sessionTurns = await storage.getTurnsBySession(session.id);
         for (const t of sessionTurns) {
           allTurns.push({
@@ -1840,23 +1839,27 @@ Be constructive and educational, not judgmental.`;
       }> = [];
 
       for (let dn = 1; dn <= maxTurn; dn++) {
-        const rejectedAtStep = allEvents.filter(
-          e => e.turnNumber === dn && e.eventType === "input_rejected"
-        );
-        const nudgesFromTurns = allTurns.filter(
-          t => t.turnNumber === dn && (
-            t.agentResponse?.turnStatus === "nudge" ||
-            t.agentResponse?.requiresRevision === true
-          )
-        );
-        const nudgeCount = rejectedAtStep.length + nudgesFromTurns.length;
-        const totalAttempts = allTurns.filter(t => t.turnNumber === dn).length;
+        const studentsAtStep = new Set(allTurns.filter(t => t.turnNumber === dn).map(t => t.sessionId));
+        const totalStudentsAtStep = studentsAtStep.size;
+
+        const studentsNudged = new Set<string>();
+        for (const e of allEvents) {
+          if (e.turnNumber === dn && e.eventType === "input_rejected") {
+            studentsNudged.add(e.sessionId);
+          }
+        }
+        for (const t of allTurns) {
+          if (t.turnNumber === dn && (t.agentResponse?.turnStatus === "nudge" || t.agentResponse?.requiresRevision === true)) {
+            studentsNudged.add(t.sessionId);
+          }
+        }
+        const nudgeCount = studentsNudged.size;
 
         stuckNodes.push({
           decisionNumber: dn,
           nudgeCount,
-          totalAttempts,
-          nudgeRate: totalAttempts > 0 ? Math.round((nudgeCount / totalAttempts) * 100) : 0,
+          totalAttempts: totalStudentsAtStep,
+          nudgeRate: totalStudentsAtStep > 0 ? Math.min(100, Math.round((nudgeCount / totalStudentsAtStep) * 100)) : 0,
         });
       }
 
@@ -1923,13 +1926,13 @@ Be constructive and educational, not judgmental.`;
         },
       ];
 
-      const profileCounts: Record<string, { count: number; label: string }> = {};
+      const profileData: Record<string, { count: number; label: string; sessionIds: string[] }> = {};
       for (const rule of STYLE_RULES) {
-        profileCounts[rule.label] = { count: 0, label: rule.labelEs };
+        profileData[rule.label] = { count: 0, label: rule.labelEs, sessionIds: [] };
       }
-      profileCounts["balanced"] = { count: 0, label: "Perfil Equilibrado" };
+      profileData["balanced"] = { count: 0, label: "Perfil Equilibrado", sessionIds: [] };
 
-      for (const [_, compScores] of Object.entries(studentProfiles)) {
+      for (const [sessionId, compScores] of Object.entries(studentProfiles)) {
         const avgs: Record<string, number> = {};
         for (const [comp, vals] of Object.entries(compScores)) {
           avgs[comp.toLowerCase()] = vals.reduce((s, v) => s + v, 0) / vals.length;
@@ -1937,19 +1940,42 @@ Be constructive and educational, not judgmental.`;
         let matched = false;
         for (const rule of STYLE_RULES) {
           if (rule.test(avgs)) {
-            profileCounts[rule.label].count++;
+            profileData[rule.label].count++;
+            profileData[rule.label].sessionIds.push(sessionId);
             matched = true;
             break;
           }
         }
         if (!matched) {
-          profileCounts["balanced"].count++;
+          profileData["balanced"].count++;
+          profileData["balanced"].sessionIds.push(sessionId);
         }
       }
 
-      const styleProfiles = Object.entries(profileCounts)
+      const extractPhrases = (sessionIds: string[], maxPhrases: number = 3): string[] => {
+        const phrases: string[] = [];
+        for (const sid of sessionIds) {
+          if (phrases.length >= maxPhrases) break;
+          const turns = allTurns.filter(t => t.sessionId === sid);
+          for (const t of turns) {
+            if (phrases.length >= maxPhrases) break;
+            const input = t.studentInput.trim();
+            if (input.length > 20 && input.length < 200) {
+              phrases.push(input.length > 120 ? input.substring(0, 117) + "..." : input);
+            }
+          }
+        }
+        return phrases;
+      };
+
+      const styleProfiles = Object.entries(profileData)
         .filter(([_, v]) => v.count > 0)
-        .map(([key, v]) => ({ key, label: v.label, count: v.count }))
+        .map(([key, v]) => ({
+          key,
+          label: v.label,
+          count: v.count,
+          representativePhrases: extractPhrases(v.sessionIds),
+        }))
         .sort((a, b) => b.count - a.count);
 
       // 4. Class Strengths (most common high-scoring competencies)
@@ -1977,8 +2003,8 @@ Be constructive and educational, not judgmental.`;
         .slice(0, 8);
 
       res.json({
-        totalStudents: activeSessions.length,
-        completedStudents: activeSessions.filter(s => s.status === "completed").length,
+        totalStudents: allSessions.length,
+        completedStudents: allSessions.filter(s => s.status === "completed").length,
         decisionDistribution,
         stuckNodes,
         styleProfiles,
