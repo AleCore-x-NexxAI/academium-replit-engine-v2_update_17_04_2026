@@ -696,6 +696,52 @@ const CHART_COLORS = [
   "hsl(var(--chart-5))",
 ];
 
+const COMPETENCY_LABELS_ES: Record<string, string> = {
+  decisiondecisiveness: "Decisión y Determinación",
+  decisiveness: "Determinación",
+  ethicalreasoning: "Razonamiento Ético",
+  stakeholderempathy: "Empatía con Stakeholders",
+  stakeholderawareness: "Conciencia de Stakeholders",
+  strategicthinking: "Pensamiento Estratégico",
+  financialanalysis: "Análisis Financiero",
+  financial_analysis: "Análisis Financiero",
+  riskassessment: "Evaluación de Riesgos",
+  risk_assessment: "Evaluación de Riesgos",
+  riskmanagement: "Gestión de Riesgos",
+  communication: "Comunicación",
+  comunicación: "Comunicación",
+  leadership: "Liderazgo",
+  liderazgo: "Liderazgo",
+  teammanagement: "Gestión de Equipos",
+  team_management: "Gestión de Equipos",
+  budgetmanagement: "Gestión Presupuestaria",
+  budget_management: "Gestión Presupuestaria",
+  costanalysis: "Análisis de Costos",
+  cost_analysis: "Análisis de Costos",
+  problemsolving: "Resolución de Problemas",
+  criticalthinking: "Pensamiento Crítico",
+  negotiation: "Negociación",
+  adaptability: "Adaptabilidad",
+  innovation: "Innovación",
+  timemanagement: "Gestión del Tiempo",
+  conflictresolution: "Resolución de Conflictos",
+  dataanalysis: "Análisis de Datos",
+  changemanagement: "Gestión del Cambio",
+  customerorientation: "Orientación al Cliente",
+  sustainability: "Sostenibilidad",
+  compliance: "Cumplimiento Normativo",
+};
+
+function translateCompetency(name: string): string {
+  const key = name.replace(/[_\s-]/g, "").toLowerCase();
+  if (COMPETENCY_LABELS_ES[key]) return COMPETENCY_LABELS_ES[key];
+  const withSpaces = name
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .trim();
+  return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
+}
+
 const NUDGE_HEAT_COLORS = [
   { threshold: 0, bg: "bg-emerald-100 dark:bg-emerald-950/40", text: "text-emerald-700 dark:text-emerald-300" },
   { threshold: 20, bg: "bg-yellow-100 dark:bg-yellow-950/40", text: "text-yellow-700 dark:text-yellow-300" },
@@ -802,7 +848,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
                 </div>
 
                 {dd.format === "multiple_choice" && dd.choices.length > 0 ? (
-                  <div className="h-48">
+                  <div style={{ height: Math.max(180, dd.choices.length * 52) }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dd.choices} layout="vertical" margin={{ left: 10, right: 30 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -810,13 +856,23 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
                         <YAxis
                           type="category"
                           dataKey="option"
-                          width={150}
-                          tick={{ fontSize: 11 }}
+                          width={200}
+                          tick={(props: any) => {
+                            const { x, y, payload } = props;
+                            const label = payload.value.length > 40
+                              ? payload.value.substring(0, 37) + "..."
+                              : payload.value;
+                            return (
+                              <text x={x} y={y} dy={4} textAnchor="end" fontSize={11} fill="currentColor">
+                                {label}
+                              </text>
+                            );
+                          }}
                         />
                         <RechartsTooltip
                           formatter={(value: number, _: string, props: any) => [
                             `${value}% (${props.payload.count} estudiantes)`,
-                            "Porcentaje",
+                            props.payload.option,
                           ]}
                         />
                         <Bar dataKey="percentage" radius={[0, 4, 4, 0]}>
@@ -948,7 +1004,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
               const pct = (strength.averageScore / 5) * 100;
               return (
                 <div key={strength.name} className="flex items-center gap-3" data-testid={`strength-${strength.name}`}>
-                  <span className="text-sm w-48 truncate capitalize">{strength.name}</span>
+                  <span className="text-sm w-48 truncate">{translateCompetency(strength.name)}</span>
                   <div className="flex-1">
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
