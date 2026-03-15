@@ -1784,7 +1784,10 @@ Be constructive and educational, not judgmental.`;
         totalResponses: number;
       }> = [];
 
-      const maxTurn = allTurns.reduce((max, t) => Math.max(max, t.turnNumber), 0);
+      const maxTurn = Math.max(
+        allTurns.reduce((max, t) => Math.max(max, t.turnNumber), 0),
+        decisionPoints.length
+      );
       for (let dn = 1; dn <= maxTurn; dn++) {
         const dp = decisionPoints.find(d => d.number === dn);
         const turnsAtStep = allTurns.filter(t => t.turnNumber === dn);
@@ -1812,7 +1815,6 @@ Be constructive and educational, not judgmental.`;
             prompt: dp.prompt || `Decisión ${dn}`,
             format: "multiple_choice",
             choices: Object.entries(choiceCounts)
-              .filter(([_, c]) => c > 0)
               .map(([option, count]) => ({
                 option,
                 count,
