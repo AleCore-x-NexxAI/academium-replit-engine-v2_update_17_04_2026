@@ -292,7 +292,13 @@ export default function Simulation() {
       return { interval };
     },
     onSuccess: (response, input) => {
-      setLastTurnStatus(response.turnStatus || null);
+      const status = response.turnStatus || null;
+      setLastTurnStatus(status);
+      if (status === "block" && !response.requiresRevision) {
+        setValidationError(response.narrative?.text || "Tu respuesta no pudo procesarse. Intenta reformularla.");
+        queryClient.invalidateQueries({ queryKey: ["/api/simulations", sessionId] });
+        return;
+      }
       if (response.requiresRevision) {
         handleRevisionRequest(response);
       } else {

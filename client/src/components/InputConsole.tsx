@@ -87,7 +87,7 @@ export function InputConsole({
     setIsSubmitting(true);
     try {
       const response = await onSubmit(submissionText);
-      if (response?.requiresRevision || response?.turnStatus === "nudge") {
+      if (response?.requiresRevision || response?.turnStatus === "nudge" || response?.turnStatus === "block") {
       } else {
         setInput("");
         setSelectedOption("");
