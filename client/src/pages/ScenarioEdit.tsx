@@ -216,6 +216,7 @@ export default function ScenarioEdit() {
           requiresJustification: true,
           includesReflection: false,
           focusCue: "Considera los factores clave antes de decidir.",
+          thinkingScaffold: ["Stakeholders clave", "Trade-offs principales", "Consecuencias futuras"],
           depthStrictness: "standard",
         });
       }

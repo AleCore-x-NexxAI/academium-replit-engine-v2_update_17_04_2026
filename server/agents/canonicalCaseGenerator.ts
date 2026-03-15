@@ -261,7 +261,8 @@ Recuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuestas corr
     options: dp.options || undefined,
     requiresJustification: dp.requiresJustification ?? (index > 0),
     includesReflection: dp.includesReflection ?? false,
-    focusCue: dp.focusCue || defaultFocusCues[index] || defaultFocusCues[0],
+    focusCue: dp.focusCue || defaultFocusCues[index % defaultFocusCues.length],
+    thinkingScaffold: Array.isArray(dp.thinkingScaffold) ? dp.thinkingScaffold : undefined,
   }));
 
   while (decisionPoints.length < effectiveSteps) {
@@ -274,6 +275,7 @@ Recuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuestas corr
       requiresJustification: num > 1,
       includesReflection: false,
       focusCue: defaultFocusCues[(num - 1) % defaultFocusCues.length],
+      thinkingScaffold: ["Stakeholders clave", "Trade-offs principales", "Consecuencias futuras"],
     });
   }
 

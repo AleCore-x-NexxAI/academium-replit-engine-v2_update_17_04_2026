@@ -613,7 +613,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         rubric: session.scenario?.rubric || undefined,
         // POC: Decision tracking
         indicators: session.currentState.indicators || initialState?.indicators,
-        totalDecisions: initialState?.totalDecisions || 0,
+        totalDecisions: initialState?.totalDecisions || initialState?.decisionPoints?.length || 3,
         currentDecision: session.currentState.currentDecision || 1,
         decisionPoints: initialState?.decisionPoints,
         // Per-scenario LLM configuration
