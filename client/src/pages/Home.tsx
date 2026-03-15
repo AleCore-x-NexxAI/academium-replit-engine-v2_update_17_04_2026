@@ -13,7 +13,6 @@ import {
   BookOpen,
   ChevronRight,
   Pencil,
-  Bug,
   BarChart3,
   CheckCircle2,
   Calendar,
@@ -411,14 +410,6 @@ export default function Home() {
           <div className="flex items-center gap-3">
             {/* Minimal header for first-time flow */}
             {showRoleSwitcher && user && <RoleSwitcher user={user} />}
-
-            {user?.isSuperAdmin && (
-              <Button variant="ghost" size="icon" asChild data-testid="link-bug-reports">
-                <Link href="/bug-reports">
-                  <Bug className="w-4 h-4" />
-                </Link>
-              </Button>
-            )}
 
             <div className="flex items-center gap-2">
               <Avatar className="w-8 h-8">

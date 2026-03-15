@@ -18,11 +18,9 @@ import ProfessorDashboard from "@/pages/ProfessorDashboard";
 import ScenarioEdit from "@/pages/ScenarioEdit";
 import ScenarioAnalytics from "@/pages/ScenarioAnalytics";
 import SimulationManagement from "@/pages/SimulationManagement";
-import BugReports from "@/pages/BugReports";
 import Settings from "@/pages/Settings";
 import AiCostDashboard from "@/pages/AiCostDashboard";
 import NotFound from "@/pages/not-found";
-import { BugReportButton } from "@/components/BugReportButton";
 import { OnboardingModal } from "@/components/OnboardingModal";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import type { User } from "@shared/schema";
@@ -79,11 +77,6 @@ function AuthenticatedApp() {
             </RoleProtectedRoute>
           )}
         </Route>
-        <Route path="/bug-reports">
-          <RoleProtectedRoute allowedRoles={["admin"]}>
-            <BugReports />
-          </RoleProtectedRoute>
-        </Route>
         <Route path="/settings">
           <RoleProtectedRoute allowedRoles={["admin"]}>
             <Settings />
@@ -96,7 +89,6 @@ function AuthenticatedApp() {
         </Route>
         <Route component={NotFound} />
       </Switch>
-      {user?.isSuperAdmin && <BugReportButton />}
       {user && <OnboardingModal user={user} />}
     </>
   );
@@ -114,7 +106,6 @@ function Router() {
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/select-role" component={RoleSelection} />
-        <Route path="/bug-reports" component={BugReports} />
         <Route component={Landing} />
       </Switch>
     );
