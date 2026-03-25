@@ -14,6 +14,8 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
+  Plus,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -131,6 +133,8 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [canonicalCase, setCanonicalCase] = useState<CanonicalCaseData | null>(null);
   const [scenarioData, setScenarioData] = useState<GeneratedScenarioData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [conceptTags, setConceptTags] = useState<string[]>([]);
+  const [conceptTagInput, setConceptTagInput] = useState("");
   const { toast } = useToast();
 
   // Expose handleBack method to parent
@@ -166,6 +170,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
       setDraftId(data.draft.id);
       setCanonicalCase(data.canonicalCase);
       setScenarioData(data.scenarioData);
+      if (data.scenarioData?.courseConcepts?.length) {
+        setConceptTags(data.scenarioData.courseConcepts);
+      } else if (data.canonicalCase?.learningObjectives?.length) {
+        setConceptTags(data.canonicalCase.learningObjectives.slice(0, 5));
+      }
       toast({
         title: "Caso generado",
         description: "Revisa y edita el caso antes de publicar.",
@@ -184,8 +193,9 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!draftId || !scenarioData) throw new Error("No draft to save");
+      const dataWithConcepts = { ...scenarioData, courseConcepts: conceptTags.length > 0 ? conceptTags : undefined };
       const response = await apiRequest("PUT", `/api/canonical-case/${draftId}`, {
-        scenarioData,
+        scenarioData: dataWithConcepts,
       });
       return response.json();
     },
@@ -207,7 +217,9 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
   const publishMutation = useMutation({
     mutationFn: async () => {
-      if (!draftId) throw new Error("No draft to publish");
+      if (!draftId || !scenarioData) throw new Error("No draft to publish");
+      const dataWithConcepts = { ...scenarioData, courseConcepts: conceptTags.length > 0 ? conceptTags : undefined };
+      await apiRequest("PUT", `/api/canonical-case/${draftId}`, { scenarioData: dataWithConcepts });
       const response = await apiRequest("POST", `/api/drafts/${draftId}/publish`);
       return response.json();
     },
@@ -732,6 +744,77 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   <span className="text-sm">{obj}</span>
                 </div>
               ))}
+            </div>
+          </EditableSection>
+
+          <EditableSection title="Conceptos del Curso" icon={Tag} defaultExpanded={true}>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Etiqueta con conceptos del curso (3–8) para habilitar analíticas por concepto.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={conceptTagInput}
+                  onChange={(e) => setConceptTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = conceptTagInput.trim();
+                      if (val && !conceptTags.includes(val) && conceptTags.length < 8) {
+                        setConceptTags(prev => [...prev, val]);
+                        setConceptTagInput("");
+                      }
+                    }
+                  }}
+                  placeholder="Escribe un concepto y presiona Enter..."
+                  disabled={conceptTags.length >= 8}
+                  data-testid="input-concept-tag"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={!conceptTagInput.trim() || conceptTags.includes(conceptTagInput.trim()) || conceptTags.length >= 8}
+                  onClick={() => {
+                    const val = conceptTagInput.trim();
+                    if (val && !conceptTags.includes(val) && conceptTags.length < 8) {
+                      setConceptTags(prev => [...prev, val]);
+                      setConceptTagInput("");
+                    }
+                  }}
+                  data-testid="button-add-concept-tag"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              {conceptTags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {conceptTags.map((tag, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="gap-1 pr-1"
+                      data-testid={`badge-concept-tag-${index}`}
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => setConceptTags(prev => prev.filter((_, i) => i !== index))}
+                        className="ml-1 rounded-full p-0.5"
+                        data-testid={`button-remove-concept-tag-${index}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {conceptTags.length > 0 && conceptTags.length < 3 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Se recomiendan al menos 3 conceptos para analíticas significativas.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">{conceptTags.length}/8 conceptos</p>
             </div>
           </EditableSection>
 

@@ -1178,7 +1178,19 @@ export default function ScenarioAnalytics() {
             </Button>
             <div>
               <h1 className="text-xl font-semibold">{scenario?.title || "Análisis de Escenario"}</h1>
-              <p className="text-sm text-muted-foreground">{scenario?.domain}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm text-muted-foreground">{scenario?.domain}</p>
+                {scenario?.courseConcepts && scenario.courseConcepts.length > 0 && (
+                  <>
+                    <span className="text-muted-foreground text-xs">|</span>
+                    {scenario.courseConcepts.map((concept, i) => (
+                      <Badge key={i} variant="outline" className="text-xs" data-testid={`badge-analytics-concept-${i}`}>
+                        {concept}
+                      </Badge>
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-2">

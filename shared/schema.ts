@@ -73,6 +73,7 @@ export const scenarios = pgTable("scenarios", {
   isStarted: boolean("is_started").default(false).notNull(), // Professor controls when students can start
   isGlobalDemo: boolean("is_global_demo").default(false).notNull(), // Global demo visible to all students
   joinCode: varchar("join_code", { length: 10 }), // Kahoot-style join code for students
+  courseConcepts: text("course_concepts").array(), // Course concept tags (3-8 tags) for analytics
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -420,6 +421,7 @@ export interface GeneratedScenarioData {
   rubric: Rubric;
   isComplete: boolean;
   confidence: number; // 0-100 - how confident the AI is about this scenario
+  courseConcepts?: string[];
 }
 
 export interface DraftConversationMessage {

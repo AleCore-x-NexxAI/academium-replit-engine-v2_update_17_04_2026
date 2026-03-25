@@ -498,6 +498,8 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | undefined>();
   const [rubricFile, setRubricFile] = useState<UploadedFile | undefined>();
   const [customKpis, setCustomKpis] = useState<CustomKPIInput[]>([]);
+  const [courseConcepts, setCourseConcepts] = useState<string[]>([]);
+  const [conceptInput, setConceptInput] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "player"]));
   const { toast } = useToast();
 
@@ -659,6 +661,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
           learningObjectives: parseTextList(data.learningObjectivesText).length > 0 ? parseTextList(data.learningObjectivesText) : undefined,
         },
         rubric,
+        courseConcepts: courseConcepts.length > 0 ? courseConcepts : undefined,
         isPublished: true,
       });
     },
@@ -668,6 +671,8 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
       setUploadedFile(undefined);
       setRubricFile(undefined);
       setCustomKpis([]);
+      setCourseConcepts([]);
+      setConceptInput("");
       onSuccess();
     },
     onError: (error) => {
@@ -1138,6 +1143,91 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     </FormItem>
                   )}
                 />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* SECTION 6B: Course Concepts */}
+        <div className="space-y-4">
+          <SectionHeader id="concepts" title="Conceptos del Curso" />
+          <AnimatePresence>
+            {expandedSections.has("concepts") && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4 overflow-hidden"
+              >
+                <p className="text-sm text-muted-foreground">
+                  Etiqueta este escenario con conceptos del curso (3–8 tags). Esto habilita analíticas por concepto.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    value={conceptInput}
+                    onChange={(e) => setConceptInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const val = conceptInput.trim();
+                        if (val && !courseConcepts.includes(val) && courseConcepts.length < 8) {
+                          setCourseConcepts(prev => [...prev, val]);
+                          setConceptInput("");
+                        }
+                      }
+                    }}
+                    placeholder="Escribe un concepto y presiona Enter..."
+                    disabled={courseConcepts.length >= 8}
+                    data-testid="input-course-concept"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={!conceptInput.trim() || courseConcepts.includes(conceptInput.trim()) || courseConcepts.length >= 8}
+                    onClick={() => {
+                      const val = conceptInput.trim();
+                      if (val && !courseConcepts.includes(val) && courseConcepts.length < 8) {
+                        setCourseConcepts(prev => [...prev, val]);
+                        setConceptInput("");
+                      }
+                    }}
+                    data-testid="button-add-concept"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                {courseConcepts.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {courseConcepts.map((concept, index) => (
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="gap-1 pr-1"
+                        data-testid={`badge-concept-${index}`}
+                      >
+                        {concept}
+                        <button
+                          type="button"
+                          onClick={() => setCourseConcepts(prev => prev.filter((_, i) => i !== index))}
+                          className="ml-1 rounded-full p-0.5"
+                          data-testid={`button-remove-concept-${index}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                {courseConcepts.length > 0 && courseConcepts.length < 3 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Se recomiendan al menos 3 conceptos para habilitar analíticas significativas.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {courseConcepts.length}/8 conceptos
+                </p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -2114,6 +2204,20 @@ function ScenarioListItem({
           <p className="text-sm text-muted-foreground line-clamp-2">
             {scenario.description}
           </p>
+          {scenario.courseConcepts && scenario.courseConcepts.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {scenario.courseConcepts.slice(0, 4).map((concept, i) => (
+                <Badge key={i} variant="outline" className="text-xs" data-testid={`badge-card-concept-${i}`}>
+                  {concept}
+                </Badge>
+              ))}
+              {scenario.courseConcepts.length > 4 && (
+                <Badge variant="outline" className="text-xs text-muted-foreground">
+                  +{scenario.courseConcepts.length - 4}
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

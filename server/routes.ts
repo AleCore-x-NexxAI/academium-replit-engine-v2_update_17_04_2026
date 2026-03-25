@@ -46,6 +46,7 @@ const createScenarioSchema = z.object({
   domain: z.string().min(1),
   llmModel: llmModelSchema.optional(),
   agentPrompts: agentPromptsSchema,
+  courseConcepts: z.array(z.string()).optional(),
   initialState: z.object({
     role: z.string(),
     objective: z.string(),
@@ -1648,6 +1649,7 @@ Be constructive and educational, not judgmental.`;
         domain: generatedScenario.domain,
         initialState: generatedScenario.initialState,
         rubric: generatedScenario.rubric,
+        courseConcepts: generatedScenario.courseConcepts || null,
         isPublished: true,
       });
 
