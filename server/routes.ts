@@ -46,7 +46,7 @@ const createScenarioSchema = z.object({
   domain: z.string().min(1),
   llmModel: llmModelSchema.optional(),
   agentPrompts: agentPromptsSchema,
-  courseConcepts: z.array(z.string()).optional(),
+  courseConcepts: z.array(z.string()).max(8).optional(),
   initialState: z.object({
     role: z.string(),
     objective: z.string(),
