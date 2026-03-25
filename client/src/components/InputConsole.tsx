@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Loader2, BarChart3, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,11 +62,22 @@ export function InputConsole({
 
   // POC: Hints removed - handleRequestHint removed per spec
 
+  const justificationRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     if (!isProcessing && textareaRef.current) {
       textareaRef.current.focus();
     }
   }, [isProcessing]);
+
+  const autoResize = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }, []);
+
+  useEffect(() => { autoResize(textareaRef.current); }, [input, autoResize]);
+  useEffect(() => { autoResize(justificationRef.current); }, [justification, autoResize]);
 
   const handleSubmit = async () => {
     let submissionText = "";
@@ -114,7 +125,7 @@ export function InputConsole({
     : !!input.trim();
 
   return (
-    <div className="border-t-2 border-border bg-background p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+    <div className="border-t-2 border-border bg-background p-4 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] max-h-[50vh] overflow-y-auto">
       {pendingRevision && revisionPrompt && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -326,11 +337,13 @@ export function InputConsole({
                 Justifica tu decisión
               </Label>
               <Textarea
+                ref={justificationRef}
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
                 placeholder="Explica por qué elegiste esta opción..."
                 disabled={isDisabled}
-                className="min-h-20 resize-none text-sm"
+                rows={2}
+                className="max-h-[120px] overflow-y-auto resize-none text-sm"
                 data-testid="input-justification"
               />
             </motion.div>
@@ -354,7 +367,8 @@ export function InputConsole({
                   : "¿Cuál es tu decisión?"
               }
               disabled={isDisabled}
-              className="min-h-16 max-h-32 resize-none text-base"
+              rows={2}
+              className="max-h-[120px] overflow-y-auto resize-none text-base"
               data-testid="input-decision"
             />
           </div>
