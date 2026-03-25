@@ -1903,6 +1903,7 @@ Be constructive and educational, not judgmental.`;
           conceptGaps: [],
           reasoningPatterns: [],
           teachingRecommendations: [],
+          hasCourseConcepts: !!((scenario as any).courseConcepts?.length),
         });
       }
 
@@ -2414,6 +2415,7 @@ Be constructive and educational, not judgmental.`;
         conceptGaps: cappedConceptGaps,
         reasoningPatterns: cappedReasoningPatterns,
         teachingRecommendations,
+        hasCourseConcepts: courseConcepts.length > 0,
       });
     } catch (error) {
       console.error("Error fetching cohort analytics:", error);

@@ -705,6 +705,7 @@ interface CohortAnalyticsData {
     count: number;
   }>;
   teachingRecommendations?: string[];
+  hasCourseConcepts?: boolean;
 }
 
 const CHART_COLORS = [
@@ -789,7 +790,7 @@ const PROFILE_COLORS: Record<string, string> = {
   balanced: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 };
 
-function ConceptGapsSection({ conceptGaps }: { conceptGaps?: CohortAnalyticsData["conceptGaps"] }) {
+function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: CohortAnalyticsData["conceptGaps"]; hasCourseConcepts?: boolean }) {
   const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
 
   if (!conceptGaps || conceptGaps.length === 0) {
@@ -802,7 +803,9 @@ function ConceptGapsSection({ conceptGaps }: { conceptGaps?: CohortAnalyticsData
         <div className="text-center py-6">
           <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">
-            Sin conceptos configurados. Agrega etiquetas de conceptos del curso en el editor para habilitar esta sección.
+            {hasCourseConcepts
+              ? "Sin datos suficientes aún. Las brechas conceptuales aparecerán cuando los estudiantes completen decisiones."
+              : "Sin conceptos configurados. Agrega etiquetas de conceptos del curso en el editor para habilitar esta sección."}
           </p>
         </div>
       </Card>
@@ -1248,7 +1251,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
         </Card>
       )}
 
-      <ConceptGapsSection conceptGaps={data.conceptGaps} />
+      <ConceptGapsSection conceptGaps={data.conceptGaps} hasCourseConcepts={data.hasCourseConcepts} />
       <ReasoningPatternsSection reasoningPatterns={data.reasoningPatterns} />
       <TeachingRecommendationsSection recommendations={data.teachingRecommendations} />
     </div>
