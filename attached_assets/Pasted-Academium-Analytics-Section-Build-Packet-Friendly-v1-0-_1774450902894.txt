@@ -1,0 +1,82 @@
+Academium — Analytics Section Build Packet (Friendly) v1.0
+
+Owner: Alejandro (Alecore)
+Audience: Santiago / Dev team
+Priority: Build today (v1 foundation)
+Goal: Add analytics that help professors + the institution improve courses — not grading, not ranking.
+
+1) What we’re trying to achieve (simple)
+
+Right now professors only see the full chat transcript. That’s too dense to use for improving teaching.
+
+We need analytics that answer these 3 practical questions:
+
+Concept gaps: What topics/concepts did students struggle with most?
+Reasoning patterns: How are students thinking (patterns), not “scores”?
+Teaching recommendations: What should the professor tweak next week?
+
+If the analytics don’t answer those, they’re noise.
+
+2) Non-negotiables (so we don’t create “grading vibes”)
+No grades. No ranking. No correct/incorrect.
+Language should say “signals / patterns / insights” not “performance.”
+Keep it lean: 3 sections only and hard cap ~7 signals total for v1.
+3) MUST: Add “Course Concept Tags” (this unlocks institutional analytics)
+Why
+
+We cannot honestly say “students struggled with ___ concept” unless scenarios are tagged to course concepts.
+
+What to build
+
+In professor scenario creation, add:
+
+Course Concepts (3–8 tags)
+multi-select list + allow custom tags
+saved on the scenario
+
+✅ Acceptance: professor creates a scenario, tags it with concepts, and those tags appear in the analytics rollups.
+
+4) Analytics UI — 3 Sections (v1)
+Section A — Concept Gaps (Class view)
+
+What it should show: a simple view of which concepts caused the most friction.
+
+Signals (simple + buildable):
+
+Validation friction: how often students got “answer too short / not accepted” in scenarios tagged with that concept
+Time friction: which steps took longest (D2/D3) for scenarios tagged with that concept
+Evidence use signal: whether students referenced scenario facts (basic heuristic)
+
+✅ Acceptance: professor opens Class Analytics and sees:
+
+top 3 concepts with friction
+click concept → see 2–3 anonymized examples + which step was hardest
+Section B — Reasoning Patterns (Class view)
+
+What it should show: patterns across the class — not a score per student.
+
+Pattern tags (start with 4–6 max):
+
+Mentions trade-offs (yes/no)
+Mentions stakeholders (yes/no)
+Mentions risk + mitigation (yes/no)
+Evidence-based vs generic (scenario references)
+Uncertainty/assumption awareness (optional, basic)
+Reflection: “what I’d do differently” present (yes/no)
+
+✅ Acceptance: Class view shows a simple distribution like:
+
+“60% mentioned trade-offs”
+“35% proposed mitigation”
+No ranking.
+Section C — Teaching Recommendations (Auto-summary)
+
+What it should show: 3 bullets a professor can actually use.
+
+Example format:
+
+“Top concept gaps: ___, ___”
+“Most common friction: ___ (e.g., too-short answers / time on step 2)”
+“Next teaching move: add a 60-second scaffold before D2 (priority + reason + risk).”
+
+✅ Acceptance: after a class run, professor can copy/export a 1-page “Insights for teaching” note.
