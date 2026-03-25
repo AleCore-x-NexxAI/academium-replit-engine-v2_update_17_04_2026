@@ -2246,6 +2246,169 @@ function ScenarioListItem({
   );
 }
 
+function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; onBack: () => void; onManage: () => void }) {
+  const [editConcepts, setEditConcepts] = useState<string[]>(scenario.courseConcepts || []);
+  const [editConceptInput, setEditConceptInput] = useState("");
+  const { toast } = useToast();
+
+  const saveConceptsMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("PUT", `/api/scenarios/${scenario.id}`, {
+        courseConcepts: editConcepts.length > 0 ? editConcepts : null,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Conceptos guardados", description: "Los conceptos del curso se actualizaron." });
+      queryClient.invalidateQueries({ queryKey: ["/api/scenarios/authored"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenario.id] });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "No se pudieron guardar los conceptos.", variant: "destructive" });
+    },
+  });
+
+  const conceptsChanged = JSON.stringify(editConcepts) !== JSON.stringify(scenario.courseConcepts || []);
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold mb-4">Editar Simulación</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Título</label>
+            <p className="text-lg font-semibold">{scenario.title}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Dominio</label>
+            <p className="text-sm">{scenario.domain}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">Descripción</label>
+            <p className="text-sm">{scenario.description}</p>
+          </div>
+          {scenario.initialState?.caseContext && (
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Contexto del Caso</label>
+              <p className="text-sm whitespace-pre-wrap">{scenario.initialState.caseContext}</p>
+            </div>
+          )}
+          {scenario.initialState?.decisionPoints && scenario.initialState.decisionPoints.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Puntos de Decisión ({scenario.initialState.decisionPoints.length})</label>
+              <div className="space-y-2 mt-2">
+                {scenario.initialState.decisionPoints.map((dp, idx) => (
+                  <Card key={idx} className="p-3 bg-muted/50">
+                    <p className="text-sm font-medium">Decisión {idx + 1}: {dp.prompt}</p>
+                    <p className="text-xs text-muted-foreground">Formato: {dp.format === "multiple_choice" ? "Opción múltiple" : "Respuesta escrita"}</p>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-4 border-t">
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">Conceptos del Curso</label>
+            <p className="text-xs text-muted-foreground mb-3">
+              Etiqueta con conceptos del curso (3–8) para habilitar analíticas por concepto.
+            </p>
+            <div className="flex gap-2 mb-3">
+              <Input
+                value={editConceptInput}
+                onChange={(e) => setEditConceptInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const val = editConceptInput.trim();
+                    if (val && !editConcepts.includes(val) && editConcepts.length < 8) {
+                      setEditConcepts(prev => [...prev, val]);
+                      setEditConceptInput("");
+                    }
+                  }
+                }}
+                placeholder="Escribe un concepto y presiona Enter..."
+                disabled={editConcepts.length >= 8}
+                data-testid="input-edit-course-concept"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={!editConceptInput.trim() || editConcepts.includes(editConceptInput.trim()) || editConcepts.length >= 8}
+                onClick={() => {
+                  const val = editConceptInput.trim();
+                  if (val && !editConcepts.includes(val) && editConcepts.length < 8) {
+                    setEditConcepts(prev => [...prev, val]);
+                    setEditConceptInput("");
+                  }
+                }}
+                data-testid="button-add-edit-concept"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+            {editConcepts.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {editConcepts.map((concept, i) => (
+                  <Badge
+                    key={i}
+                    variant="secondary"
+                    className="gap-1 pr-1"
+                    data-testid={`badge-edit-concept-${i}`}
+                  >
+                    {concept}
+                    <button
+                      type="button"
+                      onClick={() => setEditConcepts(prev => prev.filter((_, idx) => idx !== i))}
+                      className="ml-1 rounded-full p-0.5"
+                      data-testid={`button-remove-edit-concept-${i}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {editConcepts.length > 0 && editConcepts.length < 3 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Se recomiendan al menos 3 conceptos para analíticas significativas.
+              </p>
+            )}
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-muted-foreground">{editConcepts.length}/8 conceptos</p>
+              {conceptsChanged && (
+                <Button
+                  size="sm"
+                  onClick={() => saveConceptsMutation.mutate()}
+                  disabled={saveConceptsMutation.isPending}
+                  data-testid="button-save-concepts"
+                >
+                  {saveConceptsMutation.isPending ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <Check className="w-3 h-3 mr-1" />
+                  )}
+                  Guardar Conceptos
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-6 pt-4 border-t">
+          <Button variant="outline" onClick={onBack}>
+            Volver al Listado
+          </Button>
+          <Button onClick={onManage}>
+            Gestionar Simulación
+          </Button>
+        </div>
+      </Card>
+      <p className="text-sm text-muted-foreground text-center">
+        La edición completa estará disponible próximamente. Usa "Gestionar Simulación" para ver y administrar esta simulación.
+      </p>
+    </div>
+  );
+}
+
 type AuthoringMode = "list" | "manual" | "canonical" | "edit";
 
 export default function Studio() {
@@ -2399,61 +2562,11 @@ export default function Studio() {
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
               ) : editingScenario ? (
-                <div className="space-y-6">
-                  <Card className="p-6">
-                    <h2 className="text-xl font-semibold mb-4">Editar Simulación</h2>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Título</label>
-                        <p className="text-lg font-semibold">{editingScenario.title}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Dominio</label>
-                        <p className="text-sm">{editingScenario.domain}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Descripción</label>
-                        <p className="text-sm">{editingScenario.description}</p>
-                      </div>
-                      {editingScenario.initialState?.caseContext && (
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Contexto del Caso</label>
-                          <p className="text-sm whitespace-pre-wrap">{editingScenario.initialState.caseContext}</p>
-                        </div>
-                      )}
-                      {(editingScenario as any).decisionPoints && (editingScenario as any).decisionPoints.length > 0 && (
-                        <div>
-                          <label className="text-sm font-medium text-muted-foreground">Puntos de Decisión ({(editingScenario as any).decisionPoints.length})</label>
-                          <div className="space-y-2 mt-2">
-                            {(editingScenario as any).decisionPoints.map((dp: any, idx: number) => (
-                              <Card key={idx} className="p-3 bg-muted/50">
-                                <p className="text-sm font-medium">Decisión {idx + 1}: {dp.prompt}</p>
-                                <p className="text-xs text-muted-foreground">Formato: {dp.format === "multiple_choice" ? "Opción múltiple" : "Respuesta escrita"}</p>
-                              </Card>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-3 mt-6 pt-4 border-t">
-                      <Button 
-                        variant="outline"
-                        onClick={() => {
-                          navigate("/studio");
-                          setAuthoringMode("list");
-                        }}
-                      >
-                        Volver al Listado
-                      </Button>
-                      <Button onClick={() => navigate(`/scenarios/${editScenarioId}/manage`)}>
-                        Gestionar Simulación
-                      </Button>
-                    </div>
-                  </Card>
-                  <p className="text-sm text-muted-foreground text-center">
-                    La edición completa estará disponible próximamente. Usa "Gestionar Simulación" para ver y administrar esta simulación.
-                  </p>
-                </div>
+                <EditScenarioView
+                  scenario={editingScenario}
+                  onBack={() => { navigate("/studio"); setAuthoringMode("list"); }}
+                  onManage={() => navigate(`/scenarios/${editScenarioId}/manage`)}
+                />
               ) : (
                 <Card className="p-6 text-center">
                   <p className="text-muted-foreground">No se encontró la simulación solicitada.</p>
