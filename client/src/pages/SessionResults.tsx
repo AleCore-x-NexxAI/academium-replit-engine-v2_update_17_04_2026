@@ -690,7 +690,6 @@ export default function SessionResults() {
                     explanations={indicatorExplanations[item.key]}
                     direction={(item as any).direction}
                     defaultExpanded={shouldAutoExpand}
-                    language={lang}
                   />
                 );
               });
