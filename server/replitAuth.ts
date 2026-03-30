@@ -6,7 +6,40 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
+import crypto from "crypto";
 import { storage } from "./storage";
+
+function getSigningSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    throw new Error("SESSION_SECRET environment variable is required");
+  }
+  return secret;
+}
+
+function signAdminVerification(timestamp: number): string {
+  const payload = `admin-verified:${timestamp}`;
+  const hmac = crypto.createHmac("sha256", getSigningSecret());
+  hmac.update(payload);
+  return `${timestamp}.${hmac.digest("hex")}`;
+}
+
+function verifyAdminSignature(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 2) return false;
+    const timestamp = parseInt(parts[0], 10);
+    if (isNaN(timestamp)) return false;
+    if (Date.now() - timestamp > 5 * 60 * 1000) return false;
+    const expected = signAdminVerification(timestamp);
+    const tokenBuf = Buffer.from(token);
+    const expectedBuf = Buffer.from(expected);
+    if (tokenBuf.length !== expectedBuf.length) return false;
+    return crypto.timingSafeEqual(tokenBuf, expectedBuf);
+  } catch {
+    return false;
+  }
+}
 
 const getOidcConfig = memoize(
   async () => {
@@ -121,9 +154,9 @@ export async function setupAuth(app: Express) {
         sameSite: "lax",
       });
       
-      // Set verified admin cookie if applicable
       if (role === "admin" && isValidAdminVerification) {
-        res.cookie("isVerifiedAdmin", "true", {
+        const signedToken = signAdminVerification(Date.now());
+        res.cookie("adminVerifyToken", signedToken, {
           httpOnly: true,
           secure: true,
           maxAge: 5 * 60 * 1000,
@@ -161,26 +194,39 @@ export async function setupAuth(app: Express) {
         
         // Get the pending role from cookie (set in /api/login - survives OIDC redirect)
         const pendingRole = req.cookies?.pendingRole as "student" | "professor" | "admin" | undefined;
-        const isVerifiedAdmin = req.cookies?.isVerifiedAdmin === "true";
+        const adminVerifyToken = req.cookies?.adminVerifyToken as string | undefined;
+        const isVerifiedAdmin = adminVerifyToken ? verifyAdminSignature(adminVerifyToken) : false;
         
         console.log(`[Auth] /api/callback - pendingRole from cookie: ${pendingRole}, isVerifiedAdmin: ${isVerifiedAdmin}`);
         
         // Create/update user with the correct role
         if (user.claims?.sub) {
           const claims = user.claims;
-          const role = pendingRole || "student";
-          const isSuperAdmin = role === "admin" && isVerifiedAdmin;
+          let effectiveRole: "student" | "professor" | "admin" = "student";
+          let isSuperAdmin = false;
           
-          console.log(`[Auth] Creating/updating user ${claims.email} with role: ${role}, isSuperAdmin: ${isSuperAdmin}`);
+          if (pendingRole === "admin" && isVerifiedAdmin) {
+            effectiveRole = "admin";
+            isSuperAdmin = true;
+          } else if (pendingRole === "professor") {
+            effectiveRole = "professor";
+          } else if (pendingRole === "student") {
+            effectiveRole = "student";
+          }
           
-          // Use upsertUser with the correct role for the initial creation
-          await upsertUser(claims, role, isSuperAdmin);
+          console.log(`[Auth] Creating/updating user ${claims.email} with role: ${effectiveRole}, isSuperAdmin: ${isSuperAdmin}`);
+          
+          await upsertUser(claims, effectiveRole, isSuperAdmin);
+          
+          if (pendingRole) {
+            await storage.upsertUserWithRole(claims["sub"], effectiveRole, isSuperAdmin);
+            console.log(`[Auth] Explicitly applied role ${effectiveRole} for user ${claims.email}`);
+          }
           
           console.log(`[Auth] User ${claims.email} created/updated successfully`);
           
-          // Clear the pending role cookies
           res.clearCookie("pendingRole");
-          res.clearCookie("isVerifiedAdmin");
+          res.clearCookie("adminVerifyToken");
         }
         
         return res.redirect("/");
@@ -189,10 +235,9 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/logout", (req, res) => {
-    // Clear all auth-related cookies
     res.clearCookie("pendingRole");
-    res.clearCookie("isVerifiedAdmin");
-    res.clearCookie("connect.sid"); // Session cookie
+    res.clearCookie("adminVerifyToken");
+    res.clearCookie("connect.sid");
     
     req.logout(() => {
       // Destroy the session completely
@@ -223,9 +268,8 @@ export async function setupAuth(app: Express) {
       });
     }
     
-    // Clear local session first
     res.clearCookie("connect.sid");
-    res.clearCookie("isVerifiedAdmin");
+    res.clearCookie("adminVerifyToken");
     
     // Build the URL to return to after Replit logout
     const returnUrl = `${req.protocol}://${req.hostname}/api/login${role ? `?role=${role}` : ''}`;

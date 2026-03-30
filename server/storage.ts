@@ -169,26 +169,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUserWithRole(id: string, role: "student" | "professor" | "admin", isSuperAdmin: boolean): Promise<User | undefined> {
-    // Check if user exists
     const existingUser = await this.getUser(id);
     
     if (!existingUser) {
-      // This shouldn't happen - user should be created by upsertUser first
       return undefined;
     }
     
-    // Only update role if user was just created (check if role is still default)
-    // This prevents changing role on subsequent logins
-    if (existingUser.role === "student" && !existingUser.isSuperAdmin) {
-      const [user] = await db
-        .update(users)
-        .set({ role, isSuperAdmin, updatedAt: new Date() })
-        .where(eq(users.id, id))
-        .returning();
-      return user;
-    }
-    
-    return existingUser;
+    const [user] = await db
+      .update(users)
+      .set({ role, isSuperAdmin, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    console.log(`[Storage] Updated user ${id} role to: ${role}, isSuperAdmin: ${isSuperAdmin}`);
+    return user;
   }
 
   async updateUserRole(id: string, role: "student" | "professor" | "admin"): Promise<User | undefined> {
