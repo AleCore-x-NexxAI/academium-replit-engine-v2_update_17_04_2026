@@ -67,6 +67,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User, LlmProvider } from "@shared/schema";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 const profileFormSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(100),
@@ -97,6 +99,7 @@ const PROVIDER_OPTIONS = [
 
 function ProfileSection({ user }: { user: User }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileFormSchema),
@@ -114,14 +117,14 @@ function ProfileSection({ user }: { user: User }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({
-        title: "Profile updated",
-        description: "Your profile has been saved successfully.",
+        title: t("settings.profileUpdated"),
+        description: t("settings.profileSavedDesc"),
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to update profile. Please try again.",
+        title: t("common.error"),
+        description: t("settings.updateProfileError"),
         variant: "destructive",
       });
     },
@@ -149,7 +152,7 @@ function ProfileSection({ user }: { user: User }) {
     <Card className="p-6">
       <div className="flex items-center gap-3 mb-6">
         <UserIcon className="w-5 h-5 text-primary" />
-        <h2 className="text-lg font-semibold">Profile</h2>
+        <h2 className="text-lg font-semibold">{t("settings.profile")}</h2>
       </div>
 
       <div className="flex items-start gap-6 mb-6">
@@ -175,7 +178,7 @@ function ProfileSection({ user }: { user: User }) {
             </Badge>
             {user.isSuperAdmin && (
               <Badge variant="outline" className="border-yellow-500 text-yellow-600">
-                Superadmin
+                {t("settings.superadmin")}
               </Badge>
             )}
           </div>
@@ -190,7 +193,7 @@ function ProfileSection({ user }: { user: User }) {
               name="firstName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>First Name</FormLabel>
+                  <FormLabel>{t("settings.firstName")}</FormLabel>
                   <FormControl>
                     <Input {...field} data-testid="input-first-name" />
                   </FormControl>
@@ -203,7 +206,7 @@ function ProfileSection({ user }: { user: User }) {
               name="lastName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Last Name</FormLabel>
+                  <FormLabel>{t("settings.lastName")}</FormLabel>
                   <FormControl>
                     <Input {...field} data-testid="input-last-name" />
                   </FormControl>
@@ -222,7 +225,7 @@ function ProfileSection({ user }: { user: User }) {
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
-            Save Changes
+            {t("settings.saveChanges")}
           </Button>
         </form>
       </Form>
@@ -240,6 +243,7 @@ function LlmProviderForm({
   onCancel: () => void;
 }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const isEditing = !!provider;
 
   const form = useForm<LlmProviderFormData>({
@@ -262,11 +266,11 @@ function LlmProviderForm({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/llm-providers"] });
-      toast({ title: "LLM provider created successfully" });
+      toast({ title: t("settings.providerCreated") });
       onSuccess();
     },
     onError: () => {
-      toast({ title: "Failed to create LLM provider", variant: "destructive" });
+      toast({ title: t("settings.providerCreateError"), variant: "destructive" });
     },
   });
 
@@ -277,11 +281,11 @@ function LlmProviderForm({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/llm-providers"] });
-      toast({ title: "LLM provider updated successfully" });
+      toast({ title: t("settings.providerUpdated") });
       onSuccess();
     },
     onError: () => {
-      toast({ title: "Failed to update LLM provider", variant: "destructive" });
+      toast({ title: t("settings.providerUpdateError"), variant: "destructive" });
     },
   });
 
@@ -303,11 +307,11 @@ function LlmProviderForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Display Name</FormLabel>
+              <FormLabel>{t("settings.displayName")}</FormLabel>
               <FormControl>
-                <Input {...field} placeholder="e.g., GPT-4o (Fast)" data-testid="input-provider-name" />
+                <Input {...field} placeholder={t("settings.providerNamePlaceholder")} data-testid="input-provider-name" />
               </FormControl>
-              <FormDescription>Name shown in scenario dropdowns</FormDescription>
+              <FormDescription>{t("settings.providerNameDesc")}</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -319,11 +323,11 @@ function LlmProviderForm({
             name="provider"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Provider</FormLabel>
+                <FormLabel>{t("settings.provider")}</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger data-testid="select-provider-type">
-                      <SelectValue placeholder="Select provider" />
+                      <SelectValue placeholder={t("settings.selectProvider")} />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -343,9 +347,9 @@ function LlmProviderForm({
             name="modelId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Model ID</FormLabel>
+                <FormLabel>{t("settings.modelId")}</FormLabel>
                 <FormControl>
-                  <Input {...field} placeholder="e.g., gpt-4o" data-testid="input-model-id" />
+                  <Input {...field} placeholder={t("settings.modelIdPlaceholder")} data-testid="input-model-id" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -358,11 +362,11 @@ function LlmProviderForm({
           name="description"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description (Optional)</FormLabel>
+              <FormLabel>{t("settings.descriptionOptional")}</FormLabel>
               <FormControl>
                 <Textarea
                   {...field}
-                  placeholder="Describe model capabilities, pricing, speed..."
+                  placeholder={t("settings.providerDescPlaceholder")}
                   rows={2}
                   data-testid="input-provider-description"
                 />
@@ -385,7 +389,7 @@ function LlmProviderForm({
                     data-testid="switch-provider-enabled"
                   />
                 </FormControl>
-                <FormLabel className="!mt-0">Enabled</FormLabel>
+                <FormLabel className="!mt-0">{t("settings.enabled")}</FormLabel>
               </FormItem>
             )}
           />
@@ -401,7 +405,7 @@ function LlmProviderForm({
                     data-testid="switch-provider-default"
                   />
                 </FormControl>
-                <FormLabel className="!mt-0">Default for new scenarios</FormLabel>
+                <FormLabel className="!mt-0">{t("settings.defaultForScenarios")}</FormLabel>
               </FormItem>
             )}
           />
@@ -409,7 +413,7 @@ function LlmProviderForm({
 
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel-provider">
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button type="submit" disabled={isPending} data-testid="button-save-provider">
             {isPending ? (
@@ -417,7 +421,7 @@ function LlmProviderForm({
             ) : (
               <Check className="w-4 h-4 mr-2" />
             )}
-            {isEditing ? "Update" : "Create"} Provider
+            {isEditing ? t("settings.updateProvider") : t("settings.createProvider")}
           </Button>
         </div>
       </form>
@@ -427,13 +431,14 @@ function LlmProviderForm({
 
 function AiCostLink() {
   const [, navigate] = useLocation();
+  const { t } = useTranslation();
   return (
     <Card className="cursor-pointer hover-elevate" onClick={() => navigate("/admin/ai-costs")} data-testid="link-ai-costs">
       <CardContent className="flex items-center gap-3 p-4">
         <DollarSign className="w-5 h-5 text-primary" />
         <div>
-          <p className="font-medium">Panel de Costos de IA</p>
-          <p className="text-sm text-muted-foreground">Ver costos reales, uso por proveedor y metricas de consumo</p>
+          <p className="font-medium">{t("aiCostDashboard.title")}</p>
+          <p className="text-sm text-muted-foreground">{t("aiCostDashboard.description")}</p>
         </div>
       </CardContent>
     </Card>
@@ -442,6 +447,7 @@ function AiCostLink() {
 
 function LlmProvidersSection() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<LlmProvider | null>(null);
 
@@ -455,10 +461,10 @@ function LlmProvidersSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/llm-providers"] });
-      toast({ title: "LLM provider deleted" });
+      toast({ title: t("settings.providerDeleted") });
     },
     onError: () => {
-      toast({ title: "Failed to delete provider", variant: "destructive" });
+      toast({ title: t("settings.providerDeleteError"), variant: "destructive" });
     },
   });
 
@@ -471,22 +477,22 @@ function LlmProvidersSection() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Bot className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-semibold">LLM Providers</h2>
+          <h2 className="text-lg font-semibold">{t("settings.llmProviders")}</h2>
           <Badge variant="outline" className="border-yellow-500 text-yellow-600">
             <Crown className="w-3 h-3 mr-1" />
-            Superadmin
+            {t("settings.superadmin")}
           </Badge>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button size="sm" data-testid="button-add-provider">
               <Plus className="w-4 h-4 mr-1" />
-              Add Provider
+              {t("settings.addProvider")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Add LLM Provider</DialogTitle>
+              <DialogTitle>{t("settings.addLlmProvider")}</DialogTitle>
             </DialogHeader>
             <LlmProviderForm
               onSuccess={() => setIsAddDialogOpen(false)}
@@ -497,7 +503,7 @@ function LlmProvidersSection() {
       </div>
 
       <p className="text-sm text-muted-foreground mb-4">
-        Configure AI models available for scenario simulations. Authors can select from enabled providers when editing scenarios.
+        {t("settings.llmProvidersDesc")}
       </p>
 
       {isLoading ? (
@@ -516,10 +522,10 @@ function LlmProvidersSection() {
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium">{provider.name}</span>
                   {provider.isDefault && (
-                    <Badge variant="secondary" className="text-xs">Default</Badge>
+                    <Badge variant="secondary" className="text-xs">{t("settings.defaultBadge")}</Badge>
                   )}
                   {!provider.isEnabled && (
-                    <Badge variant="outline" className="text-xs text-muted-foreground">Disabled</Badge>
+                    <Badge variant="outline" className="text-xs text-muted-foreground">{t("settings.disabledBadge")}</Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -548,7 +554,7 @@ function LlmProvidersSection() {
                   </DialogTrigger>
                   <DialogContent className="max-w-lg">
                     <DialogHeader>
-                      <DialogTitle>Edit LLM Provider</DialogTitle>
+                      <DialogTitle>{t("settings.editLlmProvider")}</DialogTitle>
                     </DialogHeader>
                     {editingProvider && (
                       <LlmProviderForm
@@ -572,18 +578,18 @@ function LlmProvidersSection() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete LLM Provider</AlertDialogTitle>
+                      <AlertDialogTitle>{t("settings.deleteLlmProvider")}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Are you sure you want to delete "{provider.name}"? Scenarios using this model will need to be updated.
+                        {t("settings.deleteProviderConfirm", { name: provider.name })}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={() => deleteMutation.mutate(provider.id)}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
-                        Delete
+                        {t("common.delete")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -595,8 +601,8 @@ function LlmProvidersSection() {
       ) : (
         <div className="text-center py-8 text-muted-foreground">
           <Bot className="w-10 h-10 mx-auto mb-2 opacity-50" />
-          <p>No LLM providers configured yet.</p>
-          <p className="text-sm">Add a provider to enable AI model selection in scenarios.</p>
+          <p>{t("settings.noProviders")}</p>
+          <p className="text-sm">{t("settings.noProvidersDesc")}</p>
         </div>
       )}
     </Card>
@@ -604,6 +610,7 @@ function LlmProvidersSection() {
 }
 
 export default function Settings() {
+  const { t } = useTranslation();
   const { data: user, isLoading } = useQuery<User>({
     queryKey: ["/api/auth/user"],
   });
@@ -619,7 +626,7 @@ export default function Settings() {
   if (!user) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="text-muted-foreground">Please log in to access settings.</p>
+        <p className="text-muted-foreground">{t("settings.pleaseLogin")}</p>
       </div>
     );
   }
@@ -627,9 +634,12 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-8">
-          <SettingsIcon className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-bold">Settings</h1>
+        <div className="flex items-center justify-between gap-3 mb-8">
+          <div className="flex items-center gap-3">
+            <SettingsIcon className="w-6 h-6 text-primary" />
+            <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
+          </div>
+          <LanguageToggle />
         </div>
 
         <div className="space-y-6">

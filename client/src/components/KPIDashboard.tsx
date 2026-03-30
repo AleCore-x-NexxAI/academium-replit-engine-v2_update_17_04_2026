@@ -8,6 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { apiRequest } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
 import type { KPIs, Indicator, MetricExplanation } from "@shared/schema";
 import { t, type SimulationLanguage } from "@/lib/i18n";
 
@@ -32,37 +33,37 @@ interface IndicatorInfo {
   downMeaning: string;
 }
 
-function getIndicatorExplanations(lang: SimulationLanguage): Record<string, IndicatorInfo> {
+function getIndicatorExplanations(t: (key: string, replacements?: Record<string, string | number>) => string): Record<string, IndicatorInfo> {
   return {
     revenue: {
-      description: t("kpi.explain.revenue", lang),
-      upMeaning: t("kpi.explain.revenue.up", lang),
-      downMeaning: t("kpi.explain.revenue.down", lang),
+      description: t("kpiDashboard.revenueDesc"),
+      upMeaning: t("kpiDashboard.revenueUp"),
+      downMeaning: t("kpiDashboard.revenueDown"),
     },
     morale: {
-      description: t("kpi.explain.morale", lang),
-      upMeaning: t("kpi.explain.morale.up", lang),
-      downMeaning: t("kpi.explain.morale.down", lang),
+      description: t("kpiDashboard.moraleDesc"),
+      upMeaning: t("kpiDashboard.moraleUp"),
+      downMeaning: t("kpiDashboard.moraleDown"),
     },
     reputation: {
-      description: t("kpi.explain.reputation", lang),
-      upMeaning: t("kpi.explain.reputation.up", lang),
-      downMeaning: t("kpi.explain.reputation.down", lang),
+      description: t("kpiDashboard.reputationDesc"),
+      upMeaning: t("kpiDashboard.reputationUp"),
+      downMeaning: t("kpiDashboard.reputationDown"),
     },
     efficiency: {
-      description: t("kpi.explain.efficiency", lang),
-      upMeaning: t("kpi.explain.efficiency.up", lang),
-      downMeaning: t("kpi.explain.efficiency.down", lang),
+      description: t("kpiDashboard.efficiencyDesc"),
+      upMeaning: t("kpiDashboard.efficiencyUp"),
+      downMeaning: t("kpiDashboard.efficiencyDown"),
     },
     trust: {
-      description: t("kpi.explain.trust", lang),
-      upMeaning: t("kpi.explain.trust.up", lang),
-      downMeaning: t("kpi.explain.trust.down", lang),
+      description: t("kpiDashboard.trustDesc"),
+      upMeaning: t("kpiDashboard.trustUp"),
+      downMeaning: t("kpiDashboard.trustDown"),
     },
     budgetHealth: {
-      description: t("kpi.explain.budgetHealth", lang),
-      upMeaning: t("kpi.explain.budgetHealth.up", lang),
-      downMeaning: t("kpi.explain.budgetHealth.down", lang),
+      description: t("kpiDashboard.budgetHealthDesc"),
+      upMeaning: t("kpiDashboard.budgetHealthUp"),
+      downMeaning: t("kpiDashboard.budgetHealthDown"),
     },
   };
 }
@@ -95,6 +96,7 @@ interface IndicatorCardProps {
 }
 
 function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, explanation, direction, indicatorDescription, sessionId, language }: IndicatorCardProps) {
+  const { t } = useTranslation();
   const [causalChain, setCausalChain] = useState<string[] | null>(explanation?.causalChain || null);
   const [isLoadingChain, setIsLoadingChain] = useState(false);
 
@@ -109,19 +111,19 @@ function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, 
   const isGoodChange = effectiveDirection === "up_better" ? delta > 0 : delta < 0;
   const isBadChange = effectiveDirection === "up_better" ? delta < 0 : delta > 0;
   
-  const explanations = getIndicatorExplanations(language);
-  const info = explanations[indicatorId];
+  const indicatorExplanations = getIndicatorExplanations(t);
+  const info = indicatorExplanations[indicatorId];
   const hasExplanation = explanation && delta !== 0;
 
   const tooltipDescription = info?.description || indicatorDescription || label;
   const tooltipUpMeaning = info?.upMeaning
     || (effectiveDirection === "up_better"
-      ? t("kpi.direction.up.tooltip", language)
-      : t("kpi.direction.up.bad.tooltip", language));
+      ? t("kpiDashboard.upIndicatesImprovement")
+      : t("kpiDashboard.upIndicatesDeterioration"));
   const tooltipDownMeaning = info?.downMeaning
     || (effectiveDirection === "down_better"
-      ? t("kpi.direction.down.good.tooltip", language)
-      : t("kpi.direction.down.tooltip", language));
+      ? t("kpiDashboard.downIndicatesImprovement")
+      : t("kpiDashboard.downIndicatesDeterioration"));
 
   return (
     <Card
@@ -160,7 +162,7 @@ function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, 
               </Tooltip>
             </div>
             <span className="text-xs text-muted-foreground" data-testid={`direction-${indicatorId}`}>
-              {effectiveDirection === "up_better" ? t("kpi.direction.up", language) : t("kpi.direction.down", language)}
+              {effectiveDirection === "up_better" ? t("kpiDashboard.upBetter") : t("kpiDashboard.downBetter")}
             </span>
           </div>
         </div>
@@ -247,10 +249,10 @@ function IndicatorCard({ indicatorId, label, value, previousValue, icon, color, 
               {isLoadingChain ? (
                 <>
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  <span>{t("kpi.loading", language)}</span>
+                  <span>{t("common.loading")}</span>
                 </>
               ) : (
-                <span className="font-medium">{t("kpi.why", language)}</span>
+                <span className="font-medium">{t("kpiDashboard.why")}</span>
               )}
             </button>
           ) : null}
@@ -369,38 +371,40 @@ export function KPIDashboard({
   sessionId,
   language = "es",
 }: KPIDashboardProps) {
+  const { t } = useTranslation();
+
   const kpiConfig = [
     {
       key: "revenue",
-      label: t("kpi.label.revenue", language),
+      label: t("kpiDashboard.revenueBudget"),
       icon: <DollarSign className="w-4 h-4" />,
       format: "currency" as const,
       color: "bg-chart-1/10 text-chart-1",
     },
     {
       key: "morale",
-      label: t("kpi.label.morale", language),
+      label: t("kpiDashboard.teamMorale"),
       icon: <Users className="w-4 h-4" />,
       format: "percentage" as const,
       color: "bg-chart-2/10 text-chart-2",
     },
     {
       key: "reputation",
-      label: t("kpi.label.reputation", language),
+      label: t("kpiDashboard.brandReputation"),
       icon: <Star className="w-4 h-4" />,
       format: "percentage" as const,
       color: "bg-chart-3/10 text-chart-3",
     },
     {
       key: "efficiency",
-      label: t("kpi.label.efficiency", language),
+      label: t("kpiDashboard.operationalEfficiency"),
       icon: <Gauge className="w-4 h-4" />,
       format: "percentage" as const,
       color: "bg-chart-4/10 text-chart-4",
     },
     {
       key: "trust",
-      label: t("kpi.label.trust", language),
+      label: t("kpiDashboard.stakeholderTrust"),
       icon: <Shield className="w-4 h-4" />,
       format: "percentage" as const,
       color: "bg-chart-5/10 text-chart-5",
@@ -423,19 +427,19 @@ export function KPIDashboard({
           )}
           {role && (
             <p className="text-sm text-muted-foreground mb-1">
-              <span className="font-medium">{t("kpi.role", language)}</span> {role}
+              <span className="font-medium">{t("kpiDashboard.role")}</span> {role}
             </p>
           )}
           {objective && (
             <p className="text-sm text-muted-foreground">
-              <span className="font-medium">{t("kpi.objective", language)}</span> {objective}
+              <span className="font-medium">{t("kpiDashboard.objective")}</span> {objective}
             </p>
           )}
           {currentDecision && totalDecisions && (
             <div className="mt-3 flex items-center gap-2">
               <Activity className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium">
-                {t("kpi.decision.of", language).replace("{current}", String(currentDecision)).replace("{total}", String(totalDecisions))}
+                {t("kpiDashboard.decisionOf", { current: currentDecision, total: totalDecisions })}
               </span>
             </div>
           )}
@@ -447,30 +451,30 @@ export function KPIDashboard({
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-primary" />
             <h3 className="text-base font-semibold text-foreground">
-              {useIndicators ? t("kpi.indicators", language) : t("kpi.indicators.key", language)}
+              {useIndicators ? t("kpiDashboard.indicators") : t("kpiDashboard.keyIndicators")}
             </h3>
           </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <button className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
                 <HelpCircle className="w-3.5 h-3.5" />
-                <span>{t("kpi.tooltip.howtoread", language)}</span>
+                <span>{t("kpiDashboard.howToRead")}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="left" className="max-w-xs p-3">
               <div className="space-y-2 text-xs">
-                <p className="font-medium">{t("kpi.tooltip.title", language)}</p>
+                <p className="font-medium">{t("kpiDashboard.howToReadTitle")}</p>
                 <div className="space-y-1.5 pt-1 border-t border-border/50">
                   <p className="flex items-center gap-2">
-                    <span className="text-chart-2 font-medium">{t("kpi.direction.up", language)}</span>
-                    <span className="text-muted-foreground">{t("kpi.tooltip.upbetter", language)}</span>
+                    <span className="text-chart-2 font-medium">{t("kpiDashboard.upBetter")}</span>
+                    <span className="text-muted-foreground">{t("kpiDashboard.higherBetter")}</span>
                   </p>
                   <p className="flex items-center gap-2">
-                    <span className="text-chart-4 font-medium">{t("kpi.direction.down", language)}</span>
-                    <span className="text-muted-foreground">{t("kpi.tooltip.downbetter", language)}</span>
+                    <span className="text-chart-4 font-medium">{t("kpiDashboard.downBetter")}</span>
+                    <span className="text-muted-foreground">{t("kpiDashboard.lowerBetter")}</span>
                   </p>
                   <p className="pt-1 text-muted-foreground">
-                    {t("kpi.tooltip.greenpositive", language)}
+                    {t("kpiDashboard.colorExplanation")}
                   </p>
                 </div>
               </div>

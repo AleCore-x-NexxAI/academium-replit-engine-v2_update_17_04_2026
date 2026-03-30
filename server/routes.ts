@@ -2548,6 +2548,32 @@ Be constructive and educational, not judgmental.`;
     }
   });
 
+  // Update user language preference
+  app.patch("/api/users/language", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const updateSchema = z.object({
+        language: z.enum(["es", "en"]),
+      });
+      
+      const parseResult = updateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ message: "Invalid input", errors: parseResult.error.errors });
+      }
+
+      const updated = await storage.updateUserLanguage(userId, parseResult.data.language);
+      if (!updated) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating user language:", error);
+      res.status(500).json({ message: "Failed to update language" });
+    }
+  });
+
   // ============================================================================
   // LLM PROVIDER ROUTES (Superadmin only)
   // ============================================================================

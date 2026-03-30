@@ -42,7 +42,8 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   role: userRoleEnum("role").default("student").notNull(),
   isSuperAdmin: boolean("is_super_admin").default(false).notNull(),
-  viewingAs: userRoleEnum("viewing_as"), // For superadmins to switch views without changing role
+  viewingAs: userRoleEnum("viewing_as"),
+  language: varchar("language", { length: 2 }).default("es").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

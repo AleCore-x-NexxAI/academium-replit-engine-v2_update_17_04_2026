@@ -20,6 +20,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ScenarioDraft, DraftConversationMessage, GeneratedScenarioData } from "@shared/schema";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 interface AIAuthoringChatProps {
   onScenarioPublished: () => void;
@@ -82,6 +84,7 @@ function ScenarioPreviewCard({
   isPublishing: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <Card className="p-4 border-primary/20 bg-primary/5">
@@ -103,13 +106,13 @@ function ScenarioPreviewCard({
           {scenario.initialState.difficultyLevel || "intermediate"}
         </Badge>
         <Badge variant="outline">
-          {scenario.initialState.stakeholders?.length || 0} Stakeholders
+          {scenario.initialState.stakeholders?.length || 0} {t("aiAuthoring.stakeholders")}
         </Badge>
         <Badge variant="outline">
-          {scenario.rubric.criteria.length} Criteria
+          {scenario.rubric.criteria.length} {t("aiAuthoring.criteria")}
         </Badge>
         <Badge variant="outline" className="text-chart-2 border-chart-2">
-          {scenario.confidence}% Confidence
+          {scenario.confidence}% {t("aiAuthoring.confidence")}
         </Badge>
       </div>
 
@@ -124,7 +127,7 @@ function ScenarioPreviewCard({
             <div className="border-t pt-3 mt-3 space-y-3">
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Opening Narrative
+                  {t("aiAuthoring.openingNarrative")}
                 </p>
                 <p className="text-sm leading-relaxed">
                   {scenario.initialState.introText.substring(0, 400)}...
@@ -135,7 +138,7 @@ function ScenarioPreviewCard({
                 scenario.initialState.stakeholders.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">
-                      Key Stakeholders
+                      {t("aiAuthoring.keyStakeholders")}
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {scenario.initialState.stakeholders.map((s, i) => (
@@ -151,7 +154,7 @@ function ScenarioPreviewCard({
                 scenario.initialState.learningObjectives.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">
-                      Learning Objectives
+                      {t("aiAuthoring.learningObjectives")}
                     </p>
                     <ul className="text-sm list-disc list-inside">
                       {scenario.initialState.learningObjectives.map((obj, i) => (
@@ -172,7 +175,7 @@ function ScenarioPreviewCard({
           onClick={() => setExpanded(!expanded)}
           data-testid="button-toggle-preview"
         >
-          {expanded ? "Show Less" : "Show More"}
+          {expanded ? t("aiAuthoring.showLess") : t("aiAuthoring.showMore")}
         </Button>
         <Button
           size="sm"
@@ -186,7 +189,7 @@ function ScenarioPreviewCard({
           ) : (
             <Check className="w-4 h-4 mr-2" />
           )}
-          Publish Scenario
+          {t("aiAuthoring.publishScenario")}
         </Button>
       </div>
     </Card>
@@ -204,6 +207,7 @@ export default function AIAuthoringChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -241,8 +245,8 @@ export default function AIAuthoringChat({
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to start AI assistant",
+        title: t("common.error"),
+        description: t("aiAuthoring.errorStartAssistant"),
         variant: "destructive",
       });
     },
@@ -269,8 +273,8 @@ export default function AIAuthoringChat({
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to send message",
+        title: t("common.error"),
+        description: t("aiAuthoring.errorSendMessage"),
         variant: "destructive",
       });
     },
@@ -284,16 +288,16 @@ export default function AIAuthoringChat({
     },
     onSuccess: () => {
       toast({
-        title: "Published!",
-        description: "Your scenario is now available for students.",
+        title: t("aiAuthoring.publishedTitle"),
+        description: t("aiAuthoring.publishedDesc"),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios/authored"] });
       onScenarioPublished();
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to publish scenario",
+        title: t("common.error"),
+        description: t("aiAuthoring.errorPublish"),
         variant: "destructive",
       });
     },
@@ -331,16 +335,19 @@ export default function AIAuthoringChat({
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold">AI Authoring Assistant</h3>
+            <h3 className="font-semibold">{t("aiAuthoring.title")}</h3>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            data-testid="button-close-ai-chat"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <LanguageToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              data-testid="button-close-ai-chat"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex-1 flex items-center justify-center p-8">
@@ -349,12 +356,10 @@ export default function AIAuthoringChat({
               <Sparkles className="w-8 h-8 text-primary" />
             </div>
             <h3 className="text-xl font-semibold mb-2">
-              Create with AI Assistance
+              {t("aiAuthoring.createWithAI")}
             </h3>
             <p className="text-muted-foreground mb-6">
-              I'll help you create an exceptional business simulation scenario.
-              Share a case study, describe a learning objective, or tell me
-              about a business challenge you want students to explore.
+              {t("aiAuthoring.createWithAIDesc")}
             </p>
             <Button
               onClick={handleStartNew}
@@ -366,7 +371,7 @@ export default function AIAuthoringChat({
               ) : (
                 <ArrowRight className="w-4 h-4 mr-2" />
               )}
-              Start Creating
+              {t("aiAuthoring.startCreating")}
             </Button>
           </div>
         </div>
@@ -379,7 +384,7 @@ export default function AIAuthoringChat({
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
-          <h3 className="font-semibold">AI Authoring Assistant</h3>
+          <h3 className="font-semibold">{t("aiAuthoring.title")}</h3>
           {draft?.status && (
             <Badge variant="outline" className="text-xs">
               {draft.status}
@@ -387,6 +392,7 @@ export default function AIAuthoringChat({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <LanguageToggle />
           <Button
             variant="ghost"
             size="icon"
@@ -395,7 +401,7 @@ export default function AIAuthoringChat({
               setLocalMessages([]);
               setGeneratedScenario(null);
             }}
-            title="Start New"
+            title={t("aiAuthoring.startNew")}
             data-testid="button-reset-chat"
           >
             <RefreshCw className="w-4 h-4" />
@@ -430,7 +436,7 @@ export default function AIAuthoringChat({
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span className="text-sm text-muted-foreground">
-                        Thinking...
+                        {t("aiAuthoring.thinking")}
                       </span>
                     </div>
                   </div>
@@ -462,7 +468,7 @@ export default function AIAuthoringChat({
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Describe your scenario idea, paste a case study, or ask for suggestions..."
+            placeholder={t("aiAuthoring.placeholder")}
             className="resize-none min-h-[60px] max-h-[120px]"
             disabled={chatMutation.isPending || !currentDraftId}
             data-testid="input-ai-chat-message"
@@ -480,7 +486,7 @@ export default function AIAuthoringChat({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          Press Enter to send, Shift+Enter for new line
+          {t("aiAuthoring.enterToSend")}
         </p>
       </div>
     </Card>

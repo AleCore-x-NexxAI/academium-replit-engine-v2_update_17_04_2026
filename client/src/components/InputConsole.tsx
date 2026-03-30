@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Loader2, BarChart3, CheckCircle2, AlertTriangle } from "lucide-react";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ export function InputConsole({
   reflectionPrompt,
   language = "es",
 }: InputConsoleProps) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [selectedOption, setSelectedOption] = useState<string>("");
   const [justification, setJustification] = useState("");
@@ -132,11 +134,11 @@ export function InputConsole({
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               <span className="text-xs font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wide">
-                {turnStatus === "nudge" ? t("input.nudge.title", language) : t("input.mentor.invite", language)}
+                {turnStatus === "nudge" ? t("inputConsole.nudgeMessage") : t("inputConsole.mentorInvite")}
               </span>
             </div>
             <Badge variant="outline" className="text-xs">
-              {t("input.revision.label", language)} {revisionAttempts} {t("input.revision.of", language)} {maxRevisions}
+              {t("inputConsole.revisionOf", { current: revisionAttempts, max: maxRevisions })}
             </Badge>
           </div>
           <p className="text-sm text-foreground leading-relaxed">
@@ -163,20 +165,20 @@ export function InputConsole({
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
                 {turnStatus === "block"
-                  ? t("input.validation.block", language)
-                  : t("input.validation.connect", language)}
+                  ? t("inputConsole.responseError")
+                  : t("inputConsole.continueHelp")}
               </p>
               
               <div className="text-sm text-muted-foreground">
-                <span className="font-medium">{t("input.suggestion.title", language)}</span>
+                <span className="font-medium">{t("inputConsole.quickTip")}</span>
                 <ul className="list-disc list-inside mt-1 space-y-0.5">
-                  <li>{t("input.suggestion.priority", language)}</li>
-                  <li>{t("input.suggestion.reason", language)}</li>
+                  <li>{t("inputConsole.mentionPriority")}</li>
+                  <li>{t("inputConsole.giveReason")}</li>
                 </ul>
               </div>
               
               <p className="text-sm text-muted-foreground italic bg-background/50 px-2 py-1.5 rounded border border-border/50">
-                {t("input.suggestion.structure", language)}
+                {t("inputConsole.usefulStructure")}
               </p>
             </div>
           </div>
@@ -196,19 +198,19 @@ export function InputConsole({
                   <CheckCircle2 className="w-4 h-4 text-chart-3" />
                 </div>
                 <span className="text-sm font-semibold text-chart-3 uppercase tracking-wide">
-                  {t("input.reflection.step", language)} {(totalDecisions || 0) + 1}: {t("input.reflection.label", language)}
+                  {`${t("inputConsole.reflectionStep")} ${(totalDecisions || 0) + 1}`}
                 </span>
               </div>
               <Badge variant="outline" className="bg-background text-xs">
-                {t("input.reflection.final", language)}
+                {t("inputConsole.final")}
               </Badge>
             </div>
             <p className="text-base font-medium text-foreground leading-relaxed" data-testid="text-reflection-prompt">
-              {reflectionPrompt || t("input.reflection.default", language)}
+              {reflectionPrompt || t("inputConsole.defaultReflectionPrompt")}
             </p>
             <div className="mt-3 pt-3 border-t border-chart-3/10">
               <p className="text-sm text-muted-foreground italic" data-testid="text-reflection-nudge">
-                {t("input.reflection.nudge", language)}
+                {t("inputConsole.reflectionNudge")}
               </p>
             </div>
           </Card>
@@ -228,14 +230,12 @@ export function InputConsole({
                   <Send className="w-4 h-4 text-primary" />
                 </div>
                 <span className="text-sm font-semibold text-primary uppercase tracking-wide">
-                  {t("input.decision.title", language)}
+                  {t("inputConsole.yourDecision")}
                 </span>
               </div>
-              <Badge variant="outline" className="bg-background text-xs">
                 {decisionNumber && totalDecisions
-                  ? `${decisionNumber} ${t("input.decision.of", language)} ${totalDecisions}`
-                  : t("input.decision.active", language)}
-              </Badge>
+                  ? t("simulation.decisionOf", { current: decisionNumber, total: totalDecisions })
+                  : t("inputConsole.active")}
             </div>
             <p className="text-sm font-medium text-foreground leading-relaxed" data-testid="text-decision-prompt">
               {currentDecisionPoint.prompt}
@@ -252,7 +252,7 @@ export function InputConsole({
             {currentDecisionPoint.thinkingScaffold && currentDecisionPoint.thinkingScaffold.length > 0 && (
               <div className="mt-2 pt-2 border-t border-primary/10">
                 <p className="text-sm font-medium text-muted-foreground mb-1" data-testid="text-thinking-scaffold-label">
-                  {t("input.thinking.label", language)}
+                  {t("inputConsole.thinkAbout")}
                 </p>
                 <ul className="space-y-0.5" data-testid="list-thinking-scaffold">
                   {currentDecisionPoint.thinkingScaffold.map((item, index) => (
@@ -267,7 +267,7 @@ export function InputConsole({
             
             {currentDecisionPoint.includesReflection && (
               <Badge variant="secondary" className="text-xs mt-3">
-                {t("input.reflection.badge", language)}
+                {t("inputConsole.includesReflection")}
               </Badge>
             )}
           </Card>
@@ -325,13 +325,13 @@ export function InputConsole({
               className="mt-4"
             >
               <Label className="text-sm font-medium mb-2 block">
-                {t("input.justify.label", language)}
+                {t("inputConsole.justifyDecision")}
               </Label>
               <Textarea
                 ref={justificationRef}
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
-                placeholder={t("input.justify.placeholder", language)}
+                placeholder={t("inputConsole.justifyPlaceholder")}
                 disabled={isDisabled}
                 rows={2}
                 className="max-h-[120px] overflow-y-auto resize-none text-sm"
@@ -352,8 +352,8 @@ export function InputConsole({
               onKeyDown={handleKeyDown}
               placeholder={
                 isGameOver
-                  ? t("input.placeholder.gameover", language)
-                  : t("input.placeholder.decision", language)
+                  ? t("inputConsole.simulationEnded")
+                  : t("inputConsole.whatIsYourDecision")
               }
               disabled={isDisabled}
               rows={2}
@@ -374,7 +374,7 @@ export function InputConsole({
               ) : (
                 <>
                   <Send className="w-4 h-4 mr-2" />
-                  {t("input.submit", language)}
+                  {t("common.send")}
                 </>
               )}
             </Button>
@@ -394,7 +394,7 @@ export function InputConsole({
             ) : (
               <>
                 <Send className="w-4 h-4 mr-2" />
-                {t("input.submit.decision", language)}
+                {t("inputConsole.submitDecision")}
               </>
             )}
           </Button>
@@ -408,12 +408,12 @@ export function InputConsole({
           className="mt-3 text-center space-y-3"
         >
           <p className="text-sm text-muted-foreground">
-            {t("input.gameover.text", language)}
+            {t("inputConsole.simulationEndedMsg")}
           </p>
           {onViewResults && (
             <Button onClick={onViewResults} data-testid="button-view-results">
               <BarChart3 className="w-4 h-4 mr-2" />
-              {t("input.results", language)}
+              {t("common.viewResults")}
             </Button>
           )}
         </motion.div>

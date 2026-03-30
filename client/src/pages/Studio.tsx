@@ -55,6 +55,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import type { Scenario } from "@shared/schema";
 
 const scenarioFormSchema = z.object({
@@ -164,12 +166,13 @@ function PDFUploader({
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const handleUpload = async (file: globalThis.File) => {
     if (file.type !== "application/pdf") {
       toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF file",
+        title: t("studio.invalidFileType"),
+        description: t("studio.pleaseUploadPDF"),
         variant: "destructive",
       });
       return;
@@ -177,8 +180,8 @@ function PDFUploader({
 
     if (file.size > 10 * 1024 * 1024) {
       toast({
-        title: "File too large",
-        description: "Maximum file size is 10MB",
+        title: t("studio.fileTooLarge"),
+        description: t("studio.maxFileSize10MB"),
         variant: "destructive",
       });
       return;
@@ -211,14 +214,14 @@ function PDFUploader({
       });
 
       toast({
-        title: "Upload complete",
-        description: `${file.name} uploaded successfully`,
+        title: t("studio.uploadComplete"),
+        description: `${file.name} ${t("studio.uploadedSuccessfully")}`,
       });
     } catch (error) {
       console.error("Upload error:", error);
       toast({
-        title: "Upload failed",
-        description: "Failed to upload file. Please try again.",
+        title: t("studio.uploadFailed"),
+        description: t("studio.uploadFailedDesc"),
         variant: "destructive",
       });
     } finally {
@@ -313,16 +316,16 @@ function PDFUploader({
       {isUploading ? (
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Uploading...</p>
+          <p className="text-sm text-muted-foreground">{t("studio.uploading")}</p>
         </div>
       ) : (
         <>
           <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
           <p className="text-sm font-medium mb-1">
-            Drop your PDF here or click to browse
+            {t("studio.dropPDFHere")}
           </p>
           <p className="text-xs text-muted-foreground">
-            Maximum file size: 10MB
+            {t("studio.maxFileSizeLabel")}
           </p>
         </>
       )}
@@ -340,6 +343,7 @@ function RubricUploader({
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const allowedTypes = [
     "application/pdf",
@@ -350,8 +354,8 @@ function RubricUploader({
   const handleUpload = async (file: globalThis.File) => {
     if (!allowedTypes.includes(file.type)) {
       toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF, DOC, or DOCX file",
+        title: t("studio.invalidFileType"),
+        description: t("studio.pleaseUploadDoc"),
         variant: "destructive",
       });
       return;
@@ -359,8 +363,8 @@ function RubricUploader({
 
     if (file.size > 10 * 1024 * 1024) {
       toast({
-        title: "File too large",
-        description: "Maximum file size is 10MB",
+        title: t("studio.fileTooLarge"),
+        description: t("studio.maxFileSize10MB"),
         variant: "destructive",
       });
       return;
@@ -393,14 +397,14 @@ function RubricUploader({
       });
 
       toast({
-        title: "Upload complete",
-        description: `${file.name} uploaded successfully`,
+        title: t("studio.uploadComplete"),
+        description: `${file.name} ${t("studio.uploadedSuccessfully")}`,
       });
     } catch (error) {
       console.error("Upload error:", error);
       toast({
-        title: "Upload failed",
-        description: "Failed to upload file. Please try again.",
+        title: t("studio.uploadFailed"),
+        description: t("studio.uploadFailedDesc"),
         variant: "destructive",
       });
     } finally {
@@ -459,16 +463,16 @@ function RubricUploader({
       {isUploading ? (
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Uploading...</p>
+          <p className="text-sm text-muted-foreground">{t("studio.uploading")}</p>
         </div>
       ) : (
         <>
           <Upload className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
           <p className="text-sm font-medium mb-1">
-            Drop rubric file here or click to browse
+            {t("studio.dropRubricHere")}
           </p>
           <p className="text-xs text-muted-foreground">
-            PDF, DOC, or DOCX (max 10MB)
+            {t("studio.rubricFormats")}
           </p>
         </>
       )}
@@ -505,6 +509,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
   const [conceptInput, setConceptInput] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "player"]));
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const addCustomKpi = () => {
     setCustomKpis(prev => [...prev, {
@@ -671,7 +676,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
       });
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Scenario created successfully" });
+      toast({ title: t("studio.success"), description: t("studio.scenarioCreated") });
       form.reset();
       setUploadedFile(undefined);
       setRubricFile(undefined);
@@ -682,11 +687,11 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
-        toast({ title: "Session Expired", description: "Please sign in again.", variant: "destructive" });
+        toast({ title: t("studio.sessionExpired"), description: t("studio.pleaseSignInAgain"), variant: "destructive" });
         setTimeout(() => { window.location.href = "/api/login"; }, 500);
         return;
       }
-      toast({ title: "Error", description: "Failed to create scenario", variant: "destructive" });
+      toast({ title: t("studio.error"), description: t("studio.failedCreateScenario"), variant: "destructive" });
     },
   });
 
@@ -698,7 +703,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
     >
       <h3 className="text-lg font-semibold flex items-center gap-2">
         {title}
-        {isRequired && <Badge variant="secondary" className="text-xs">Required</Badge>}
+        {isRequired && <Badge variant="secondary" className="text-xs">{t("studio.required")}</Badge>}
       </h3>
       <motion.div
         animate={{ rotate: expandedSections.has(id) ? 180 : 0 }}
@@ -719,7 +724,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
       >
         {/* SECTION 1: Basic Information */}
         <div className="space-y-4">
-          <SectionHeader id="basic" title="Basic Information" isRequired />
+          <SectionHeader id="basic" title={t("studio.basicInformation")} isRequired />
           <AnimatePresence>
             {expandedSections.has("basic") && (
               <motion.div
@@ -735,9 +740,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="title"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Scenario Title *</FormLabel>
+                        <FormLabel>{t("studio.scenarioTitle")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., The Data Breach Crisis" {...field} data-testid="input-scenario-title-manual" />
+                          <Input placeholder={t("studio.scenarioTitlePlaceholder")} {...field} data-testid="input-scenario-title-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -748,11 +753,11 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="domain"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Domain *</FormLabel>
+                        <FormLabel>{t("studio.domain")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-domain-manual">
-                              <SelectValue placeholder="Select a domain" />
+                              <SelectValue placeholder={t("studio.selectDomain")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -771,11 +776,11 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   name="difficultyLevel"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Difficulty Level</FormLabel>
+                      <FormLabel>{t("studio.difficultyLevel")}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-difficulty-manual">
-                            <SelectValue placeholder="Select difficulty" />
+                            <SelectValue placeholder={t("studio.selectDifficulty")} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -814,9 +819,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   name="description"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Description *</FormLabel>
+                      <FormLabel>{t("studio.description")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Brief overview of what students will experience..." className="min-h-20" {...field} data-testid="input-description-manual" />
+                        <Textarea placeholder={t("studio.descriptionPlaceholder")} className="min-h-20" {...field} data-testid="input-description-manual" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -829,7 +834,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 2: Company Context */}
         <div className="space-y-4">
-          <SectionHeader id="company" title="Company Context" />
+          <SectionHeader id="company" title={t("studio.companyContext")} />
           <AnimatePresence>
             {expandedSections.has("company") && (
               <motion.div
@@ -839,16 +844,16 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 transition={{ duration: 0.2 }}
                 className="space-y-4 overflow-hidden"
               >
-                <p className="text-sm text-muted-foreground">The more detail you provide, the more tailored the AI simulation will be.</p>
+                <p className="text-sm text-muted-foreground">{t("studio.companyContextDesc")}</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <FormField
                     control={form.control}
                     name="companyName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Company Name</FormLabel>
+                        <FormLabel>{t("studio.companyName")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., TechFlow Inc." {...field} data-testid="input-company-name-manual" />
+                          <Input placeholder={t("studio.companyNamePlaceholder")} {...field} data-testid="input-company-name-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -859,11 +864,11 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="industry"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Industry</FormLabel>
+                        <FormLabel>{t("studio.industry")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-industry-manual">
-                              <SelectValue placeholder="Select industry" />
+                              <SelectValue placeholder={t("studio.selectIndustry")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -881,11 +886,11 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="companySize"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Company Size</FormLabel>
+                        <FormLabel>{t("studio.companySize")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-company-size-manual">
-                              <SelectValue placeholder="Select size" />
+                              <SelectValue placeholder={t("studio.selectSize")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -904,10 +909,10 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   name="situationBackground"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Situation Background</FormLabel>
+                      <FormLabel>{t("studio.situationBackground")}</FormLabel>
                       <FormControl>
                         <Textarea 
-                          placeholder="What happened before the scenario begins? What events led to this crisis or challenge?"
+                          placeholder={t("studio.situationBackgroundPlaceholder")}
                           className="min-h-20" 
                           {...field} 
                           data-testid="input-situation-background-manual" 
@@ -923,9 +928,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="industryContext"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Industry Dynamics</FormLabel>
+                        <FormLabel>{t("studio.industryDynamics")}</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Market trends, challenges, opportunities..." className="min-h-16" {...field} data-testid="input-industry-context-manual" />
+                          <Textarea placeholder={t("studio.industryDynamicsPlaceholder")} className="min-h-16" {...field} data-testid="input-industry-context-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -936,9 +941,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="competitiveEnvironment"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Competitive Environment</FormLabel>
+                        <FormLabel>{t("studio.competitiveEnvironment")}</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Main competitors, competitive pressure..." className="min-h-16" {...field} data-testid="input-competitive-manual" />
+                          <Textarea placeholder={t("studio.competitiveEnvironmentPlaceholder")} className="min-h-16" {...field} data-testid="input-competitive-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -952,7 +957,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 3: Player Role & Situation */}
         <div className="space-y-4">
-          <SectionHeader id="player" title="Player Role & Situation" isRequired />
+          <SectionHeader id="player" title={t("studio.playerRoleSituation")} isRequired />
           <AnimatePresence>
             {expandedSections.has("player") && (
               <motion.div
@@ -968,9 +973,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="role"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Player Role *</FormLabel>
+                        <FormLabel>{t("studio.playerRole")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Chief Marketing Officer" {...field} data-testid="input-role-manual" />
+                          <Input placeholder={t("studio.playerRolePlaceholder")} {...field} data-testid="input-role-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -981,9 +986,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="timelineContext"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Timeline Context</FormLabel>
+                        <FormLabel>{t("studio.timelineContext")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Immediate crisis - 72 hours to respond" {...field} data-testid="input-timeline-manual" />
+                          <Input placeholder={t("studio.timelineContextPlaceholder")} {...field} data-testid="input-timeline-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -995,9 +1000,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   name="objective"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Primary Objective *</FormLabel>
+                      <FormLabel>{t("studio.primaryObjective")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="What is the main goal the player must achieve?" className="min-h-16" {...field} data-testid="input-objective-manual" />
+                        <Textarea placeholder={t("studio.objectivePlaceholder")} className="min-h-16" {...field} data-testid="input-objective-manual" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1008,10 +1013,10 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   name="introText"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Opening Narrative *</FormLabel>
+                      <FormLabel>{t("studio.openingNarrative")}</FormLabel>
                       <FormControl>
                         <Textarea 
-                          placeholder="The immersive story that sets the scene when the student starts. Write this as if narrating a story..."
+                          placeholder={t("studio.openingNarrativePlaceholder")}
                           className="min-h-32" 
                           {...field} 
                           data-testid="input-intro-manual" 
@@ -1028,7 +1033,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 4: Stakeholders */}
         <div className="space-y-4">
-          <SectionHeader id="stakeholders" title="Key Stakeholders" />
+          <SectionHeader id="stakeholders" title={t("studio.keyStakeholders")} />
           <AnimatePresence>
             {expandedSections.has("stakeholders") && (
               <motion.div
@@ -1038,13 +1043,13 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 transition={{ duration: 0.2 }}
                 className="space-y-4 overflow-hidden"
               >
-                <p className="text-sm text-muted-foreground">Define the key people the player will interact with. Format: Name - Role - Interests (one per line)</p>
+                <p className="text-sm text-muted-foreground">{t("studio.stakeholdersDesc")}</p>
                 <FormField
                   control={form.control}
                   name="stakeholdersJson"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Stakeholders</FormLabel>
+                      <FormLabel>{t("studio.stakeholders")}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="Sarah Chen - CEO - Wants quick resolution to protect stock price&#10;Marcus Williams - Head of PR - Concerned about media narrative&#10;Elena Rodriguez - Legal Counsel - Focused on regulatory compliance&#10;James Park - Employee Rep - Advocates for staff concerns"
@@ -1064,7 +1069,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 5: Environment & Constraints */}
         <div className="space-y-4">
-          <SectionHeader id="environment" title="Environment & Constraints" />
+          <SectionHeader id="environment" title={t("studio.environmentConstraints")} />
           <AnimatePresence>
             {expandedSections.has("environment") && (
               <motion.div
@@ -1080,9 +1085,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="regulatoryEnvironment"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Regulatory Environment</FormLabel>
+                        <FormLabel>{t("studio.regulatoryEnvironment")}</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="What regulations, laws, or compliance requirements apply?" className="min-h-16" {...field} data-testid="input-regulatory-manual" />
+                          <Textarea placeholder={t("studio.regulatoryPlaceholder")} className="min-h-16" {...field} data-testid="input-regulatory-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1093,9 +1098,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                     name="culturalContext"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Cultural Context</FormLabel>
+                        <FormLabel>{t("studio.culturalContext")}</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Cultural, geographical, or social factors..." className="min-h-16" {...field} data-testid="input-cultural-manual" />
+                          <Textarea placeholder={t("studio.culturalPlaceholder")} className="min-h-16" {...field} data-testid="input-cultural-manual" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1107,9 +1112,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   name="resourceConstraints"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Resource Constraints</FormLabel>
+                      <FormLabel>{t("studio.resourceConstraints")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Budget limitations, staffing issues, time pressures, technical limitations..." className="min-h-16" {...field} data-testid="input-resources-manual" />
+                        <Textarea placeholder={t("studio.resourcesPlaceholder")} className="min-h-16" {...field} data-testid="input-resources-manual" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1120,7 +1125,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   name="keyConstraintsText"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Key Constraints (one per line)</FormLabel>
+                      <FormLabel>{t("studio.keyConstraints")}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="$500,000 maximum budget&#10;Must maintain at least 80% workforce&#10;Cannot change product pricing"
@@ -1140,7 +1145,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 6: Learning Objectives */}
         <div className="space-y-4">
-          <SectionHeader id="learning" title="Learning Objectives" />
+          <SectionHeader id="learning" title={t("studio.learningObjectives")} />
           <AnimatePresence>
             {expandedSections.has("learning") && (
               <motion.div
@@ -1150,13 +1155,13 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 transition={{ duration: 0.2 }}
                 className="space-y-4 overflow-hidden"
               >
-                <p className="text-sm text-muted-foreground">Define what students should learn from this simulation (one objective per line).</p>
+                <p className="text-sm text-muted-foreground">{t("studio.learningObjectivesDesc")}</p>
                 <FormField
                   control={form.control}
                   name="learningObjectivesText"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Learning Objectives</FormLabel>
+                      <FormLabel>{t("studio.learningObjectives")}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="Understand crisis communication strategies&#10;Balance stakeholder interests under pressure&#10;Apply decision-making frameworks under uncertainty&#10;Analyze trade-offs between short and long-term outcomes"
@@ -1176,7 +1181,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 6B: Course Concepts */}
         <div className="space-y-4">
-          <SectionHeader id="concepts" title="Conceptos del Curso" />
+          <SectionHeader id="concepts" title={t("studio.courseConcepts")} />
           <AnimatePresence>
             {expandedSections.has("concepts") && (
               <motion.div
@@ -1187,7 +1192,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 className="space-y-4 overflow-hidden"
               >
                 <p className="text-sm text-muted-foreground">
-                  Etiqueta este escenario con conceptos del curso (3–8 tags). Esto habilita analíticas por concepto.
+                  {t("studio.courseConceptsDesc")}
                 </p>
                 <div className="flex gap-2">
                   <Input
@@ -1203,7 +1208,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                         }
                       }
                     }}
-                    placeholder="Escribe un concepto y presiona Enter..."
+                    placeholder={t("studio.conceptPlaceholder")}
                     disabled={courseConcepts.length >= 8}
                     data-testid="input-course-concept"
                   />
@@ -1248,11 +1253,11 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 )}
                 {courseConcepts.length > 0 && courseConcepts.length < 3 && (
                   <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Se recomiendan al menos 3 conceptos para habilitar analíticas significativas.
+                    {t("studio.minConceptsWarning")}
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  {courseConcepts.length}/8 conceptos
+                  {courseConcepts.length}/8 {t("studio.concepts")}
                 </p>
               </motion.div>
             )}
@@ -1261,7 +1266,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 7: Initial KPIs */}
         <div className="space-y-4">
-          <SectionHeader id="kpis" title="Initial KPIs" />
+          <SectionHeader id="kpis" title={t("studio.initialKPIs")} />
           <AnimatePresence>
             {expandedSections.has("kpis") && (
               <motion.div
@@ -1271,18 +1276,18 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 transition={{ duration: 0.2 }}
                 className="space-y-4 overflow-hidden"
               >
-                <p className="text-sm text-muted-foreground">Set the starting values for key performance indicators. Revenue is absolute; others are percentages (0-100).</p>
+                <p className="text-sm text-muted-foreground">{t("studio.kpisDesc")}</p>
                 
                 {/* Default KPIs */}
                 <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Default KPIs</h4>
+                  <h4 className="text-sm font-medium">{t("studio.defaultKPIs")}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <FormField
                       control={form.control}
                       name="kpiRevenue"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Revenue ($)</FormLabel>
+                          <FormLabel>{t("studio.revenue")}</FormLabel>
                           <FormControl>
                             <Input type="number" min={0} step={1000} {...field} data-testid="input-kpi-revenue-manual" />
                           </FormControl>
@@ -1295,7 +1300,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                       name="kpiMorale"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Morale (%)</FormLabel>
+                          <FormLabel>{t("studio.morale")}</FormLabel>
                           <FormControl>
                             <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-morale-manual" />
                           </FormControl>
@@ -1308,7 +1313,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                       name="kpiReputation"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Reputation (%)</FormLabel>
+                          <FormLabel>{t("studio.reputation")}</FormLabel>
                           <FormControl>
                             <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-reputation-manual" />
                           </FormControl>
@@ -1321,7 +1326,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                       name="kpiEfficiency"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Efficiency (%)</FormLabel>
+                          <FormLabel>{t("studio.efficiency")}</FormLabel>
                           <FormControl>
                             <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-efficiency-manual" />
                           </FormControl>
@@ -1334,7 +1339,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                       name="kpiTrust"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Trust (%)</FormLabel>
+                          <FormLabel>{t("studio.trust")}</FormLabel>
                           <FormControl>
                             <Input type="number" min={0} max={100} {...field} data-testid="input-kpi-trust-manual" />
                           </FormControl>
@@ -1349,8 +1354,8 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="space-y-3 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-medium">Custom KPIs (Optional)</h4>
-                      <p className="text-xs text-muted-foreground">Add additional metrics specific to this scenario</p>
+                      <h4 className="text-sm font-medium">{t("studio.customKPIs")}</h4>
+                      <p className="text-xs text-muted-foreground">{t("studio.customKPIsDesc")}</p>
                     </div>
                     <Button 
                       type="button" 
@@ -1359,15 +1364,13 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                       onClick={addCustomKpi}
                       data-testid="button-add-custom-kpi"
                     >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add KPI
-                    </Button>
+                      <Plus className="w-4 h-4 mr-1" />{t("studio.addKPI")}</Button>
                   </div>
                   
                   {customKpis.map((kpi, index) => (
                     <div key={kpi.id} className="flex items-end gap-3 p-3 bg-muted/30 rounded-lg">
                       <div className="flex-1">
-                        <FormLabel className="text-xs">Label</FormLabel>
+                        <FormLabel className="text-xs">{t("studio.label")}</FormLabel>
                         <Input
                           placeholder="e.g., Customer Satisfaction"
                           value={kpi.label}
@@ -1376,7 +1379,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                         />
                       </div>
                       <div className="w-24">
-                        <FormLabel className="text-xs">Value</FormLabel>
+                        <FormLabel className="text-xs">{t("studio.value")}</FormLabel>
                         <Input
                           type="number"
                           min={0}
@@ -1386,7 +1389,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                         />
                       </div>
                       <div className="w-32">
-                        <FormLabel className="text-xs">Unit</FormLabel>
+                        <FormLabel className="text-xs">{t("studio.unit")}</FormLabel>
                         <Select 
                           value={kpi.unit} 
                           onValueChange={(v) => updateCustomKpi(kpi.id, "unit", v as "percentage" | "absolute" | "currency")}
@@ -1395,9 +1398,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="percentage">Percentage (%)</SelectItem>
-                            <SelectItem value="absolute">Number</SelectItem>
-                            <SelectItem value="currency">Currency ($)</SelectItem>
+                            <SelectItem value="percentage">{t("studio.percentage")}</SelectItem>
+                            <SelectItem value="absolute">{t("studio.number")}</SelectItem>
+                            <SelectItem value="currency">{t("studio.currency")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1415,7 +1418,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                   
                   {customKpis.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-                      No custom KPIs added. Click "Add KPI" to create scenario-specific metrics.
+                      {t("studio.noCustomKPIs")}
                     </p>
                   )}
                 </div>
@@ -1426,7 +1429,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 8: Rubric Criteria */}
         <div className="space-y-4">
-          <SectionHeader id="rubric" title="Assessment Rubric" />
+          <SectionHeader id="rubric" title={t("studio.assessmentRubric")} />
           <AnimatePresence>
             {expandedSections.has("rubric") && (
               <motion.div
@@ -1436,13 +1439,13 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 transition={{ duration: 0.2 }}
                 className="space-y-4 overflow-hidden"
               >
-                <p className="text-sm text-muted-foreground">Define how student decisions will be evaluated. Format: Criterion Name | Weight (%) | Description (one per line)</p>
+                <p className="text-sm text-muted-foreground">{t("studio.rubricDesc")}</p>
                 <FormField
                   control={form.control}
                   name="rubricCriteriaText"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Rubric Criteria</FormLabel>
+                      <FormLabel>{t("studio.rubricCriteria")}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="Strategic Thinking | 30 | Long-term planning and foresight&#10;Ethical Reasoning | 25 | Considering moral implications&#10;Stakeholder Management | 25 | Balancing diverse interests&#10;Decision Decisiveness | 20 | Making clear, timely choices"
@@ -1460,8 +1463,8 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 <div className="space-y-2 pt-4 border-t">
                   <div className="flex items-center justify-between">
                     <div>
-                      <FormLabel>Rubric Document (Optional)</FormLabel>
-                      <p className="text-xs text-muted-foreground">Upload a PDF with detailed grading criteria</p>
+                      <FormLabel>{t("studio.rubricDocument")}</FormLabel>
+                      <p className="text-xs text-muted-foreground">{t("studio.rubricDocumentDesc")}</p>
                     </div>
                   </div>
                   
@@ -1499,7 +1502,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
 
         {/* SECTION 9: Supporting Materials */}
         <div className="space-y-4">
-          <SectionHeader id="materials" title="Supporting Materials" />
+          <SectionHeader id="materials" title={t("studio.supportingMaterials")} />
           <AnimatePresence>
             {expandedSections.has("materials") && (
               <motion.div
@@ -1510,9 +1513,9 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
                 className="space-y-4 overflow-hidden"
               >
                 <div>
-                  <FormLabel className="mb-2 block">Case Study PDF (Optional)</FormLabel>
+                  <FormLabel className="mb-2 block">{t("studio.caseStudyPDF")}</FormLabel>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Upload a PDF case study to provide additional context for the AI agents
+                    {t("studio.caseStudyPDFDesc")}
                   </p>
                   <PDFUploader
                     onUploadComplete={setUploadedFile}
@@ -1528,7 +1531,7 @@ function ManualScenarioForm({ onSuccess }: { onSuccess: () => void }) {
         <div className="flex justify-end gap-2 pt-4 border-t">
           <Button type="submit" disabled={createMutation.isPending} data-testid="button-submit-manual">
             {createMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Check className="w-4 h-4 mr-2" />}
-            Create Scenario
+            {t("studio.createScenario")}
           </Button>
         </div>
       </form>
@@ -1540,6 +1543,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | undefined>();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const form = useForm<ScenarioFormData>({
     resolver: zodResolver(scenarioFormSchema),
@@ -1632,7 +1636,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
       });
     },
     onSuccess: () => {
-      toast({ title: "Success", description: "Scenario created successfully" });
+      toast({ title: t("studio.success"), description: t("studio.scenarioCreated") });
       setOpen(false);
       form.reset();
       setUploadedFile(undefined);
@@ -1641,8 +1645,8 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({
-          title: "Session Expired",
-          description: "Please sign in again.",
+          title: t("studio.sessionExpired"),
+          description: t("studio.pleaseSignInAgain"),
           variant: "destructive",
         });
         setTimeout(() => {
@@ -1651,8 +1655,8 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
         return;
       }
       toast({
-        title: "Error",
-        description: "Failed to create scenario",
+        title: t("studio.error"),
+        description: t("studio.failedCreateScenario"),
         variant: "destructive",
       });
     },
@@ -1663,12 +1667,12 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
       <DialogTrigger asChild>
         <Button data-testid="button-create-scenario">
           <Plus className="w-4 h-4 mr-2" />
-          Create Scenario
+          {t("studio.createScenario")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Scenario</DialogTitle>
+          <DialogTitle>{t("studio.createNewScenario")}</DialogTitle>
         </DialogHeader>
 
         <Form {...form}>
@@ -1678,7 +1682,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
           >
             {/* SECTION: Basic Information */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">Basic Information</h3>
+              <h3 className="text-lg font-semibold border-b pb-2">{t("studio.basicInformation")}</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
@@ -1686,10 +1690,10 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Scenario Title *</FormLabel>
+                      <FormLabel>{t("studio.scenarioTitle")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="e.g., The Data Breach Crisis"
+                          placeholder={t("studio.scenarioTitlePlaceholder")}
                           {...field}
                           data-testid="input-scenario-title"
                         />
@@ -1704,11 +1708,11 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="domain"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Domain *</FormLabel>
+                      <FormLabel>{t("studio.domain")}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-domain">
-                            <SelectValue placeholder="Select a domain" />
+                            <SelectValue placeholder={t("studio.selectDomain")} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -1730,7 +1734,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="difficultyLevel"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Difficulty Level</FormLabel>
+                    <FormLabel>{t("studio.difficultyLevel")}</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger data-testid="select-difficulty">
@@ -1755,10 +1759,10 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description *</FormLabel>
+                    <FormLabel>{t("studio.description")}</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Brief overview of what students will experience..."
+                        placeholder={t("studio.descriptionPlaceholder")}
                         className="min-h-20"
                         {...field}
                         data-testid="input-scenario-description"
@@ -1772,8 +1776,8 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
 
             {/* SECTION: Company Context */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">Company Context</h3>
-              <p className="text-sm text-muted-foreground">The more detail you provide, the more tailored the AI simulation will be.</p>
+              <h3 className="text-lg font-semibold border-b pb-2">{t("studio.companyContext")}</h3>
+              <p className="text-sm text-muted-foreground">{t("studio.companyContextDesc")}</p>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
@@ -1781,10 +1785,10 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="companyName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company Name</FormLabel>
+                      <FormLabel>{t("studio.companyName")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="e.g., TechFlow Inc."
+                          placeholder={t("studio.companyNamePlaceholder")}
                           {...field}
                           data-testid="input-company-name"
                         />
@@ -1799,11 +1803,11 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="industry"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Industry</FormLabel>
+                      <FormLabel>{t("studio.industry")}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-industry">
-                            <SelectValue placeholder="Select industry" />
+                            <SelectValue placeholder={t("studio.selectIndustry")} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -1824,11 +1828,11 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="companySize"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Company Size</FormLabel>
+                      <FormLabel>{t("studio.companySize")}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger data-testid="select-company-size">
-                            <SelectValue placeholder="Select size" />
+                            <SelectValue placeholder={t("studio.selectSize")} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -1850,7 +1854,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="industryContext"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Industry Dynamics</FormLabel>
+                    <FormLabel>{t("studio.industryDynamics")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Describe the industry landscape - market trends, challenges, opportunities, typical competitors..."
@@ -1869,7 +1873,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="competitiveEnvironment"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Competitive Environment</FormLabel>
+                    <FormLabel>{t("studio.competitiveEnvironment")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Who are the main competitors? What's the competitive pressure like?"
@@ -1886,7 +1890,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
 
             {/* SECTION: Player Role & Situation */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">Player Role & Situation</h3>
+              <h3 className="text-lg font-semibold border-b pb-2">{t("studio.playerRoleSituation")}</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
@@ -1894,10 +1898,10 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="role"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Player Role *</FormLabel>
+                      <FormLabel>{t("studio.playerRole")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="e.g., Chief Marketing Officer"
+                          placeholder={t("studio.playerRolePlaceholder")}
                           {...field}
                           data-testid="input-role"
                         />
@@ -1912,10 +1916,10 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="timelineContext"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Timeline Context</FormLabel>
+                      <FormLabel>{t("studio.timelineContext")}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="e.g., Immediate crisis - 72 hours to respond"
+                          placeholder={t("studio.timelineContextPlaceholder")}
                           {...field}
                           data-testid="input-timeline"
                         />
@@ -1931,7 +1935,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="objective"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Primary Objective *</FormLabel>
+                    <FormLabel>{t("studio.primaryObjective")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="What is the main goal the player must achieve? e.g., Restore brand reputation while maintaining profitability and employee morale"
@@ -1950,7 +1954,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="situationBackground"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Situation Background</FormLabel>
+                    <FormLabel>{t("studio.situationBackground")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="What happened before the scenario begins? What events led to this crisis or challenge? Provide rich context for the AI..."
@@ -1969,7 +1973,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="introText"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Opening Narrative *</FormLabel>
+                    <FormLabel>{t("studio.openingNarrative")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="The immersive story that sets the scene when the student starts. Write this as if narrating a story..."
@@ -1986,15 +1990,15 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
 
             {/* SECTION: Stakeholders */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">Key Stakeholders</h3>
-              <p className="text-sm text-muted-foreground">Define the key people the player will interact with. Format: Name - Role - Interests (one per line)</p>
+              <h3 className="text-lg font-semibold border-b pb-2">{t("studio.keyStakeholders")}</h3>
+              <p className="text-sm text-muted-foreground">{t("studio.stakeholdersDesc")}</p>
               
               <FormField
                 control={form.control}
                 name="stakeholdersJson"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Stakeholders</FormLabel>
+                    <FormLabel>{t("studio.stakeholders")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Sarah Chen - CEO - Wants quick resolution to protect stock price&#10;Marcus Williams - Head of PR - Concerned about media narrative&#10;Elena Rodriguez - Legal Counsel - Focused on regulatory compliance&#10;James Park - Employee Rep - Advocates for staff concerns"
@@ -2011,7 +2015,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
 
             {/* SECTION: Environment & Constraints */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">Environment & Constraints</h3>
+              <h3 className="text-lg font-semibold border-b pb-2">{t("studio.environmentConstraints")}</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
@@ -2019,7 +2023,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="regulatoryEnvironment"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Regulatory Environment</FormLabel>
+                      <FormLabel>{t("studio.regulatoryEnvironment")}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="What regulations, laws, or compliance requirements apply?"
@@ -2038,7 +2042,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                   name="culturalContext"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cultural Context</FormLabel>
+                      <FormLabel>{t("studio.culturalContext")}</FormLabel>
                       <FormControl>
                         <Textarea
                           placeholder="Any cultural, geographical, or social factors to consider?"
@@ -2058,7 +2062,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="resourceConstraints"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Resource Constraints</FormLabel>
+                    <FormLabel>{t("studio.resourceConstraints")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Budget limitations, staffing issues, time pressures, technical limitations..."
@@ -2077,7 +2081,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="keyConstraintsText"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Key Constraints (one per line)</FormLabel>
+                    <FormLabel>{t("studio.keyConstraints")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="$500,000 maximum budget&#10;Must maintain at least 80% workforce&#10;Cannot change product pricing&#10;Must comply with GDPR regulations"
@@ -2094,14 +2098,14 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
 
             {/* SECTION: Learning Objectives & Ethics */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">Learning Objectives & Ethics</h3>
+              <h3 className="text-lg font-semibold border-b pb-2">{t("studio.learningObjectivesEthics")}</h3>
               
               <FormField
                 control={form.control}
                 name="learningObjectivesText"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Learning Objectives (one per line)</FormLabel>
+                    <FormLabel>{t("studio.learningObjectivesPerLine")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Understand crisis communication strategies&#10;Balance stakeholder interests under pressure&#10;Apply ethical decision-making frameworks&#10;Analyze trade-offs between short and long-term outcomes"
@@ -2120,7 +2124,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 name="ethicalDimensionsText"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Ethical Dimensions (one per line)</FormLabel>
+                    <FormLabel>{t("studio.ethicalDimensions")}</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Transparency vs. corporate protection&#10;Employee welfare vs. shareholder value&#10;Short-term profits vs. long-term sustainability&#10;Individual accountability vs. organizational culture"
@@ -2137,12 +2141,12 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
 
             {/* SECTION: Supporting Materials */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold border-b pb-2">Supporting Materials</h3>
+              <h3 className="text-lg font-semibold border-b pb-2">{t("studio.supportingMaterials")}</h3>
               
               <div>
-                <FormLabel className="mb-2 block">Case Study PDF (Optional)</FormLabel>
+                <FormLabel className="mb-2 block">{t("studio.caseStudyPDF")}</FormLabel>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Upload a PDF case study to provide additional context for the AI agents
+                  {t("studio.caseStudyPDFDesc")}
                 </p>
                 <PDFUploader
                   onUploadComplete={setUploadedFile}
@@ -2158,7 +2162,7 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 variant="outline"
                 onClick={() => setOpen(false)}
               >
-                Cancel
+                {t("studio.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -2168,12 +2172,12 @@ function CreateScenarioDialog({ onSuccess }: { onSuccess: () => void }) {
                 {createMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
+                    {t("studio.creating")}
                   </>
                 ) : (
                   <>
                     <Check className="w-4 h-4 mr-2" />
-                    Create Scenario
+                    {t("studio.createScenario")}
                   </>
                 )}
               </Button>
@@ -2193,19 +2197,20 @@ function ScenarioListItem({
   onDelete: () => void;
 }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const deleteMutation = useMutation({
     mutationFn: async () => {
       await apiRequest("DELETE", `/api/scenarios/${scenario.id}`);
     },
     onSuccess: () => {
-      toast({ title: "Deleted", description: "Scenario removed" });
+      toast({ title: t("studio.deleted"), description: t("studio.scenarioRemoved") });
       onDelete();
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "Failed to delete scenario",
+        title: t("studio.error"),
+        description: t("studio.failedDeleteScenario"),
         variant: "destructive",
       });
     },
@@ -2223,7 +2228,7 @@ function ScenarioListItem({
             <Badge variant="secondary">{scenario.domain}</Badge>
             {scenario.isPublished && (
               <Badge variant="outline" className="text-chart-2 border-chart-2">
-                Published
+                {t("studio.published")}
               </Badge>
             )}
           </div>
@@ -2276,6 +2281,7 @@ function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; 
   const [editConcepts, setEditConcepts] = useState<string[]>(scenario.courseConcepts || []);
   const [editConceptInput, setEditConceptInput] = useState("");
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const saveConceptsMutation = useMutation({
     mutationFn: async () => {
@@ -2284,12 +2290,12 @@ function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; 
       });
     },
     onSuccess: () => {
-      toast({ title: "Conceptos guardados", description: "Los conceptos del curso se actualizaron." });
+      toast({ title: t("studio.conceptsSaved"), description: t("studio.conceptsSavedDesc") });
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios/authored"] });
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenario.id] });
     },
     onError: () => {
-      toast({ title: "Error", description: "No se pudieron guardar los conceptos.", variant: "destructive" });
+      toast({ title: t("studio.error"), description: t("studio.failedSaveConcepts"), variant: "destructive" });
     },
   });
 
@@ -2298,34 +2304,34 @@ function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; 
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Editar Simulación</h2>
+        <h2 className="text-xl font-semibold mb-4">{t("studio.editSimulation")}</h2>
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Título</label>
+            <label className="text-sm font-medium text-muted-foreground">{t("studio.titleLabel")}</label>
             <p className="text-lg font-semibold">{scenario.title}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Dominio</label>
+            <label className="text-sm font-medium text-muted-foreground">{t("studio.domainLabel")}</label>
             <p className="text-sm">{scenario.domain}</p>
           </div>
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Descripción</label>
+            <label className="text-sm font-medium text-muted-foreground">{t("studio.descriptionLabel")}</label>
             <p className="text-sm">{scenario.description}</p>
           </div>
           {scenario.initialState?.caseContext && (
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Contexto del Caso</label>
+              <label className="text-sm font-medium text-muted-foreground">{t("studio.caseContext")}</label>
               <p className="text-sm whitespace-pre-wrap">{scenario.initialState.caseContext}</p>
             </div>
           )}
           {scenario.initialState?.decisionPoints && scenario.initialState.decisionPoints.length > 0 && (
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Puntos de Decisión ({scenario.initialState.decisionPoints.length})</label>
+              <label className="text-sm font-medium text-muted-foreground">{t("studio.decisionPoints")} ({scenario.initialState.decisionPoints.length})</label>
               <div className="space-y-2 mt-2">
                 {scenario.initialState.decisionPoints.map((dp, idx) => (
                   <Card key={idx} className="p-3 bg-muted/50">
-                    <p className="text-sm font-medium">Decisión {idx + 1}: {dp.prompt}</p>
-                    <p className="text-xs text-muted-foreground">Formato: {dp.format === "multiple_choice" ? "Opción múltiple" : "Respuesta escrita"}</p>
+                    <p className="text-sm font-medium">{t("studio.decision")} {idx + 1}: {dp.prompt}</p>
+                    <p className="text-xs text-muted-foreground">{t("studio.format")}: {dp.format === "multiple_choice" ? t("studio.multipleChoice") : t("studio.writtenResponse")}</p>
                   </Card>
                 ))}
               </div>
@@ -2333,9 +2339,9 @@ function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; 
           )}
 
           <div className="pt-4 border-t">
-            <label className="text-sm font-medium text-muted-foreground mb-2 block">Conceptos del Curso</label>
+            <label className="text-sm font-medium text-muted-foreground mb-2 block">{t("studio.courseConcepts")}</label>
             <p className="text-xs text-muted-foreground mb-3">
-              Etiqueta con conceptos del curso (3–8) para habilitar analíticas por concepto.
+              {t("studio.courseConceptsEditDesc")}
             </p>
             <div className="flex gap-2 mb-3">
               <Input
@@ -2396,11 +2402,11 @@ function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; 
             )}
             {editConcepts.length > 0 && editConcepts.length < 3 && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                Se recomiendan al menos 3 conceptos para analíticas significativas.
+                {t("studio.minConceptsEditWarning")}
               </p>
             )}
             <div className="flex items-center justify-between mt-2">
-              <p className="text-xs text-muted-foreground">{editConcepts.length}/8 conceptos</p>
+              <p className="text-xs text-muted-foreground">{editConcepts.length}/8 {t("studio.concepts")}</p>
               {conceptsChanged && (
                 <Button
                   size="sm"
@@ -2413,7 +2419,7 @@ function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; 
                   ) : (
                     <Check className="w-3 h-3 mr-1" />
                   )}
-                  Guardar Conceptos
+                  {t("studio.saveConcepts")}
                 </Button>
               )}
             </div>
@@ -2421,15 +2427,15 @@ function EditScenarioView({ scenario, onBack, onManage }: { scenario: Scenario; 
         </div>
         <div className="flex gap-3 mt-6 pt-4 border-t">
           <Button variant="outline" onClick={onBack}>
-            Volver al Listado
+            {t("studio.backToList")}
           </Button>
           <Button onClick={onManage}>
-            Gestionar Simulación
+            {t("studio.manageSimulation")}
           </Button>
         </div>
       </Card>
       <p className="text-sm text-muted-foreground text-center">
-        La edición completa estará disponible próximamente. Usa "Gestionar Simulación" para ver y administrar esta simulación.
+        {t("studio.fullEditComingSoon")}
       </p>
     </div>
   );
@@ -2445,6 +2451,7 @@ export default function Studio() {
   const canonicalCreatorRef = useRef<CanonicalCaseCreatorRef>(null);
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const {
     data: scenarios,
@@ -2467,8 +2474,8 @@ export default function Studio() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       toast({
-        title: "Please sign in",
-        description: "You need to be signed in to access the studio.",
+        title: t("studio.pleaseSignIn"),
+        description: t("studio.needSignInStudio"),
         variant: "destructive",
       });
       setTimeout(() => {
@@ -2480,8 +2487,8 @@ export default function Studio() {
   useEffect(() => {
     if (!authLoading && user && user.role !== "professor" && user.role !== "admin") {
       toast({
-        title: "Access Denied",
-        description: "Only professors can access the authoring studio.",
+        title: t("studio.accessDenied"),
+        description: t("studio.onlyProfessors"),
         variant: "destructive",
       });
       navigate("/");
@@ -2491,8 +2498,8 @@ export default function Studio() {
   useEffect(() => {
     if (scenariosError && isUnauthorizedError(scenariosError as Error)) {
       toast({
-        title: "Session Expired",
-        description: "Please sign in again.",
+        title: t("studio.sessionExpired"),
+        description: t("studio.pleaseSignInAgain"),
         variant: "destructive",
       });
       setTimeout(() => {
@@ -2541,8 +2548,9 @@ export default function Studio() {
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <span className="font-semibold" data-testid="text-page-title">Crear Simulación</span>
+            <span className="font-semibold" data-testid="text-page-title">{t("studio.createSimulation")}</span>
           </div>
+          <LanguageToggle />
         </div>
       </header>
 
@@ -2595,9 +2603,9 @@ export default function Studio() {
                 />
               ) : (
                 <Card className="p-6 text-center">
-                  <p className="text-muted-foreground">No se encontró la simulación solicitada.</p>
+                  <p className="text-muted-foreground">{t("studio.simulationNotFound")}</p>
                   <Button className="mt-4" onClick={() => { navigate("/studio"); setAuthoringMode("list"); }}>
-                    Volver al Listado
+                    {t("studio.backToList")}
                   </Button>
                 </Card>
               )}
@@ -2619,9 +2627,9 @@ export default function Studio() {
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                     <Sparkles className="w-8 h-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">Crear con IA</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("studio.createWithAI")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Genera un borrador a partir de tu tema. Luego lo editas antes de publicar.
+                    {t("studio.createWithAIDesc")}
                   </p>
                 </Card>
 
@@ -2633,16 +2641,16 @@ export default function Studio() {
                   <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                     <PenTool className="w-8 h-8 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">Crear manualmente</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t("studio.createManually")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Define el escenario paso a paso. Recomendado si ya tienes el caso listo.
+                    {t("studio.createManuallyDesc")}
                   </p>
                 </Card>
               </div>
               
               {/* Reassurance line */}
               <p className="text-sm text-muted-foreground mt-6 text-center">
-                Nada se publica sin tu revisión.
+                {t("studio.nothingPublishedWithoutReview")}
               </p>
             </motion.div>
           )}

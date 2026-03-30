@@ -23,6 +23,8 @@ import { CaseContextPanel } from "@/components/CaseContextPanel";
 import { useSimulationStore } from "@/stores/simulationStore";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SimulationSession, Scenario, TurnResponse, KPIs, Indicator, DecisionPoint } from "@shared/schema";
@@ -36,12 +38,12 @@ function getThinkingSteps(lang: SimulationLanguage) {
     { message: t("sim.thinking.4", lang), completed: false },
   ];
 }
-
 export default function Simulation() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [, navigate] = useLocation();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [previousKpis, setPreviousKpis] = useState<KPIs | undefined>();
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showMobileCasePanel, setShowMobileCasePanel] = useState(false);
@@ -103,7 +105,7 @@ export default function Simulation() {
         window.location.href = "/api/login";
       }, 500);
     }
-  }, [authLoading, isAuthenticated, toast]);
+  }, [authLoading, isAuthenticated, toast, lang]);
 
   useEffect(() => {
     if (sessionError && isUnauthorizedError(sessionError as Error)) {
@@ -191,7 +193,7 @@ export default function Simulation() {
         const res = await fetch(`/api/queue/status/${jobId}`);
         if (!res.ok) {
           if (res.status === 404) {
-            throw new Error("El trabajo expiró. Por favor intenta de nuevo.");
+            throw new Error(t("simulation.jobExpired"));
           }
           continue;
         }
@@ -213,7 +215,7 @@ export default function Simulation() {
         }
 
         if (job.status === "failed") {
-          throw new Error(job.error || "Error al procesar tu decisión.");
+          throw new Error(job.error || t("simulation.processingError"));
         }
       } catch (error: any) {
         if (error.message?.includes("expiró") || error.message?.includes("Error al procesar")) {
@@ -224,7 +226,7 @@ export default function Simulation() {
     }
 
     setQueueStatus(null);
-    throw new Error("El procesamiento tardó demasiado. Por favor intenta de nuevo.");
+    throw new Error(t("simulation.processingTooLong"));
   };
 
   const submitMutation = useMutation({
@@ -335,8 +337,7 @@ export default function Simulation() {
       } catch (e) {}
       
       if (errorData.validationError || errorData.message === "validation_failed") {
-        const userMessage = errorData.userMessage || 
-          "Tu respuesta no pudo procesarse. Asegúrate de que:\n• La respuesta esté relacionada con el caso\n• Explique tu razonamiento o decisión\n• Mantenga un tono profesional";
+        const userMessage = errorData.userMessage || t("simulation.responseError");
         setValidationError(userMessage);
         setLastTurnStatus("block");
         return;
@@ -424,7 +425,7 @@ export default function Simulation() {
 
         <div className="text-center">
           <p className="text-sm font-medium" data-testid="text-simulation-title">
-            {session.scenario?.title || "Simulación"}
+            {session.scenario?.title || t("common.simulation")}
           </p>
           <p className="text-xs text-muted-foreground">
             {isReflectionStep
@@ -436,6 +437,7 @@ export default function Simulation() {
         </div>
 
         <div className="flex items-center gap-2">
+          <LanguageToggle />
           <Button
             variant="ghost"
             size="icon"
@@ -494,7 +496,7 @@ export default function Simulation() {
             >
               <PanelLeftOpen className="w-5 h-5 text-primary" />
               <span className="text-xs font-medium text-muted-foreground writing-mode-vertical" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
-                {lang === "en" ? "Briefing" : "Briefing"}
+                {t("simulation.briefing")}
               </span>
             </button>
           </div>

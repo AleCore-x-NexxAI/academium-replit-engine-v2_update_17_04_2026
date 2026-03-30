@@ -11,8 +11,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 export default function Landing() {
+  const { t } = useTranslation();
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
@@ -23,12 +27,15 @@ export default function Landing() {
             </div>
             <span className="text-xl font-bold">Academium</span>
           </div>
-          <Button asChild data-testid="button-login">
-            <a href="/select-role">
-              Iniciar Sesión
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </a>
-          </Button>
+          <div className="flex items-center gap-3">
+            <LanguageToggle />
+            <Button asChild data-testid="button-login">
+              <a href="/select-role">
+                {t("landing.loginButton")}
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </a>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -42,30 +49,28 @@ export default function Landing() {
             >
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
                 <Zap className="w-4 h-4" />
-                Simulaciones de Negocios con IA
+                {t("landing.aiSimulations")}
               </div>
 
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-                Aprende a Liderar con
-                <span className="text-primary"> Decisiones Reales</span>
+                {t("landing.heroTitle1")}
+                <span className="text-primary">{t("landing.heroTitle2")}</span>
               </h1>
 
               <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-                Experimenta escenarios empresariales inmersivos impulsados por IA. Toma
-                decisiones críticas, enfrenta consecuencias reales y desarrolla
-                habilidades de liderazgo en un ambiente seguro.
+                {t("landing.heroDescription")}
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Button size="lg" asChild data-testid="button-get-started">
                   <a href="/select-role">
                     <Play className="w-5 h-5 mr-2" />
-                    Inicia Tu Primera Simulación
+                    {t("landing.startSimulation")}
                   </a>
                 </Button>
                 <Button size="lg" variant="outline" data-testid="button-learn-more">
                   <GraduationCap className="w-5 h-5 mr-2" />
-                  Para Educadores
+                  {t("landing.forEducators")}
                 </Button>
               </div>
             </motion.div>
@@ -82,11 +87,10 @@ export default function Landing() {
               className="text-center mb-16"
             >
               <h2 className="text-3xl font-bold mb-4">
-                Cómo Funciona Academium
+                {t("landing.howItWorks")}
               </h2>
               <p className="text-muted-foreground max-w-xl mx-auto">
-                Nuestro sistema de IA multi-agente crea experiencias de aprendizaje
-                dinámicas y personalizadas que se adaptan a tus decisiones.
+                {t("landing.howItWorksDesc")}
               </p>
             </motion.div>
 
@@ -94,21 +98,18 @@ export default function Landing() {
               {[
                 {
                   icon: <Target className="w-6 h-6" />,
-                  title: "Elige Tu Escenario",
-                  description:
-                    "Selecciona de una biblioteca de desafíos empresariales: gestión de crisis, liderazgo de equipos, dilemas éticos y más.",
+                  title: t("landing.chooseScenario"),
+                  description: t("landing.chooseScenarioDesc"),
                 },
                 {
                   icon: <Brain className="w-6 h-6" />,
-                  title: "Toma Decisiones",
-                  description:
-                    "Interactúa con personajes realistas, analiza datos y toma decisiones críticas que dan forma a la narrativa.",
+                  title: t("landing.makeDecisions"),
+                  description: t("landing.makeDecisionsDesc"),
                 },
                 {
                   icon: <BarChart3 className="w-6 h-6" />,
-                  title: "Mide Tu Progreso",
-                  description:
-                    "Recibe retroalimentación instantánea, evaluaciones de competencias y realiza seguimiento de tu desarrollo.",
+                  title: t("landing.measureProgress"),
+                  description: t("landing.measureProgressDesc"),
                 },
               ].map((feature, index) => (
                 <motion.div
@@ -142,20 +143,20 @@ export default function Landing() {
               className="text-center mb-16"
             >
               <h2 className="text-3xl font-bold mb-4">
-                Indicadores Clave de Desempeño
+                {t("landing.kpiTitle")}
               </h2>
               <p className="text-muted-foreground max-w-xl mx-auto">
-                Cada decisión impacta cinco métricas fundamentales que determinan tu éxito.
+                {t("landing.kpiDesc")}
               </p>
             </motion.div>
 
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               {[
-                { label: "Moral del Equipo", color: "bg-chart-1" },
-                { label: "Impacto Presupuestario", color: "bg-chart-2" },
-                { label: "Riesgo Operacional", color: "bg-chart-3" },
-                { label: "Alineación Estratégica", color: "bg-chart-4" },
-                { label: "Presión de Tiempo", color: "bg-chart-5" },
+                { label: t("landing.teamMorale"), color: "bg-chart-1" },
+                { label: t("landing.budgetImpact"), color: "bg-chart-2" },
+                { label: t("landing.operationalRisk"), color: "bg-chart-3" },
+                { label: t("landing.strategicAlignment"), color: "bg-chart-4" },
+                { label: t("landing.timePressure"), color: "bg-chart-5" },
               ].map((kpi, index) => (
                 <motion.div
                   key={index}
@@ -185,12 +186,10 @@ export default function Landing() {
             >
               <Users className="w-12 h-12 mx-auto mb-6 opacity-80" />
               <h2 className="text-3xl font-bold mb-4">
-                ¿Listo para Transformar Tu Aprendizaje?
+                {t("landing.readyToTransform")}
               </h2>
               <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">
-                Únete a miles de estudiantes y profesionales que desarrollan
-                habilidades de liderazgo del mundo real a través de simulaciones
-                inmersivas con IA.
+                {t("landing.readyToTransformDesc")}
               </p>
               <Button
                 size="lg"
@@ -199,7 +198,7 @@ export default function Landing() {
                 data-testid="button-start-now"
               >
                 <a href="/select-role">
-                  Comenzar Gratis
+                  {t("landing.startFree")}
                   <ArrowRight className="w-5 h-5 ml-2" />
                 </a>
               </Button>
@@ -215,7 +214,7 @@ export default function Landing() {
             <span className="font-semibold">Academium</span>
           </div>
           <p className="text-sm text-muted-foreground">
-            Plataforma de aprendizaje experiencial impulsada por IA
+            {t("landing.footerDesc")}
           </p>
         </div>
       </footer>

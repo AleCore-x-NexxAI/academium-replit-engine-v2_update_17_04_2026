@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import type { Scenario, User } from "@shared/schema";
@@ -23,6 +25,7 @@ export default function SimulationStart() {
   const isTestMode = new URLSearchParams(searchString).get("test") === "true";
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const { data: currentUser } = useQuery<User>({
     queryKey: ["/api/auth/user"],
@@ -43,28 +46,28 @@ export default function SimulationStart() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       toast({
-        title: "Por favor inicia sesión",
-        description: "Necesitas iniciar sesión para comenzar una simulación.",
+        title: t("simulation.pleaseLogin"),
+        description: t("simulationStart.needLoginStart"),
         variant: "destructive",
       });
       setTimeout(() => {
         window.location.href = "/api/login";
       }, 500);
     }
-  }, [authLoading, isAuthenticated, toast]);
+  }, [authLoading, isAuthenticated, toast, t]);
 
   useEffect(() => {
     if (scenarioError && isUnauthorizedError(scenarioError as Error)) {
       toast({
-        title: "Sesión Expirada",
-        description: "Por favor inicia sesión nuevamente.",
+        title: t("home.sessionExpired"),
+        description: t("home.pleaseLoginAgain"),
         variant: "destructive",
       });
       setTimeout(() => {
         window.location.href = "/api/login";
       }, 500);
     }
-  }, [scenarioError, toast]);
+  }, [scenarioError, toast, t]);
 
   const startMutation = useMutation({
     mutationFn: async () => {
@@ -79,8 +82,8 @@ export default function SimulationStart() {
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
         toast({
-          title: "Sesión Expirada",
-          description: "Por favor inicia sesión nuevamente.",
+          title: t("home.sessionExpired"),
+          description: t("home.pleaseLoginAgain"),
           variant: "destructive",
         });
         setTimeout(() => {
@@ -89,8 +92,8 @@ export default function SimulationStart() {
         return;
       }
       toast({
-        title: "Error",
-        description: "No se pudo iniciar la simulación. Por favor intenta de nuevo.",
+        title: t("common.error"),
+        description: t("simulationStart.errorStarting"),
         variant: "destructive",
       });
     },
@@ -101,7 +104,7 @@ export default function SimulationStart() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Cargando escenario...</p>
+          <p className="text-muted-foreground">{t("simulationStart.loadingScenario")}</p>
         </div>
       </div>
     );
@@ -112,11 +115,11 @@ export default function SimulationStart() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <Brain className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-xl font-semibold mb-2">Escenario No Encontrado</h2>
+          <h2 className="text-xl font-semibold mb-2">{t("simulationStart.scenarioNotFound")}</h2>
           <p className="text-muted-foreground mb-6">
-            Este escenario puede haber sido eliminado o no está disponible.
+            {t("simulationStart.scenarioNotFoundDesc")}
           </p>
-          <Button onClick={() => navigate("/")}>Volver al Inicio</Button>
+          <Button onClick={() => navigate("/")}>{t("common.backToHome")}</Button>
         </div>
       </div>
     );
@@ -136,28 +139,27 @@ export default function SimulationStart() {
             <Clock className="w-10 h-10 text-amber-600" />
           </div>
           <h2 className="text-2xl font-semibold mb-3" data-testid="text-waiting-title">
-            El profesor aún no ha iniciado la simulación
+            {t("simulationStart.notStartedTitle")}
           </h2>
           <p className="text-muted-foreground mb-6" data-testid="text-waiting-description">
-            La simulación "{scenario.title}" estará disponible cuando tu profesor la inicie. 
-            Por favor, espera las instrucciones de tu profesor.
+            {`"${scenario.title}" ${t("simulationStart.notStartedDesc")}`}
           </p>
           <Card className="p-4 bg-muted/50 mb-6">
             <div className="flex items-start gap-3 text-left">
               <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-sm text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">¿Qué puedes hacer mientras tanto?</p>
+                <p className="font-medium text-foreground mb-1">{t("simulationStart.whatToDo")}</p>
                 <ul className="space-y-1">
-                  <li>• Revisar el material del curso</li>
-                  <li>• Preparar preguntas sobre el caso</li>
-                  <li>• Esperar el aviso de tu profesor</li>
+                  <li>• {t("simulationStart.reviewMaterial")}</li>
+                  <li>• {t("simulationStart.prepareQuestions")}</li>
+                  <li>• {t("simulationStart.waitForProfessor")}</li>
                 </ul>
               </div>
             </div>
           </Card>
           <Button variant="outline" onClick={() => navigate("/")} data-testid="button-back-home">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Volver al Inicio
+            {t("common.backToHome")}
           </Button>
         </motion.div>
       </div>
@@ -167,7 +169,7 @@ export default function SimulationStart() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center">
+        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
           <Button
             variant="ghost"
             size="icon"
@@ -176,6 +178,7 @@ export default function SimulationStart() {
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
+          <LanguageToggle />
         </div>
       </header>
 
@@ -209,12 +212,12 @@ export default function SimulationStart() {
                   <Target className="w-6 h-6" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xs uppercase tracking-wide text-chart-1 font-medium mb-1">Tu Rol</h3>
+                  <h3 className="text-xs uppercase tracking-wide text-chart-1 font-medium mb-1">{t("simulationStart.yourRole")}</h3>
                   <p className="text-lg font-semibold text-foreground mb-1" data-testid="text-role">
-                    {scenario.initialState?.role || "Líder de Negocios"}
+                    {scenario.initialState?.role || t("simulationStart.defaultRole")}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Tus decisiones impactan a múltiples partes interesadas
+                    {t("simulationStart.decisionsImpact")}
                   </p>
                 </div>
               </div>
@@ -226,10 +229,10 @@ export default function SimulationStart() {
                   <Users className="w-6 h-6" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xs uppercase tracking-wide text-chart-2 font-medium mb-1">La Tensión</h3>
+                  <h3 className="text-xs uppercase tracking-wide text-chart-2 font-medium mb-1">{t("simulationStart.theTension")}</h3>
                   <p className="text-base text-foreground leading-relaxed" data-testid="text-objective">
                     {scenario.initialState?.objective ||
-                      "Navega las tensiones entre diferentes prioridades empresariales."}
+                      t("simulationStart.defaultObjective")}
                   </p>
                 </div>
               </div>
@@ -243,8 +246,8 @@ export default function SimulationStart() {
                 <Brain className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Contexto del Caso</h3>
-                <p className="text-xs text-muted-foreground">Situación actual que enfrentarás</p>
+                <h3 className="font-semibold text-foreground">{t("simulationStart.caseContext")}</h3>
+                <p className="text-xs text-muted-foreground">{t("simulationStart.currentSituation")}</p>
               </div>
             </div>
             <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
@@ -255,7 +258,7 @@ export default function SimulationStart() {
               <div className="mt-5 p-4 rounded-lg bg-primary/5 border border-primary/20">
                 <h4 className="font-medium text-sm text-primary mb-2 flex items-center gap-2">
                   <Target className="w-4 h-4" />
-                  Desafío Central
+                  {t("simulationStart.coreChallenge")}
                 </h4>
                 <p className="text-sm text-foreground/90">
                   {scenario.initialState.coreChallenge}
@@ -272,9 +275,9 @@ export default function SimulationStart() {
                   <Target className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Punto de Partida</h3>
+                  <h3 className="font-semibold">{t("simulationStart.startingPoint")}</h3>
                   <p className="text-xs text-muted-foreground">
-                    Condiciones iniciales — tus decisiones las modificarán
+                    {t("simulationStart.startingPointDesc")}
                   </p>
                 </div>
               </div>
@@ -296,19 +299,19 @@ export default function SimulationStart() {
                   <Target className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold">Punto de Partida</h3>
+                  <h3 className="font-semibold">{t("simulationStart.startingPoint")}</h3>
                   <p className="text-xs text-muted-foreground">
-                    Condiciones iniciales — tus decisiones las modificarán
+                    {t("simulationStart.startingPointDesc")}
                   </p>
                 </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
-                  { label: "Ingresos", value: `${scenario.initialState.kpis.revenue || 65}%` },
-                  { label: "Moral", value: `${scenario.initialState.kpis.morale || 70}%` },
-                  { label: "Reputación", value: `${scenario.initialState.kpis.reputation || 75}%` },
-                  { label: "Eficiencia", value: `${scenario.initialState.kpis.efficiency || 60}%` },
-                  { label: "Confianza", value: `${scenario.initialState.kpis.trust || 72}%` },
+                  { label: t("simulationStart.revenue"), value: `${scenario.initialState.kpis.revenue || 65}%` },
+                  { label: t("simulationStart.morale"), value: `${scenario.initialState.kpis.morale || 70}%` },
+                  { label: t("simulationStart.reputation"), value: `${scenario.initialState.kpis.reputation || 75}%` },
+                  { label: t("simulationStart.efficiency"), value: `${scenario.initialState.kpis.efficiency || 60}%` },
+                  { label: t("simulationStart.trust"), value: `${scenario.initialState.kpis.trust || 72}%` },
                 ].map((kpi) => (
                   <div key={kpi.label} className="text-center p-4 bg-background rounded-lg border shadow-sm">
                     <p className="text-xs text-muted-foreground mb-2">
@@ -323,25 +326,25 @@ export default function SimulationStart() {
 
           {/* Simulation Structure - Professional Timeline */}
           <div className="bg-muted/20 rounded-lg p-6">
-            <h3 className="font-semibold text-center mb-5 text-foreground">Tu Recorrido</h3>
+            <h3 className="font-semibold text-center mb-5 text-foreground">{t("simulationStart.yourJourney")}</h3>
             <div className="flex items-center justify-center gap-2 md:gap-4 flex-wrap">
               <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg border">
                 <div className="w-7 h-7 rounded-full bg-chart-1/20 text-chart-1 flex items-center justify-center text-sm font-semibold">1</div>
-                <span className="text-sm font-medium">Orientación</span>
+                <span className="text-sm font-medium">{t("simulationStart.orientation")}</span>
               </div>
               <div className="text-muted-foreground hidden md:block">→</div>
               <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg border">
                 <div className="w-7 h-7 rounded-full bg-chart-2/20 text-chart-2 flex items-center justify-center text-sm font-semibold">2</div>
-                <span className="text-sm font-medium">Análisis</span>
+                <span className="text-sm font-medium">{t("simulationStart.analysis")}</span>
               </div>
               <div className="text-muted-foreground hidden md:block">→</div>
               <div className="flex items-center gap-2 bg-background px-4 py-2 rounded-lg border">
                 <div className="w-7 h-7 rounded-full bg-chart-3/20 text-chart-3 flex items-center justify-center text-sm font-semibold">3</div>
-                <span className="text-sm font-medium">Integración</span>
+                <span className="text-sm font-medium">{t("simulationStart.integration")}</span>
               </div>
             </div>
             <p className="text-xs text-center text-muted-foreground mt-4">
-              Duración estimada: 20-25 minutos
+              {t("simulationStart.estimatedDuration")}
             </p>
           </div>
 
@@ -357,17 +360,17 @@ export default function SimulationStart() {
               {startMutation.isPending ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Iniciando...
+                  {t("simulationStart.starting")}
                 </>
               ) : (
                 <>
                   <Play className="w-5 h-5 mr-2" />
-                  Comenzar Simulación
+                  {t("simulationStart.startSimulation")}
                 </>
               )}
             </Button>
             <p className="text-sm text-muted-foreground mt-4">
-              No hay respuestas "correctas". Lo importante es tu razonamiento.
+              {t("simulationStart.noCorrectAnswers")}
             </p>
           </div>
         </motion.div>

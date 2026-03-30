@@ -22,48 +22,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 type Role = "student" | "professor" | "admin";
-
-interface RoleOption {
-  id: Role;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  requiresCode: boolean;
-}
-
-const primaryRoleOptions: RoleOption[] = [
-  {
-    id: "student",
-    title: "Estudiante",
-    description:
-      "Accede a escenarios y toma decisiones. Verás el impacto de tu criterio.",
-    icon: <GraduationCap className="w-8 h-8" />,
-    color: "bg-chart-1/10 text-chart-1",
-    requiresCode: false,
-  },
-  {
-    id: "professor",
-    title: "Profesor",
-    description:
-      "Crea escenarios y revisa el progreso de tu clase.",
-    icon: <BookOpen className="w-8 h-8" />,
-    color: "bg-chart-2/10 text-chart-2",
-    requiresCode: false,
-  },
-];
-
-const adminRoleOption: RoleOption = {
-  id: "admin",
-  title: "Super Administrador",
-  description:
-    "Configuración del sistema y gestión de usuarios.",
-  icon: <Shield className="w-5 h-5" />,
-  color: "bg-muted text-muted-foreground",
-  requiresCode: true,
-};
 
 export default function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -71,16 +33,41 @@ export default function RoleSelection() {
   const [adminCode, setAdminCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const { toast } = useToast();
+  const { t } = useTranslation();
+
+  const primaryRoleOptions = [
+    {
+      id: "student" as Role,
+      title: t("roleSelection.student"),
+      description: t("roleSelection.studentDesc"),
+      icon: <GraduationCap className="w-8 h-8" />,
+      color: "bg-chart-1/10 text-chart-1",
+      requiresCode: false,
+    },
+    {
+      id: "professor" as Role,
+      title: t("roleSelection.professor"),
+      description: t("roleSelection.professorDesc"),
+      icon: <BookOpen className="w-8 h-8" />,
+      color: "bg-chart-2/10 text-chart-2",
+      requiresCode: false,
+    },
+  ];
+
+  const adminRoleOption = {
+    id: "admin" as Role,
+    title: t("roleSelection.superAdmin"),
+    description: t("roleSelection.superAdminDesc"),
+    icon: <Shield className="w-5 h-5" />,
+    color: "bg-muted text-muted-foreground",
+    requiresCode: true,
+  };
 
   const handleRoleSelect = (role: Role) => {
     setSelectedRole(role);
-    
-    // Check if this role requires a code (only admin does)
     if (role === "admin") {
       setShowCodeDialog(true);
     } else {
-      // Use fresh-login to clear any existing Replit session first
-      // This allows students on shared computers to switch accounts
       window.location.href = `/api/fresh-login?role=${role}`;
     }
   };
@@ -88,8 +75,8 @@ export default function RoleSelection() {
   const handleCodeSubmit = async () => {
     if (!adminCode.trim()) {
       toast({
-        title: "Código requerido",
-        description: "Por favor ingresa el código de administrador.",
+        title: t("roleSelection.codeRequired"),
+        description: t("roleSelection.enterAdminCode"),
         variant: "destructive",
       });
       return;
@@ -106,20 +93,19 @@ export default function RoleSelection() {
       const data = await response.json();
 
       if (data.valid) {
-        // Use fresh-login to clear any existing Replit session first
         window.location.href = `/api/fresh-login?role=admin&verified=true`;
       } else {
         toast({
-          title: "Código inválido",
-          description: "El código de administrador no es correcto.",
+          title: t("roleSelection.invalidCode"),
+          description: t("roleSelection.invalidCodeDesc"),
           variant: "destructive",
         });
         setAdminCode("");
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "No se pudo verificar el código. Intenta de nuevo.",
+        title: t("common.error"),
+        description: t("roleSelection.verifyError"),
         variant: "destructive",
       });
     } finally {
@@ -139,12 +125,15 @@ export default function RoleSelection() {
               <span className="text-xl font-bold">Academium</span>
             </a>
           </div>
-          <Button variant="ghost" asChild>
-            <a href="/">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Volver
-            </a>
-          </Button>
+          <div className="flex items-center gap-3">
+            <LanguageToggle />
+            <Button variant="ghost" asChild>
+              <a href="/">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                {t("common.back")}
+              </a>
+            </Button>
+          </div>
         </div>
       </header>
       <main className="max-w-4xl mx-auto px-6 py-16">
@@ -153,14 +142,12 @@ export default function RoleSelection() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <h1 className="text-3xl md:text-4xl font-bold mb-4">Elige tu rol</h1>
+          <h1 className="text-3xl md:text-4xl font-bold mb-4">{t("roleSelection.chooseRole")}</h1>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            Selecciona tu rol para personalizar tu experiencia. Esto determinará
-            las funciones disponibles en tu cuenta.
+            {t("roleSelection.chooseRoleDesc")}
           </p>
         </motion.div>
 
-        {/* Primary role cards - Student and Professor */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
           {primaryRoleOptions.map((option, index) => (
             <motion.div
@@ -172,9 +159,7 @@ export default function RoleSelection() {
             >
               <Card
                 className={`p-8 w-full cursor-pointer transition-all hover-elevate flex flex-col h-full ${
-                  selectedRole === option.id
-                    ? "ring-2 ring-primary"
-                    : ""
+                  selectedRole === option.id ? "ring-2 ring-primary" : ""
                 }`}
                 onClick={() => handleRoleSelect(option.id)}
                 data-testid={`card-role-${option.id}`}
@@ -192,7 +177,7 @@ export default function RoleSelection() {
                   className="w-full mt-auto"
                   data-testid={`button-select-${option.id}`}
                 >
-                  Continuar como {option.title}
+                  {t("roleSelection.continueAs")} {option.title}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </Card>
@@ -200,7 +185,6 @@ export default function RoleSelection() {
           ))}
         </div>
 
-        {/* Secondary admin card - low visual weight */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -209,9 +193,7 @@ export default function RoleSelection() {
         >
           <Card
             className={`px-6 py-4 w-full cursor-pointer transition-all hover-elevate border-dashed ${
-              selectedRole === adminRoleOption.id
-                ? "ring-2 ring-primary"
-                : ""
+              selectedRole === adminRoleOption.id ? "ring-2 ring-primary" : ""
             }`}
             onClick={() => handleRoleSelect(adminRoleOption.id)}
             data-testid={`card-role-${adminRoleOption.id}`}
@@ -237,7 +219,7 @@ export default function RoleSelection() {
                 className="shrink-0"
                 data-testid={`button-select-${adminRoleOption.id}`}
               >
-                Acceso restringido
+                {t("roleSelection.restrictedAccess")}
                 <KeyRound className="w-3 h-3 ml-1" />
               </Button>
             </div>
@@ -250,7 +232,7 @@ export default function RoleSelection() {
           transition={{ delay: 0.4 }}
           className="text-center text-xs text-muted-foreground mt-8"
         >
-          Tu rol se guardará con tu cuenta.
+          {t("roleSelection.roleSaved")}
         </motion.p>
       </main>
       <Dialog open={showCodeDialog} onOpenChange={setShowCodeDialog}>
@@ -258,19 +240,18 @@ export default function RoleSelection() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-chart-4" />
-              Acceso de Administrador
+              {t("roleSelection.adminAccess")}
             </DialogTitle>
             <DialogDescription>
-              Para registrarte como Super Administrador, ingresa el código de
-              acceso proporcionado por el equipo de Academium.
+              {t("roleSelection.adminAccessDesc")}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="admin-code">Código de Acceso</Label>
+            <Label htmlFor="admin-code">{t("roleSelection.accessCode")}</Label>
             <Input
               id="admin-code"
               type="password"
-              placeholder="Ingresa el código"
+              placeholder={t("roleSelection.enterCode")}
               value={adminCode}
               onChange={(e) => setAdminCode(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCodeSubmit()}
@@ -287,14 +268,14 @@ export default function RoleSelection() {
                 setSelectedRole(null);
               }}
             >
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleCodeSubmit}
               disabled={isVerifying}
               data-testid="button-verify-code"
             >
-              {isVerifying ? "Verificando..." : "Verificar y Continuar"}
+              {isVerifying ? t("roleSelection.verifying") : t("roleSelection.verifyAndContinue")}
             </Button>
           </DialogFooter>
         </DialogContent>

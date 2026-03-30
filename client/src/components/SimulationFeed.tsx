@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { User, Bot, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -188,6 +189,7 @@ function TypingDots() {
 }
 
 function QueueIndicator({ position, estimatedWaitMs, language = "es" }: { position: number; estimatedWaitMs: number; language?: SimulationLanguage }) {
+  const { t: translate } = useTranslation();
   const waitSec = Math.ceil(estimatedWaitMs / 1000);
   return (
     <motion.div
@@ -233,6 +235,7 @@ export function SimulationFeed({
   queueStatus,
   language = "es",
 }: SimulationFeedProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -246,7 +249,7 @@ export function SimulationFeed({
         <div className="text-center p-8">
           <MessageSquare className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
           <p className="text-muted-foreground">
-            {language === "en" ? "The simulation will begin shortly..." : "La simulación comenzará en breve..."}
+            {translate("simulationFeed.startingSoon")}
           </p>
         </div>
       </div>

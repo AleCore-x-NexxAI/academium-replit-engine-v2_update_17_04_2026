@@ -14,58 +14,59 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-
-const EXAMPLE_CASE = {
-  title: "Crisis de Lanzamiento de Producto",
-  domain: "Gestión de Crisis",
-  duration: "20-25 minutos",
-  role: "Gerente de Producto",
-  company: "TechSolutions",
-  industry: "Tecnología/Software B2B",
-  context: `Eres el Gerente de Producto de TechSolutions, una empresa de software B2B. A tres días del lanzamiento de tu producto estrella 'CloudSync Pro', el equipo de QA descubre un problema crítico de seguridad que podría exponer datos de clientes. El CEO espera tu recomendación antes del fin del día.
-
-TechSolutions ha invertido 18 meses y $2M en desarrollar CloudSync Pro. El equipo de ventas ya cerró pre-ventas por $500K. La competencia planea lanzar un producto similar en 6 semanas.`,
-  coreChallenge: "Gestionar la crisis del lanzamiento equilibrando intereses de stakeholders, riesgos operacionales y reputación de la empresa.",
-  constraints: [
-    "Lanzamiento programado en 3 días",
-    "Pre-ventas comprometidas por $500K",
-    "Competencia lanza en 6 semanas",
-    "Vulnerabilidad de seguridad confirmada",
-  ],
-  decisionPoints: [
-    {
-      id: 1,
-      type: "multiple_choice",
-      title: "Decisión 1: Acción Inmediata",
-      description: "Elige tu primera respuesta ante la crisis",
-      preview: "4 opciones: Informar al CEO, trabajo 24/7, lanzar con parche, o consultar legal",
-    },
-    {
-      id: 2,
-      type: "written",
-      title: "Decisión 2: Gestión de Stakeholders",
-      description: "Explica cómo manejas la tensión entre ventas y QA",
-      preview: "Respuesta escrita: Cómo equilibras las demandas de diferentes grupos",
-    },
-    {
-      id: 3,
-      type: "reflection",
-      title: "Decisión 3: Reflexión Final",
-      description: "Sintetiza tu aprendizaje",
-      preview: "Reflexión integradora: ¿Qué aprendiste? ¿Qué harías diferente?",
-    },
-  ],
-  indicators: [
-    { id: "revenue", label: "Ingresos / Presupuesto", description: "Salud financiera y disponibilidad de recursos" },
-    { id: "morale", label: "Moral del Equipo", description: "Estado emocional y compromiso del equipo" },
-    { id: "reputation", label: "Reputación de Marca", description: "Percepción pública y credibilidad de marca" },
-    { id: "efficiency", label: "Eficiencia Operacional", description: "Optimización de procesos y recursos" },
-    { id: "trust", label: "Confianza de Stakeholders", description: "Nivel de confianza de partes interesadas" },
-  ],
-};
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 export default function ExploreExample() {
   const [, navigate] = useLocation();
+  const { t } = useTranslation();
+
+  const EXAMPLE_CASE = {
+    title: t("exploreExample.scenarioTitle"),
+    domain: t("exploreExample.domain"),
+    duration: t("exploreExample.duration"),
+    role: t("exploreExample.role"),
+    company: t("exploreExample.company"),
+    industry: t("exploreExample.industry"),
+    context: t("exploreExample.context"),
+    coreChallenge: t("exploreExample.challengeText"),
+    constraints: [
+      t("exploreExample.constraint1"),
+      t("exploreExample.constraint2"),
+      t("exploreExample.constraint3"),
+      t("exploreExample.constraint4"),
+    ],
+    decisionPoints: [
+      {
+        id: 1,
+        type: "multiple_choice",
+        title: t("exploreExample.decision1Title"),
+        description: t("exploreExample.decision1Desc"),
+        preview: t("exploreExample.decision1Preview"),
+      },
+      {
+        id: 2,
+        type: "written",
+        title: t("exploreExample.decision2Title"),
+        description: t("exploreExample.decision2Desc"),
+        preview: t("exploreExample.decision2Preview"),
+      },
+      {
+        id: 3,
+        type: "reflection",
+        title: t("exploreExample.decision3Title"),
+        description: t("exploreExample.decision3Desc"),
+        preview: t("exploreExample.decision3Preview"),
+      },
+    ],
+    indicators: [
+      { id: "revenue", label: t("exploreExample.indicatorRevenue"), description: t("exploreExample.indicatorRevenueDesc") },
+      { id: "morale", label: t("exploreExample.indicatorMorale"), description: t("exploreExample.indicatorMoraleDesc") },
+      { id: "reputation", label: t("exploreExample.indicatorReputation"), description: t("exploreExample.indicatorReputationDesc") },
+      { id: "efficiency", label: t("exploreExample.indicatorEfficiency"), description: t("exploreExample.indicatorEfficiencyDesc") },
+      { id: "trust", label: t("exploreExample.indicatorTrust"), description: t("exploreExample.indicatorTrustDesc") },
+    ],
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -77,11 +78,14 @@ export default function ExploreExample() {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <span className="font-semibold" data-testid="text-preview-title">Simulación de Ejemplo</span>
+            <span className="font-semibold" data-testid="text-preview-title">{t("exploreExample.simulationExample")}</span>
           </div>
-          <Badge variant="secondary" data-testid="badge-readonly">
-            Solo lectura
-          </Badge>
+          <div className="flex items-center gap-3">
+            <LanguageToggle />
+            <Badge variant="secondary" data-testid="badge-readonly">
+              {t("exploreExample.readOnly")}
+            </Badge>
+          </div>
         </div>
       </header>
 
@@ -114,14 +118,14 @@ export default function ExploreExample() {
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
                   <User className="w-5 h-5 text-primary mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium">Tu Rol</p>
+                    <p className="text-sm font-medium">{t("exploreExample.yourRole")}</p>
                     <p className="text-sm text-muted-foreground">{EXAMPLE_CASE.role}</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
                   <Building2 className="w-5 h-5 text-primary mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium">Organización</p>
+                    <p className="text-sm font-medium">{t("exploreExample.organization")}</p>
                     <p className="text-sm text-muted-foreground">{EXAMPLE_CASE.company} • {EXAMPLE_CASE.industry}</p>
                   </div>
                 </div>
@@ -132,7 +136,7 @@ export default function ExploreExample() {
               <div>
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-primary" />
-                  Contexto del Caso
+                  {t("exploreExample.caseContext")}
                 </h3>
                 <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
                   {EXAMPLE_CASE.context}
@@ -142,7 +146,7 @@ export default function ExploreExample() {
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
                 <h3 className="font-semibold mb-2 flex items-center gap-2">
                   <Target className="w-4 h-4 text-primary" />
-                  Desafío Central
+                  {t("exploreExample.coreChallenge")}
                 </h3>
                 <p className="text-sm">{EXAMPLE_CASE.coreChallenge}</p>
               </div>
@@ -153,7 +157,7 @@ export default function ExploreExample() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-primary" />
-                Puntos de Decisión
+                {t("exploreExample.decisionPoints")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -170,8 +174,8 @@ export default function ExploreExample() {
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="font-medium" data-testid={`text-decision-title-${decision.id}`}>{decision.title}</h4>
                       <Badge variant="outline" className="text-xs" data-testid={`badge-decision-type-${decision.id}`}>
-                        {decision.type === "multiple_choice" ? "Opción múltiple" : 
-                         decision.type === "written" ? "Respuesta escrita" : "Reflexión"}
+                        {decision.type === "multiple_choice" ? t("exploreExample.multipleChoice") : 
+                         decision.type === "written" ? t("exploreExample.writtenResponse") : t("exploreExample.reflection")}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2" data-testid={`text-decision-description-${decision.id}`}>{decision.description}</p>
@@ -184,7 +188,7 @@ export default function ExploreExample() {
 
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle className="text-lg">Indicadores</CardTitle>
+              <CardTitle className="text-lg">{t("exploreExample.indicatorsTitle")}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
@@ -201,12 +205,12 @@ export default function ExploreExample() {
             <Link href="/">
               <Button variant="outline" data-testid="button-back-to-home">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Volver al Inicio
+                {t("exploreExample.backToHome")}
               </Button>
             </Link>
             <Button onClick={() => navigate("/demo-simulation")} data-testid="button-start-demo">
               <Play className="w-4 h-4 mr-2" />
-              Iniciar Demo
+              {t("exploreExample.startDemo")}
             </Button>
           </div>
         </motion.div>

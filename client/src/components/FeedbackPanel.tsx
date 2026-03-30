@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MessageSquare, RefreshCw } from "lucide-react";
@@ -28,10 +29,11 @@ export function FeedbackPanel({
   maxRevisions = 2,
   language = "es",
 }: FeedbackPanelProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col p-6">
       <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-6">
-        {t("feedback.observations", language)}
+        {t("feedbackPanel.observations")}
       </h3>
 
       <AnimatePresence mode="wait">
@@ -47,7 +49,7 @@ export function FeedbackPanel({
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <RefreshCw className="w-5 h-5 text-primary" />
-                  <span className="font-medium">{t("feedback.deepen", language)}</span>
+                  <span className="font-medium">{t("feedbackPanel.deepenResponse")}</span>
                 </div>
                 <Badge variant="outline" className="text-xs">
                   {revisionAttempts}/{maxRevisions}
@@ -59,7 +61,7 @@ export function FeedbackPanel({
               </p>
 
               <p className="text-xs text-muted-foreground">
-                {t("feedback.reflect", language)}
+                {t("feedbackPanel.reflectAndExpand")}
               </p>
             </Card>
           </motion.div>
@@ -76,7 +78,7 @@ export function FeedbackPanel({
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-4">
                 <MessageSquare className="w-5 h-5 text-primary" />
-                <span className="font-medium">{t("feedback.mentor", language)}</span>
+                <span className="font-medium">{t("feedbackPanel.mentorNote")}</span>
               </div>
 
               <p className="text-sm leading-relaxed text-foreground">
@@ -96,7 +98,7 @@ export function FeedbackPanel({
         >
           <Card className="p-6 bg-muted/30">
             <p className="text-sm text-center text-muted-foreground">
-              {t("results.gameover.msg", language)}
+              {t("feedbackPanel.simulationCompleted")}
             </p>
           </Card>
         </motion.div>

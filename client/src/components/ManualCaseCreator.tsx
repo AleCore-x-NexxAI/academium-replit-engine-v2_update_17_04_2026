@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { HelpIcon } from "@/components/HelpIcon";
+import { useTranslation } from "@/contexts/LanguageContext";
 
 interface ManualCaseCreatorProps {
   onSuccess: () => void;
@@ -30,20 +31,20 @@ interface ManualCaseCreatorProps {
 }
 
 const STANDARD_INDICATORS = [
-  { id: "revenue", label: "Ingresos / Presupuesto" },
-  { id: "morale", label: "Moral del Equipo" },
-  { id: "reputation", label: "Reputación de Marca" },
-  { id: "efficiency", label: "Eficiencia Operacional" },
-  { id: "trust", label: "Confianza de Stakeholders" },
+  { id: "revenue", labelKey: "indicators.revenueBudget" },
+  { id: "morale", labelKey: "indicators.teamMorale" },
+  { id: "reputation", labelKey: "indicators.brandReputation" },
+  { id: "efficiency", labelKey: "indicators.operationalEfficiency" },
+  { id: "trust", labelKey: "indicators.stakeholderTrust" },
 ];
 
 const TRADEOFF_OPTIONS = [
-  { id: "cost_quality", label: "Costo vs. Calidad" },
-  { id: "speed_safety", label: "Velocidad vs. Seguridad" },
-  { id: "short_long", label: "Corto vs. Largo Plazo" },
-  { id: "individual_collective", label: "Individual vs. Colectivo" },
-  { id: "innovation_stability", label: "Innovación vs. Estabilidad" },
-  { id: "profit_ethics", label: "Rentabilidad vs. Ética" },
+  { id: "cost_quality", labelKey: "tradeoffs.costVsQuality" },
+  { id: "speed_safety", labelKey: "tradeoffs.speedVsSafety" },
+  { id: "short_long", labelKey: "tradeoffs.shortVsLong" },
+  { id: "individual_collective", labelKey: "tradeoffs.individualVsCollective" },
+  { id: "innovation_stability", labelKey: "tradeoffs.innovationVsStability" },
+  { id: "profit_ethics", labelKey: "tradeoffs.profitVsEthics" },
 ];
 
 interface FormData {
@@ -61,6 +62,7 @@ export default function ManualCaseCreator({
   onClose,
 }: ManualCaseCreatorProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [optionalOpen, setOptionalOpen] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
@@ -88,12 +90,12 @@ export default function ManualCaseCreator({
   const saveDraftMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("POST", "/api/scenarios", {
-        title: formData.title || "Borrador sin título",
-        description: formData.caseContext.slice(0, 200) || "Caso en desarrollo",
-        domain: "Negocios",
+        title: formData.title || t("manualCase.untitledDraft"),
+        description: formData.caseContext.slice(0, 200) || t("manualCase.caseInDevelopment"),
+        domain: t("manualCase.business"),
         initialState: {
-          role: formData.studentRole || "Profesional",
-          objective: "Tomar decisiones estratégicas",
+          role: formData.studentRole || t("manualCase.professional"),
+          objective: t("manualCase.makeStrategicDecisions"),
           introText: formData.caseContext,
           kpis: {
             revenue: 65,
@@ -112,17 +114,17 @@ export default function ManualCaseCreator({
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Borrador guardado", description: "Tu caso ha sido guardado como borrador." });
+      toast({ title: t("manualCase.draftSaved"), description: t("manualCase.draftSavedDesc") });
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios/authored"] });
       onSuccess();
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
-        toast({ title: "Sesión expirada", description: "Por favor inicia sesión de nuevo.", variant: "destructive" });
+        toast({ title: t("manualCase.sessionExpired"), description: t("manualCase.pleaseLoginAgain"), variant: "destructive" });
         setTimeout(() => { window.location.href = "/api/login"; }, 500);
         return;
       }
-      toast({ title: "Error", description: "No se pudo guardar el borrador.", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("manualCase.couldNotSave"), variant: "destructive" });
     },
   });
 
@@ -131,10 +133,10 @@ export default function ManualCaseCreator({
       const response = await apiRequest("POST", "/api/scenarios", {
         title: formData.title,
         description: formData.caseContext.slice(0, 200),
-        domain: "Negocios",
+        domain: t("manualCase.business"),
         initialState: {
-          role: formData.studentRole || "Profesional",
-          objective: "Tomar decisiones estratégicas",
+          role: formData.studentRole || t("manualCase.professional"),
+          objective: t("manualCase.makeStrategicDecisions"),
           introText: formData.caseContext,
           kpis: {
             revenue: 65,
@@ -153,17 +155,17 @@ export default function ManualCaseCreator({
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Caso publicado", description: "Tu simulación está lista para estudiantes." });
+      toast({ title: t("manualCase.casePublished"), description: t("manualCase.casePublishedDesc") });
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios/authored"] });
       onSuccess();
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
-        toast({ title: "Sesión expirada", description: "Por favor inicia sesión de nuevo.", variant: "destructive" });
+        toast({ title: t("manualCase.sessionExpired"), description: t("manualCase.pleaseLoginAgain"), variant: "destructive" });
         setTimeout(() => { window.location.href = "/api/login"; }, 500);
         return;
       }
-      toast({ title: "Error", description: "No se pudo publicar el caso.", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("manualCase.couldNotPublish"), variant: "destructive" });
     },
   });
 
@@ -180,7 +182,7 @@ export default function ManualCaseCreator({
     <Card className="h-full flex flex-col overflow-hidden" data-testid="manual-case-creator">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b bg-muted/30">
-        <h2 className="font-semibold">Crear Caso Manualmente</h2>
+        <h2 className="font-semibold">{t("manualCase.createManually")}</h2>
         <Button
           variant="ghost"
           size="icon"
@@ -196,14 +198,14 @@ export default function ManualCaseCreator({
         {/* Case Title */}
         <div className="space-y-2">
           <div className="flex items-center gap-1">
-            <Label htmlFor="title">Título del Caso</Label>
-            <HelpIcon content="Un nombre corto y descriptivo que los estudiantes verán al iniciar la simulación." />
+            <Label htmlFor="title">{t("manualCase.caseTitle")}</Label>
+            <HelpIcon content={t("manualCase.caseTitleHelp")} />
           </div>
           <Input
             id="title"
             value={formData.title}
             onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-            placeholder="Ej: Crisis de Lanzamiento de Producto"
+            placeholder={t("manualCase.caseTitlePlaceholder")}
             data-testid="input-case-title"
           />
         </div>
@@ -211,15 +213,15 @@ export default function ManualCaseCreator({
         {/* Case Context */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Label htmlFor="context">Contexto del Caso</Label>
-            <HelpIcon content="Establece la situación. Incluye la empresa, el mercado, y el desafío que enfrentan los estudiantes." />
-            <Badge variant="secondary" className="text-xs">Requerido</Badge>
+            <Label htmlFor="context">{t("manualCase.caseContext")}</Label>
+            <HelpIcon content={t("manualCase.caseContextHelp")} />
+            <Badge variant="secondary" className="text-xs">{t("common.required")}</Badge>
           </div>
           <Textarea
             id="context"
             value={formData.caseContext}
             onChange={(e) => setFormData(prev => ({ ...prev, caseContext: e.target.value }))}
-            placeholder="Describe el contexto empresarial, la empresa, el mercado y la situación que enfrentan los estudiantes..."
+            placeholder={t("manualCase.caseContextFullPlaceholder")}
             className="min-h-[120px]"
             data-testid="input-case-context"
           />
@@ -228,15 +230,15 @@ export default function ManualCaseCreator({
         {/* Student Role */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Label htmlFor="role">Rol del Estudiante</Label>
-            <HelpIcon content="El papel que asumirá el estudiante durante la simulación." />
-            <Badge variant="secondary" className="text-xs">Requerido</Badge>
+            <Label htmlFor="role">{t("manualCase.studentRole")}</Label>
+            <HelpIcon content={t("manualCase.studentRoleHelp")} />
+            <Badge variant="secondary" className="text-xs">{t("common.required")}</Badge>
           </div>
           <Input
             id="role"
             value={formData.studentRole}
             onChange={(e) => setFormData(prev => ({ ...prev, studentRole: e.target.value }))}
-            placeholder="Ej: Gerente de Marketing, Director de Operaciones, CEO"
+            placeholder={t("manualCase.studentRolePlaceholder")}
             data-testid="input-student-role"
           />
         </div>
@@ -244,9 +246,9 @@ export default function ManualCaseCreator({
         {/* Tradeoff Focus */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Label>Desafío Central / Enfoque de Tradeoff</Label>
-            <HelpIcon content="Selecciona 1 o 2 tensiones que los estudiantes deberán balancear durante la simulación." />
-            <Badge variant="secondary" className="text-xs">Elige 1–2</Badge>
+            <Label>{t("manualCase.tradeoffFocus")}</Label>
+            <HelpIcon content={t("manualCase.tradeoffHelp")} />
+            <Badge variant="secondary" className="text-xs">{t("manualCase.choose1or2")}</Badge>
           </div>
           <div className="flex flex-wrap gap-2">
             {TRADEOFF_OPTIONS.map((option) => (
@@ -261,20 +263,20 @@ export default function ManualCaseCreator({
                 onClick={() => toggleTradeoff(option.id)}
                 data-testid={`chip-tradeoff-${option.id}`}
               >
-                {option.label}
+                {t(option.labelKey)}
               </Badge>
             ))}
           </div>
           {formData.tradeoffs.length === 0 && (
-            <p className="text-xs text-muted-foreground">Selecciona al menos un enfoque de tradeoff.</p>
+            <p className="text-xs text-muted-foreground">{t("manualCase.selectTradeoff")}</p>
           )}
         </div>
 
         {/* Standard Indicators (Read-only) */}
         <div className="space-y-3">
           <div className="flex items-center gap-1">
-            <Label>Indicadores de Simulación</Label>
-            <HelpIcon content="Indicadores estándar que se mostrarán durante la simulación para medir el impacto de las decisiones." />
+            <Label>{t("manualCase.simulationIndicators")}</Label>
+            <HelpIcon content={t("manualCase.indicatorsHelp")} />
           </div>
           <div className="flex flex-wrap gap-2">
             {STANDARD_INDICATORS.map((indicator) => (
@@ -284,12 +286,12 @@ export default function ManualCaseCreator({
                 className="cursor-default"
                 data-testid={`chip-indicator-${indicator.id}`}
               >
-                {indicator.label}
+                {t(indicator.labelKey)}
               </Badge>
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Los 5 indicadores estándar se incluirán automáticamente en la simulación.
+            {t("manualCase.standardIndicators")}
           </p>
         </div>
 
@@ -301,7 +303,7 @@ export default function ManualCaseCreator({
               className="w-full justify-between"
               data-testid="button-toggle-optional"
             >
-              <span className="font-medium text-muted-foreground">Campos opcionales</span>
+              <span className="font-medium text-muted-foreground">{t("manualCase.optionalFields")}</span>
               {optionalOpen ? (
                 <ChevronUp className="w-4 h-4" />
               ) : (
@@ -313,15 +315,15 @@ export default function ManualCaseCreator({
             {/* Restrictions */}
             <div className="space-y-2">
               <div className="flex items-center gap-1">
-                <Label htmlFor="restrictions">Restricciones</Label>
-                <HelpIcon content="Limitaciones o reglas que los estudiantes deben respetar durante la simulación." />
-                <Badge variant="outline" className="text-xs">Opcional</Badge>
+                <Label htmlFor="restrictions">{t("manualCase.constraints")}</Label>
+                <HelpIcon content={t("manualCase.constraintsHelp")} />
+                <Badge variant="outline" className="text-xs">{t("common.optional")}</Badge>
               </div>
               <Textarea
                 id="restrictions"
                 value={formData.restrictions}
                 onChange={(e) => setFormData(prev => ({ ...prev, restrictions: e.target.value }))}
-                placeholder="Ej: Presupuesto limitado, plazo de 3 meses, no despedir personal..."
+                placeholder={t("manualCase.constraintsPlaceholder")}
                 className="min-h-[80px]"
                 data-testid="input-restrictions"
               />
@@ -330,15 +332,15 @@ export default function ManualCaseCreator({
             {/* Learning Objectives */}
             <div className="space-y-2">
               <div className="flex items-center gap-1">
-                <Label htmlFor="objectives">Objetivos de Aprendizaje</Label>
-                <HelpIcon content="Lo que esperas que los estudiantes aprendan o desarrollen con esta simulación." />
-                <Badge variant="outline" className="text-xs">Opcional</Badge>
+                <Label htmlFor="objectives">{t("manualCase.learningObjectives")}</Label>
+                <HelpIcon content={t("manualCase.objectivesHelp")} />
+                <Badge variant="outline" className="text-xs">{t("common.optional")}</Badge>
               </div>
               <Textarea
                 id="objectives"
                 value={formData.learningObjectives}
                 onChange={(e) => setFormData(prev => ({ ...prev, learningObjectives: e.target.value }))}
-                placeholder="Ej: Desarrollar pensamiento crítico, evaluar tradeoffs, gestionar stakeholders..."
+                placeholder={t("manualCase.learningObjectivesPlaceholder")}
                 className="min-h-[80px]"
                 data-testid="input-learning-objectives"
               />
@@ -347,15 +349,15 @@ export default function ManualCaseCreator({
             {/* Stakeholders */}
             <div className="space-y-2">
               <div className="flex items-center gap-1">
-                <Label htmlFor="stakeholders">Stakeholders Clave</Label>
-                <HelpIcon content="Actores importantes en el escenario que los estudiantes deben considerar." />
-                <Badge variant="outline" className="text-xs">Recomendado</Badge>
+                <Label htmlFor="stakeholders">{t("manualCase.keyStakeholders")}</Label>
+                <HelpIcon content={t("manualCase.stakeholdersHelp")} />
+                <Badge variant="outline" className="text-xs">{t("common.recommended")}</Badge>
               </div>
               <Textarea
                 id="stakeholders"
                 value={formData.stakeholders}
                 onChange={(e) => setFormData(prev => ({ ...prev, stakeholders: e.target.value }))}
-                placeholder="Ej: Junta directiva, empleados, clientes, proveedores, comunidad local..."
+                placeholder={t("manualCase.keyStakeholdersPlaceholder")}
                 className="min-h-[80px]"
                 data-testid="input-stakeholders"
               />
@@ -375,12 +377,12 @@ export default function ManualCaseCreator({
           {saveDraftMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Guardando...
+              {t("common.saving")}
             </>
           ) : (
             <>
               <Save className="w-4 h-4 mr-2" />
-              Guardar Borrador
+              {t("common.saveDraft")}
             </>
           )}
         </Button>
@@ -392,12 +394,12 @@ export default function ManualCaseCreator({
           {publishMutation.isPending ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Publicando...
+              {t("common.publishing")}
             </>
           ) : (
             <>
               <Send className="w-4 h-4 mr-2" />
-              Publicar
+              {t("common.publish")}
             </>
           )}
         </Button>

@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -35,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { HelpIcon } from "@/components/HelpIcon";
+import { useTranslation } from "@/contexts/LanguageContext";
 import type { GeneratedScenarioData, DecisionPoint, Indicator } from "@shared/schema";
 
 interface CanonicalCaseCreatorProps {
@@ -43,7 +43,7 @@ interface CanonicalCaseCreatorProps {
 }
 
 export interface CanonicalCaseCreatorRef {
-  handleBack: () => boolean; // Returns true if handled internally, false if should close
+  handleBack: () => boolean;
 }
 
 interface CanonicalCaseData {
@@ -137,21 +137,37 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [conceptTags, setConceptTags] = useState<string[]>([]);
   const [conceptTagInput, setConceptTagInput] = useState("");
   const { toast } = useToast();
+  const { t } = useTranslation();
 
-  // Expose handleBack method to parent
   useImperativeHandle(ref, () => ({
     handleBack: () => {
-      // If we have a draft, go back to input form (preserve state)
       if (canonicalCase) {
         setCanonicalCase(null);
         setScenarioData(null);
         setDraftId(null);
-        return true; // Handled internally
+        return true;
       }
-      // Otherwise, tell parent to close
       return false;
     }
   }));
+
+  const SCENARIO_OBJECTIVES = [
+    { id: "decision_making", labelKey: "scenarioObjectives.decisionMaking" },
+    { id: "crisis_management", labelKey: "scenarioObjectives.crisisManagement" },
+    { id: "strategic_thinking", labelKey: "scenarioObjectives.strategicThinking" },
+    { id: "leadership", labelKey: "scenarioObjectives.leadership" },
+    { id: "negotiation", labelKey: "scenarioObjectives.negotiation" },
+    { id: "ethical_dilemmas", labelKey: "scenarioObjectives.ethicalDilemmas" },
+  ];
+
+  const TRADEOFF_OPTIONS = [
+    { id: "cost_quality", labelKey: "tradeoffs.costVsQuality" },
+    { id: "speed_accuracy", labelKey: "tradeoffs.speedVsPrecision" },
+    { id: "short_long_term", labelKey: "tradeoffs.shortVsLong" },
+    { id: "risk_reward", labelKey: "tradeoffs.riskVsReward" },
+    { id: "individual_team", labelKey: "tradeoffs.individualVsTeam" },
+    { id: "innovation_stability", labelKey: "tradeoffs.innovationVsStability" },
+  ];
 
   const generateMutation = useMutation({
     mutationFn: async () => {
@@ -178,15 +194,15 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         setConceptTags(data.canonicalCase.learningObjectives.slice(0, 5));
       }
       toast({
-        title: "Caso generado",
-        description: "Revisa y edita el caso antes de publicar.",
+        title: t("canonicalCase.caseGenerated"),
+        description: t("canonicalCase.caseGeneratedDesc"),
       });
     },
     onError: (error) => {
       console.error("Generation error:", error);
       toast({
-        title: "Error",
-        description: "No se pudo generar el caso. Intenta de nuevo.",
+        title: t("common.error"),
+        description: t("canonicalCase.couldNotGenerate"),
         variant: "destructive",
       });
     },
@@ -204,14 +220,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     onSuccess: () => {
       setIsEditing(false);
       toast({
-        title: "Cambios guardados",
-        description: "Los cambios han sido guardados.",
+        title: t("canonicalCase.changesSaved"),
+        description: t("canonicalCase.changesSavedDesc"),
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "No se pudieron guardar los cambios.",
+        title: t("common.error"),
+        description: t("canonicalCase.couldNotSave"),
         variant: "destructive",
       });
     },
@@ -227,16 +243,16 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     },
     onSuccess: () => {
       toast({
-        title: "Caso publicado",
-        description: "El caso está disponible para estudiantes.",
+        title: t("canonicalCase.casePublished"),
+        description: t("canonicalCase.casePublishedDesc"),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios/authored"] });
       onScenarioPublished();
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "No se pudo publicar el caso.",
+        title: t("common.error"),
+        description: t("canonicalCase.couldNotPublish"),
         variant: "destructive",
       });
     },
@@ -289,7 +305,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     if (field === "title" || field === "description" || field === "domain") {
       setScenarioData({ ...scenarioData, [field]: value });
     } else if (field === "caseContext" || field === "coreChallenge") {
-      // Update both the introText (legacy) and the new structured fields
       const newCaseContext = field === "caseContext" ? value : canonicalCase.caseContext;
       const newCoreChallenge = field === "coreChallenge" ? value : canonicalCase.coreChallenge;
       const introText = `${newCaseContext}\n\n**Desafío Central:**\n${newCoreChallenge}`;
@@ -315,24 +330,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     }
   };
 
-  const SCENARIO_OBJECTIVES = [
-    { id: "decision_making", label: "Toma de decisiones" },
-    { id: "crisis_management", label: "Gestión de crisis" },
-    { id: "strategic_thinking", label: "Pensamiento estratégico" },
-    { id: "leadership", label: "Liderazgo" },
-    { id: "negotiation", label: "Negociación" },
-    { id: "ethical_dilemmas", label: "Dilemas éticos" },
-  ];
-
-  const TRADEOFF_OPTIONS = [
-    { id: "cost_quality", label: "Costo vs. Calidad" },
-    { id: "speed_accuracy", label: "Velocidad vs. Precisión" },
-    { id: "short_long_term", label: "Corto vs. Largo plazo" },
-    { id: "risk_reward", label: "Riesgo vs. Recompensa" },
-    { id: "individual_team", label: "Individual vs. Equipo" },
-    { id: "innovation_stability", label: "Innovación vs. Estabilidad" },
-  ];
-
   const toggleTradeoff = (id: string) => {
     if (tradeoffFocus.includes(id)) {
       setTradeoffFocus(tradeoffFocus.filter((t) => t !== id));
@@ -342,7 +339,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   };
 
   if (!canonicalCase) {
-    // Loading state - show full-screen loading UI
     if (generateMutation.isPending) {
       return (
         <Card className="flex flex-col h-full">
@@ -352,14 +348,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 <Loader2 className="w-10 h-10 text-primary animate-spin" />
               </div>
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold">Generando borrador…</h2>
+                <h2 className="text-2xl font-semibold">{t("canonicalCase.generating")}</h2>
                 <p className="text-muted-foreground">
-                  Esto puede tardar unos segundos. Podrás editar todo antes de publicar.
+                  {t("canonicalCase.generatingDesc")}
                 </p>
               </div>
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Sparkles className="w-4 h-4 text-primary" />
-                <span>Creando contexto, decisiones e indicadores</span>
+                <span>{t("canonicalCase.creatingContext")}</span>
               </div>
             </div>
           </div>
@@ -372,7 +368,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold">Crear con IA</h3>
+            <h3 className="font-semibold">{t("canonicalCase.createWithAI")}</h3>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} data-testid="button-close-creator">
             <X className="w-4 h-4" />
@@ -381,75 +377,72 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
         <ScrollArea className="flex-1">
           <div className="p-8 max-w-xl mx-auto space-y-8">
-            {/* Topic - larger, more prominent */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label htmlFor="topic" className="text-base font-semibold">Tema del Caso</Label>
-                <HelpIcon content="Describe brevemente el tema central. Por ejemplo: dilema de expansión, crisis de liderazgo, decisión de inversión." />
+                <Label htmlFor="topic" className="text-base font-semibold">{t("canonicalCase.caseTopic")}</Label>
+                <HelpIcon content={t("canonicalCase.caseTopicHelp")} />
               </div>
               <Textarea
                 id="topic"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="Describe el tema central de tu simulación. Ejemplo: Una empresa de tecnología debe decidir si lanzar un producto con vulnerabilidades conocidas ante la presión del mercado..."
+                placeholder={t("canonicalCase.caseTopicPlaceholder")}
                 className="min-h-[100px] text-base"
                 data-testid="input-case-topic"
               />
             </div>
 
-            {/* Two columns for discipline and level */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="discipline" className="text-base font-semibold">Disciplina</Label>
-                  <HelpIcon content="Selecciona el área académica principal." />
+                  <Label htmlFor="discipline" className="text-base font-semibold">{t("canonicalCase.discipline")}</Label>
+                  <HelpIcon content={t("canonicalCase.disciplineHelp")} />
                 </div>
                 <Select value={discipline} onValueChange={setDiscipline}>
                   <SelectTrigger className="h-11" data-testid="select-discipline">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Negocios">Negocios</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                    <SelectItem value="Finanzas">Finanzas</SelectItem>
-                    <SelectItem value="Operaciones">Operaciones</SelectItem>
-                    <SelectItem value="Recursos Humanos">Recursos Humanos</SelectItem>
-                    <SelectItem value="Estrategia">Estrategia</SelectItem>
+                    <SelectItem value="Negocios">{t("canonicalCase.business")}</SelectItem>
+                    <SelectItem value="Marketing">{t("canonicalCase.marketing")}</SelectItem>
+                    <SelectItem value="Finanzas">{t("canonicalCase.finance")}</SelectItem>
+                    <SelectItem value="Operaciones">{t("canonicalCase.operations")}</SelectItem>
+                    <SelectItem value="Recursos Humanos">{t("canonicalCase.humanResources")}</SelectItem>
+                    <SelectItem value="Estrategia">{t("canonicalCase.strategy")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="targetLevel" className="text-base font-semibold">Nivel</Label>
-                  <HelpIcon content="Define el nivel de complejidad según tu audiencia." />
+                  <Label htmlFor="targetLevel" className="text-base font-semibold">{t("canonicalCase.level")}</Label>
+                  <HelpIcon content={t("canonicalCase.levelHelp")} />
                 </div>
                 <Select value={targetLevel} onValueChange={setTargetLevel}>
                   <SelectTrigger className="h-11" data-testid="select-target-level">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Pregrado">Pregrado</SelectItem>
-                    <SelectItem value="Posgrado">Posgrado</SelectItem>
-                    <SelectItem value="Ejecutivo">Ejecutivo</SelectItem>
+                    <SelectItem value="Pregrado">{t("canonicalCase.undergraduate")}</SelectItem>
+                    <SelectItem value="Posgrado">{t("canonicalCase.graduate")}</SelectItem>
+                    <SelectItem value="Ejecutivo">{t("canonicalCase.executive")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* NEW: Objetivo del escenario */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Objetivo del escenario</Label>
-                <HelpIcon content="¿Qué competencia principal quieres que desarrollen los estudiantes?" />
+                <Label className="text-base font-semibold">{t("canonicalCase.scenarioObjective")}</Label>
+                <HelpIcon content={t("canonicalCase.objectiveHelp")} />
               </div>
               <Select value={scenarioObjective} onValueChange={setScenarioObjective}>
                 <SelectTrigger className="h-11" data-testid="select-scenario-objective">
-                  <SelectValue placeholder="Selecciona un objetivo..." />
+                  <SelectValue placeholder={t("canonicalCase.selectObjective")} />
                 </SelectTrigger>
                 <SelectContent>
                   {SCENARIO_OBJECTIVES.map((obj) => (
-                    <SelectItem key={obj.id} value={obj.id}>{obj.label}</SelectItem>
+                    <SelectItem key={obj.id} value={obj.id}>{t(obj.labelKey)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -457,24 +450,23 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Idioma de la Simulación</Label>
-                <HelpIcon content="El idioma en que los agentes de IA y la interfaz del estudiante se presentarán." />
+                <Label className="text-base font-semibold">{t("canonicalCase.simulationLanguage")}</Label>
+                <HelpIcon content={t("canonicalCase.simulationLanguageHelp")} />
               </div>
               <Select value={language} onValueChange={(v) => setLanguage(v as "es" | "en")}>
                 <SelectTrigger className="w-[200px]" data-testid="select-language-canonical">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="es">Español</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="es">{t("common.spanish")}</SelectItem>
+                  <SelectItem value="en">{t("common.english")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Número de Decisiones</Label>
-                <HelpIcon content="Cuántos puntos de decisión tendrá la simulación. Mínimo 3, máximo 10. Más decisiones implican una simulación más larga." />
+                <Label className="text-base font-semibold">{t("canonicalCase.numberOfDecisions")}</Label>
+                <HelpIcon content={t("canonicalCase.decisionsHelp")} />
               </div>
               <Select value={String(stepCount)} onValueChange={(v) => setStepCount(Number(v))}>
                 <SelectTrigger className="w-[200px]" data-testid="select-step-count">
@@ -483,7 +475,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 <SelectContent>
                   {Array.from({ length: 8 }, (_, i) => i + 3).map((n) => (
                     <SelectItem key={n} value={String(n)}>
-                      {n} decisiones{n === 3 ? " (estándar)" : ""}
+                      {n} {t("common.decisions")}{n === 3 ? ` (${t("canonicalCase.standardDecisions").replace(/decisiones? /, "").replace(/decisions? /, "")})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -492,10 +484,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Enfoque de trade-off</Label>
-                <HelpIcon content="Opcional: selecciona tensiones predefinidas, escribe la tuya, o combínalas. El caso se puede generar sin trade-offs." />
+                <Label className="text-base font-semibold">{t("canonicalCase.tradeoffFocus")}</Label>
+                <HelpIcon content={t("canonicalCase.tradeoffHelp")} />
               </div>
-              <p className="text-sm text-muted-foreground">Opcional — selecciona, escribe, o combina</p>
+              <p className="text-sm text-muted-foreground">{t("canonicalCase.tradeoffDesc")}</p>
               <div className="flex flex-wrap gap-2">
                 {TRADEOFF_OPTIONS.map((option) => {
                   const isSelected = tradeoffFocus.includes(option.id);
@@ -512,7 +504,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                       data-testid={`chip-tradeoff-${option.id}`}
                     >
                       {isSelected && <Check className="w-3 h-3 mr-1" />}
-                      {option.label}
+                      {t(option.labelKey)}
                     </Badge>
                   );
                 })}
@@ -520,13 +512,12 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               <Input
                 value={customTradeoff}
                 onChange={(e) => setCustomTradeoff(e.target.value)}
-                placeholder="O escribe tu propio trade-off. Ej: Transparencia vs. Confidencialidad"
+                placeholder={t("canonicalCase.customTradeoff")}
                 className="mt-2"
                 data-testid="input-custom-tradeoff"
               />
             </div>
 
-            {/* Generate button */}
             <div className="pt-4">
               <Button
                 onClick={() => generateMutation.mutate()}
@@ -535,10 +526,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 data-testid="button-generate-draft"
               >
                 <Sparkles className="w-5 h-5 mr-2" />
-                Generar Borrador
+                {t("canonicalCase.generateDraft")}
               </Button>
               <p className="text-sm text-muted-foreground text-center mt-3">
-                Nada se publica sin tu revisión.
+                {t("canonicalCase.nothingPublished")}
               </p>
             </div>
           </div>
@@ -552,7 +543,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
-          <h3 className="font-semibold">Revisar Caso: {canonicalCase.title}</h3>
+          <h3 className="font-semibold">{t("canonicalCase.reviewCase")} {canonicalCase.title}</h3>
           <Badge variant="secondary">{canonicalCase.domain}</Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -572,7 +563,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             data-testid="button-regenerate"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
-            Nuevo Caso
+            {t("canonicalCase.newCase")}
           </Button>
           <Button 
             variant="ghost" 
@@ -595,14 +586,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
           {!isEditing && (
             <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/50 text-sm text-muted-foreground">
               <Edit2 className="w-4 h-4 shrink-0" />
-              <span>Modo vista. Haz clic en "Modo Edición" para modificar.</span>
+              <span>{t("canonicalCase.viewMode")}</span>
             </div>
           )}
 
-          <EditableSection title="Información General" icon={BookOpen}>
+          <EditableSection title={t("canonicalCase.generalInfo")} icon={BookOpen}>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="edit-title">Título del Caso</Label>
+                <Label htmlFor="edit-title">{t("canonicalCase.caseTitle")}</Label>
                 <Input
                   id="edit-title"
                   value={canonicalCase.title}
@@ -613,7 +604,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 />
               </div>
               <div>
-                <Label htmlFor="edit-description">Descripción</Label>
+                <Label htmlFor="edit-description">{t("canonicalCase.description")}</Label>
                 <Textarea
                   id="edit-description"
                   value={canonicalCase.description}
@@ -625,7 +616,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="edit-role">Rol del Estudiante</Label>
+                  <Label htmlFor="edit-role">{t("canonicalCase.studentRole")}</Label>
                   <Input
                     id="edit-role"
                     value={canonicalCase.role}
@@ -636,7 +627,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   />
                 </div>
                 <div>
-                  <Label htmlFor="edit-company">Empresa</Label>
+                  <Label htmlFor="edit-company">{t("canonicalCase.company")}</Label>
                   <Input
                     id="edit-company"
                     value={canonicalCase.companyName}
@@ -650,13 +641,13 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             </div>
           </EditableSection>
 
-          <EditableSection title="Contexto del Caso" icon={BookOpen}>
+          <EditableSection title={t("canonicalCase.caseContext")} icon={BookOpen}>
             <div className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <Label htmlFor="edit-context">Contexto (120-180 palabras)</Label>
+                  <Label htmlFor="edit-context">{t("canonicalCase.contextWordCount")}</Label>
                   <span className="text-xs text-muted-foreground">
-                    {canonicalCase.caseContext.split(/\s+/).filter(Boolean).length} palabras
+                    {canonicalCase.caseContext.split(/\s+/).filter(Boolean).length} {t("canonicalCase.words")}
                   </span>
                 </div>
                 <Textarea
@@ -668,11 +659,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   data-testid="input-edit-context"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Este es el contexto estilo Harvard que los estudiantes leerán antes de comenzar.
+                  {t("canonicalCase.harvardContextHint")}
                 </p>
               </div>
               <div>
-                <Label htmlFor="edit-challenge">Desafío Central</Label>
+                <Label htmlFor="edit-challenge">{t("canonicalCase.coreChallenge")}</Label>
                 <Textarea
                   id="edit-challenge"
                   value={canonicalCase.coreChallenge}
@@ -688,13 +679,13 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
           {canonicalCase.decisionPoints.map((dp, dpIndex) => (
             <EditableSection
               key={dp.number}
-              title={`Decisión ${dp.number}: ${dp.number === 1 ? "Orientación" : dp.number === canonicalCase.decisionPoints.length ? "Integrativa" : "Analítica"}`}
+              title={`${t("canonicalCase.decisionLabel")} ${dp.number}: ${dp.number === 1 ? t("canonicalCase.orientation") : dp.number === canonicalCase.decisionPoints.length ? t("canonicalCase.integrative") : t("canonicalCase.analytical")}`}
               icon={Target}
               defaultExpanded={dpIndex === 0}
             >
               <div className="space-y-4">
                 <div>
-                  <Label>Pregunta de la Decisión</Label>
+                  <Label>{t("canonicalCase.decisionQuestion")}</Label>
                   <Textarea
                     value={dp.prompt}
                     onChange={(e) => updateDecisionPoint(dpIndex, "prompt", e.target.value)}
@@ -706,7 +697,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
                 {dp.format === "multiple_choice" && dp.options && (
                   <div className="space-y-2">
-                    <Label>Opciones (cada una debe ser igualmente defendible)</Label>
+                    <Label>{t("canonicalCase.optionsDefensible")}</Label>
                     {dp.options.map((option, optIndex) => (
                       <div key={optIndex} className="flex items-center gap-2">
                         <Badge variant="outline" className="shrink-0">
@@ -722,23 +713,23 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                       </div>
                     ))}
                     <p className="text-xs text-muted-foreground">
-                      Recuerda: No hay respuesta correcta. Cada opción debe ser defendible.
+                      {t("canonicalCase.noCorrectAnswer")}
                     </p>
                   </div>
                 )}
 
                 {dp.format === "written" && (
                   <p className="text-sm text-muted-foreground">
-                    Los estudiantes proporcionarán una justificación escrita (5-7 líneas).
+                    {t("canonicalCase.writtenJustification")}
                   </p>
                 )}
               </div>
             </EditableSection>
           ))}
 
-          <EditableSection title="Reflexión Final" icon={MessageSquare} defaultExpanded={false}>
+          <EditableSection title={t("canonicalCase.finalReflection")} icon={MessageSquare} defaultExpanded={false}>
             <div>
-              <Label htmlFor="edit-reflection">Pregunta de Reflexión</Label>
+              <Label htmlFor="edit-reflection">{t("canonicalCase.reflectionQuestion")}</Label>
               <Input
                 id="edit-reflection"
                 value={canonicalCase.reflectionPrompt}
@@ -748,12 +739,12 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 data-testid="input-edit-reflection"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Una pregunta ligera para fomentar la metacognición.
+                {t("canonicalCase.metacognitionPrompt")}
               </p>
             </div>
           </EditableSection>
 
-          <EditableSection title="Objetivos de Aprendizaje" icon={Target} defaultExpanded={false}>
+          <EditableSection title={t("canonicalCase.learningObjectivesTitle")} icon={Target} defaultExpanded={false}>
             <div className="space-y-2">
               {canonicalCase.learningObjectives.map((obj, index) => (
                 <div key={index} className="flex items-center gap-2">
@@ -764,10 +755,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             </div>
           </EditableSection>
 
-          <EditableSection title="Conceptos del Curso" icon={Tag} defaultExpanded={true}>
+          <EditableSection title={t("canonicalCase.courseConcepts")} icon={Tag} defaultExpanded={true}>
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Etiqueta con conceptos del curso (3–8) para habilitar analíticas por concepto.
+                {t("canonicalCase.courseConceptsDesc")}
               </p>
               <div className="flex gap-2">
                 <Input
@@ -783,7 +774,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                       }
                     }
                   }}
-                  placeholder="Escribe un concepto y presiona Enter..."
+                  placeholder={t("canonicalCase.conceptPlaceholder")}
                   disabled={conceptTags.length >= 8}
                   data-testid="input-concept-tag"
                 />
@@ -828,17 +819,17 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               )}
               {conceptTags.length > 0 && conceptTags.length < 3 && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Se recomiendan al menos 3 conceptos para analíticas significativas.
+                  {t("canonicalCase.minConceptsWarning")}
                 </p>
               )}
-              <p className="text-xs text-muted-foreground">{conceptTags.length}/8 conceptos</p>
+              <p className="text-xs text-muted-foreground">{conceptTags.length}/8 {t("canonicalCase.concepts")}</p>
             </div>
           </EditableSection>
 
           <div className="bg-muted/50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
               <Check className="w-4 h-4 text-primary" />
-              <span className="font-medium">Indicadores POC</span>
+              <span className="font-medium">{t("canonicalCase.pocIndicators")}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               {canonicalCase.indicators.map((ind) => (
@@ -860,7 +851,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               onClick={() => setIsEditing(false)}
               data-testid="button-cancel-edit"
             >
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={() => saveMutation.mutate()}
@@ -872,7 +863,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               ) : (
                 <Save className="w-4 h-4 mr-2" />
               )}
-              Guardar Cambios
+              {t("canonicalCase.saveChanges")}
             </Button>
           </>
         ) : (
@@ -883,7 +874,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               data-testid="button-edit-mode"
             >
               <Edit2 className="w-4 h-4 mr-2" />
-              Modo Edición
+              {t("canonicalCase.editMode")}
             </Button>
             <Button
               onClick={() => publishMutation.mutate()}
@@ -896,7 +887,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               ) : (
                 <Check className="w-4 h-4 mr-2" />
               )}
-              Publicar Caso
+              {t("canonicalCase.publishCase")}
             </Button>
           </>
         )}

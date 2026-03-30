@@ -27,48 +27,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-const DEMO_SCENARIO = {
-  title: "Crisis de Lanzamiento de Producto",
-  domain: "Gestión de Crisis",
-  role: "Gerente de Producto",
-  company: "TechSolutions",
-  industry: "Tecnología/Software B2B",
-  context: `Eres el Gerente de Producto de TechSolutions, una empresa de software B2B. A tres días del lanzamiento de tu producto estrella 'CloudSync Pro', el equipo de QA descubre un problema crítico de seguridad que podría exponer datos de clientes. El CEO espera tu recomendación antes del fin del día.
-
-TechSolutions ha invertido 18 meses y $2M en desarrollar CloudSync Pro. El equipo de ventas ya cerró pre-ventas por $500K. La competencia planea lanzar un producto similar en 6 semanas.`,
-  coreChallenge: "Gestionar la crisis del lanzamiento equilibrando intereses de stakeholders, riesgos operacionales y reputación de la empresa.",
-  objective: "Tomar decisiones estratégicas para manejar la crisis y proteger los intereses de la empresa",
-};
-
-const DEMO_DECISIONS = [
-  {
-    id: 1,
-    title: "Decisión 1: Acción Inmediata",
-    prompt: "El equipo de QA te ha informado sobre la vulnerabilidad crítica. ¿Cuál es tu primera acción?",
-    format: "multiple_choice" as const,
-    options: [
-      { id: "A", text: "Informar inmediatamente al CEO y solicitar una reunión de emergencia" },
-      { id: "B", text: "Pedir al equipo de desarrollo que trabaje 24/7 para solucionar el problema" },
-      { id: "C", text: "Proceder con el lanzamiento y planificar un parche posterior" },
-      { id: "D", text: "Consultar con el equipo legal sobre posibles implicaciones" },
-    ],
-  },
-  {
-    id: 2,
-    title: "Decisión 2: Gestión de Stakeholders",
-    prompt: "El equipo de ventas está presionando para mantener la fecha de lanzamiento. ¿Cómo equilibras las demandas de ventas con las preocupaciones de seguridad?",
-    format: "written" as const,
-    placeholder: "Describe tu estrategia para manejar las expectativas del equipo de ventas mientras priorizas la seguridad...",
-  },
-  {
-    id: 3,
-    title: "Decisión 3: Reflexión Final",
-    prompt: "Reflexiona sobre esta experiencia: ¿Qué aprendiste sobre la gestión de crisis? ¿Qué harías diferente la próxima vez?",
-    format: "written" as const,
-    placeholder: "Comparte tu reflexión sobre el proceso de toma de decisiones y los aprendizajes clave...",
-  },
-];
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 const INITIAL_INDICATOR_VALUES: Record<string, number> = {
   revenue: 65,
@@ -78,87 +38,10 @@ const INITIAL_INDICATOR_VALUES: Record<string, number> = {
   trust: 72,
 };
 
-const STANDARD_INDICATORS = [
-  { id: "revenue", label: "Ingresos / Presupuesto", value: 65, previousValue: 65 },
-  { id: "morale", label: "Moral del Equipo", value: 70, previousValue: 70 },
-  { id: "reputation", label: "Reputación de Marca", value: 75, previousValue: 75 },
-  { id: "efficiency", label: "Eficiencia Operacional", value: 60, previousValue: 60 },
-  { id: "trust", label: "Confianza de Stakeholders", value: 72, previousValue: 72 },
-];
-
-const DEMO_RESPONSES: Record<number, { narrative: string; feedback: string; indicatorChanges: Record<string, number>; rationale: Record<string, string[]> }> = {
-  1: {
-    narrative: `Tu decisión de actuar rápidamente ha sido notada por el equipo.
-
-El CEO aprecia tu proactividad en comunicar el problema. En la reunión de emergencia, se discuten las opciones disponibles. El equipo legal confirma que lanzar con la vulnerabilidad podría resultar en demandas significativas.
-
-Después de una discusión intensa, se decide aplazar el lanzamiento 2 semanas. El equipo de ventas no está contento, pero comprende la gravedad de la situación.`,
-    feedback: "Tu decisión de informar al CEO inmediatamente demuestra buenas prácticas de gestión de crisis. La transparencia temprana permite tomar decisiones informadas.",
-    indicatorChanges: { morale: -5, trust: 10, reputation: 5 },
-    rationale: {
-      morale: [
-        "El aplazamiento genera frustración en el equipo de desarrollo",
-        "Meses de trabajo intenso se sienten desvalorizados temporalmente",
-      ],
-      trust: [
-        "La transparencia con liderazgo incrementa la confianza organizacional",
-        "Stakeholders aprecian la comunicación proactiva del riesgo",
-        "La decisión demuestra priorización de seguridad sobre velocidad",
-      ],
-      reputation: [
-        "Evitar un lanzamiento con vulnerabilidades protege la imagen de marca",
-        "El mercado valora empresas que priorizan la seguridad del cliente",
-      ],
-    },
-  },
-  2: {
-    narrative: `Tu estrategia de comunicación con el equipo de ventas ha sido implementada.
-
-Al presentar datos concretos sobre los riesgos legales y reputacionales, logras que el equipo de ventas comprenda la situación. Propones un plan de compensación para los clientes con pre-ventas: acceso anticipado a funciones premium sin costo adicional.
-
-El equipo de ventas acepta comunicar el retraso a los clientes, posicionándolo como un compromiso con la calidad.`,
-    feedback: "Tu enfoque equilibrado entre la presión comercial y la seguridad muestra madurez en la toma de decisiones. La propuesta de compensación es creativa.",
-    indicatorChanges: { revenue: -10, efficiency: 5, trust: 8 },
-    rationale: {
-      revenue: [
-        "La compensación con funciones premium reduce margen de ganancia",
-        "El retraso de 2 semanas implica costos operativos adicionales",
-      ],
-      efficiency: [
-        "El plan de comunicación estructurado agiliza la gestión de expectativas",
-        "Procesos claros de escalamiento mejoran la respuesta organizacional",
-      ],
-      trust: [
-        "La propuesta de compensación genera buena voluntad con clientes",
-        "La transparencia sobre el retraso refuerza la relación comercial",
-      ],
-    },
-  },
-  3: {
-    narrative: `Has completado la simulación de gestión de crisis.
-
-El lanzamiento finalmente se realizó con éxito 2 semanas después. La vulnerabilidad fue corregida, y los clientes apreciaron la transparencia de TechSolutions. La compensación ofrecida generó buena voluntad en el mercado.
-
-Este caso demuestra la importancia de priorizar la seguridad y mantener una comunicación clara con todos los stakeholders.`,
-    feedback: "Tu reflexión muestra una comprensión profunda de los trade-offs en la gestión de crisis. Recuerda: las decisiones difíciles a menudo no tienen respuestas perfectas, solo mejores alternativas.",
-    indicatorChanges: { revenue: 5, reputation: 10, morale: 8 },
-    rationale: {
-      revenue: [
-        "El lanzamiento exitoso genera ventas y recupera inversión",
-        "Clientes satisfechos con la compensación realizan compras adicionales",
-      ],
-      reputation: [
-        "La narrativa de 'calidad sobre velocidad' posiciona bien a la marca",
-        "Medios de la industria destacan el manejo responsable de la crisis",
-        "Clientes recomiendan el producto por la experiencia positiva",
-      ],
-      morale: [
-        "El equipo celebra el lanzamiento exitoso",
-        "La validación externa refuerza el compromiso del equipo",
-        "El manejo de la crisis fortalece la cultura organizacional",
-      ],
-    },
-  },
+const DEMO_INDICATOR_CHANGES: Record<number, Record<string, number>> = {
+  1: { morale: -5, trust: 10, reputation: 5 },
+  2: { revenue: -10, efficiency: 5, trust: 8 },
+  3: { revenue: 5, reputation: 10, morale: 8 },
 };
 
 interface HistoryEntry {
@@ -169,15 +52,31 @@ interface HistoryEntry {
 
 export default function DemoSimulation() {
   const [, navigate] = useLocation();
+  const { t } = useTranslation();
+
+  const indicatorLabels: Record<string, string> = {
+    revenue: t("demoSimulation.indicatorRevenue"),
+    morale: t("demoSimulation.indicatorMorale"),
+    reputation: t("demoSimulation.indicatorReputation"),
+    efficiency: t("demoSimulation.indicatorEfficiency"),
+    trust: t("demoSimulation.indicatorTrust"),
+  };
+
   const [currentDecision, setCurrentDecision] = useState(0);
   const [history, setHistory] = useState<HistoryEntry[]>([
     {
       role: "system",
-      content: DEMO_SCENARIO.context,
+      content: t("demoSimulation.scenarioContext"),
       timestamp: new Date(),
     },
   ]);
-  const [indicators, setIndicators] = useState(STANDARD_INDICATORS);
+  const [indicators, setIndicators] = useState([
+    { id: "revenue", label: t("demoSimulation.indicatorRevenue"), value: 65, previousValue: 65 },
+    { id: "morale", label: t("demoSimulation.indicatorMorale"), value: 70, previousValue: 70 },
+    { id: "reputation", label: t("demoSimulation.indicatorReputation"), value: 75, previousValue: 75 },
+    { id: "efficiency", label: t("demoSimulation.indicatorEfficiency"), value: 60, previousValue: 60 },
+    { id: "trust", label: t("demoSimulation.indicatorTrust"), value: 72, previousValue: 72 },
+  ]);
   const [selectedOption, setSelectedOption] = useState("");
   const [writtenResponse, setWrittenResponse] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -188,14 +87,82 @@ export default function DemoSimulation() {
   const [currentRationale, setCurrentRationale] = useState<Record<string, string[]> | null>(null);
   const [expandedIndicator, setExpandedIndicator] = useState<string | null>(null);
 
+  const decisions = [
+    {
+      id: 1,
+      title: t("demoSimulation.decision1Title"),
+      prompt: t("demoSimulation.decision1Prompt"),
+      format: "multiple_choice" as const,
+      options: [
+        { id: "A", text: t("demoSimulation.decision1OptionA") },
+        { id: "B", text: t("demoSimulation.decision1OptionB") },
+        { id: "C", text: t("demoSimulation.decision1OptionC") },
+        { id: "D", text: t("demoSimulation.decision1OptionD") },
+      ],
+    },
+    {
+      id: 2,
+      title: t("demoSimulation.decision2Title"),
+      prompt: t("demoSimulation.decision2Prompt"),
+      format: "written" as const,
+      placeholder: t("demoSimulation.decision2Placeholder"),
+    },
+    {
+      id: 3,
+      title: t("demoSimulation.decision3Title"),
+      prompt: t("demoSimulation.decision3Prompt"),
+      format: "written" as const,
+      placeholder: t("demoSimulation.decision3Placeholder"),
+    },
+  ];
+
+  const getTranslatedRationale = (decisionNum: number): Record<string, string[]> => {
+    switch (decisionNum) {
+      case 1: return {
+        morale: [t("demoSimulation.r1MoraleA"), t("demoSimulation.r1MoraleB")],
+        trust: [t("demoSimulation.r1TrustA"), t("demoSimulation.r1TrustB"), t("demoSimulation.r1TrustC")],
+        reputation: [t("demoSimulation.r1ReputationA"), t("demoSimulation.r1ReputationB")],
+      };
+      case 2: return {
+        revenue: [t("demoSimulation.r2RevenueA"), t("demoSimulation.r2RevenueB")],
+        efficiency: [t("demoSimulation.r2EfficiencyA"), t("demoSimulation.r2EfficiencyB")],
+        trust: [t("demoSimulation.r2TrustA"), t("demoSimulation.r2TrustB")],
+      };
+      case 3: return {
+        revenue: [t("demoSimulation.r3RevenueA"), t("demoSimulation.r3RevenueB")],
+        reputation: [t("demoSimulation.r3ReputationA"), t("demoSimulation.r3ReputationB"), t("demoSimulation.r3ReputationC")],
+        morale: [t("demoSimulation.r3MoraleA"), t("demoSimulation.r3MoraleB"), t("demoSimulation.r3MoraleC")],
+      };
+      default: return {};
+    }
+  };
+
+  const getNarrative = (decisionNum: number): string => {
+    switch (decisionNum) {
+      case 1: return t("demoSimulation.narrative1");
+      case 2: return t("demoSimulation.narrative2");
+      case 3: return t("demoSimulation.narrative3");
+      default: return "";
+    }
+  };
+
+  const getFeedback = (decisionNum: number): string => {
+    switch (decisionNum) {
+      case 1: return t("demoSimulation.feedback1");
+      case 2: return t("demoSimulation.feedback2");
+      case 3: return t("demoSimulation.feedback3");
+      default: return "";
+    }
+  };
+
   const validateInput = (input: string): { valid: boolean; title?: string; message?: string } => {
     const trimmedInput = input.trim().toLowerCase();
     
     if (!trimmedInput || trimmedInput.length < 5) {
       return { 
         valid: false, 
-        title: "Necesito un poco más de detalle",
-        message: "Para simular consecuencias y mostrar el impacto, necesito tu razonamiento. Responde en 3–6 frases." 
+        title: t("demoSimulation.needMoreDetail"),
+        message: t("demoSimulation.needMoreDetailMsg"),
       };
     }
 
@@ -208,8 +175,8 @@ export default function DemoSimulation() {
       if (pattern.test(trimmedInput)) {
         return { 
           valid: false, 
-          title: "Mantengamos un tono profesional",
-          message: "Por favor, reformula tu respuesta de manera respetuosa para continuar con la simulación." 
+          title: t("demoSimulation.keepProfessional"),
+          message: t("demoSimulation.keepProfessionalMsg"),
         };
       }
     }
@@ -217,15 +184,19 @@ export default function DemoSimulation() {
     const caseKeywords = ["equipo", "lanzamiento", "producto", "decision", "cliente", "empresa", "vulnerabilidad", 
                           "seguridad", "riesgo", "comunicar", "ceo", "ventas", "marketing", "estrategia", "proyecto",
                           "plan", "opcion", "alternativa", "solucion", "problema", "impacto", "resultado", "tiempo",
-                          "recurso", "presupuesto", "stakeholder", "reputacion", "confianza", "moral", "eficiencia"];
+                          "recurso", "presupuesto", "stakeholder", "reputacion", "confianza", "moral", "eficiencia",
+                          "team", "launch", "product", "decision", "customer", "company", "vulnerability",
+                          "security", "risk", "communicate", "sales", "strategy", "project",
+                          "option", "alternative", "solution", "problem", "impact", "result", "time",
+                          "resource", "budget", "reputation", "trust", "morale", "efficiency"];
     
     const hasRelevantContent = caseKeywords.some(keyword => trimmedInput.includes(keyword)) || trimmedInput.length > 30;
     
     if (!hasRelevantContent) {
       return { 
         valid: false, 
-        title: "Necesito un poco más de detalle",
-        message: "Para simular consecuencias y mostrar el impacto, necesito tu razonamiento. Responde en 3–6 frases." 
+        title: t("demoSimulation.needMoreDetail"),
+        message: t("demoSimulation.needMoreDetailMsg"),
       };
     }
 
@@ -233,9 +204,9 @@ export default function DemoSimulation() {
   };
 
   const handleSubmitDecision = useCallback(async () => {
-    if (currentDecision >= DEMO_DECISIONS.length) return;
+    if (currentDecision >= decisions.length) return;
     
-    const decision = DEMO_DECISIONS[currentDecision];
+    const decision = decisions[currentDecision];
     const userResponse = decision.format === "multiple_choice" 
       ? decision.options?.find(o => o.id === selectedOption)?.text || ""
       : writtenResponse;
@@ -246,8 +217,8 @@ export default function DemoSimulation() {
       const validation = validateInput(userResponse);
       if (!validation.valid) {
         setInputWarning({
-          title: validation.title || "Necesito un poco más de detalle",
-          message: validation.message || "Por favor, proporciona una respuesta válida."
+          title: validation.title || t("demoSimulation.needMoreDetail"),
+          message: validation.message || t("demoSimulation.provideValidResponse"),
         });
         return;
       }
@@ -265,35 +236,36 @@ export default function DemoSimulation() {
 
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const response = DEMO_RESPONSES[currentDecision + 1];
+    const decisionNum = currentDecision + 1;
+    const indicatorChanges = DEMO_INDICATOR_CHANGES[decisionNum] || {};
     
     setHistory(prev => [...prev, {
       role: "npc" as const,
-      content: response.narrative,
+      content: getNarrative(decisionNum),
       timestamp: new Date(),
     }]);
 
     setIndicators(prev => prev.map(ind => ({
       ...ind,
       previousValue: ind.value,
-      value: ind.value + (response.indicatorChanges[ind.id] || 0),
+      value: ind.value + (indicatorChanges[ind.id] || 0),
     })));
 
-    setCurrentFeedback(response.feedback);
-    setCurrentRationale(response.rationale);
+    setCurrentFeedback(getFeedback(decisionNum));
+    setCurrentRationale(getTranslatedRationale(decisionNum));
     setExpandedIndicator(null);
     setIsProcessing(false);
     setSelectedOption("");
     setWrittenResponse("");
 
-    if (currentDecision + 1 >= DEMO_DECISIONS.length) {
+    if (currentDecision + 1 >= decisions.length) {
       setIsComplete(true);
     } else {
       setCurrentDecision(prev => prev + 1);
     }
-  }, [currentDecision, selectedOption, writtenResponse]);
+  }, [currentDecision, selectedOption, writtenResponse, t]);
 
-  const currentDecisionData = DEMO_DECISIONS[currentDecision];
+  const currentDecisionData = decisions[currentDecision];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -307,21 +279,22 @@ export default function DemoSimulation() {
             </Link>
             <div>
               <span className="font-semibold text-sm" data-testid="text-demo-title">
-                {DEMO_SCENARIO.title}
+                {t("demoSimulation.scenarioTitle")}
               </span>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Eye className="w-3 h-3" />
-                Modo Demo (Solo Visualización)
+                {t("demoSimulation.demoMode")}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <LanguageToggle />
             <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
               <AlertTriangle className="w-3 h-3 mr-1" />
-              Sin guardar datos
+              {t("demoSimulation.noDataSaved")}
             </Badge>
             <Badge variant="secondary">
-              Decisión {Math.min(currentDecision + 1, DEMO_DECISIONS.length)} de {DEMO_DECISIONS.length}
+              {t("demoSimulation.decisionOf", { current: Math.min(currentDecision + 1, decisions.length), total: decisions.length })}
             </Badge>
           </div>
         </div>
@@ -332,38 +305,38 @@ export default function DemoSimulation() {
           <div className="space-y-4">
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Rol
+                {t("demoSimulation.roleLabel")}
               </h3>
               <div className="flex items-center gap-2 text-sm">
                 <User className="w-4 h-4 text-primary" />
-                {DEMO_SCENARIO.role}
+                {t("demoSimulation.scenarioRole")}
               </div>
             </div>
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Organización
+                {t("demoSimulation.organizationLabel")}
               </h3>
               <div className="flex items-center gap-2 text-sm">
                 <Building2 className="w-4 h-4 text-primary" />
-                {DEMO_SCENARIO.company}
+                {t("demoSimulation.scenarioCompany")}
               </div>
             </div>
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Objetivo
+                {t("demoSimulation.objectiveLabel")}
               </h3>
-              <p className="text-sm text-muted-foreground">{DEMO_SCENARIO.objective}</p>
+              <p className="text-sm text-muted-foreground">{t("demoSimulation.scenarioObjective")}</p>
             </div>
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Progreso
+                {t("demoSimulation.progressLabel")}
               </h3>
               <Progress 
-                value={(currentDecision / DEMO_DECISIONS.length) * 100} 
+                value={(currentDecision / decisions.length) * 100} 
                 className="h-2"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                {isComplete ? "Completado" : `${currentDecision} de ${DEMO_DECISIONS.length} decisiones`}
+                {isComplete ? t("demoSimulation.completedLabel") : t("demoSimulation.decisionsCount", { current: currentDecision, total: decisions.length })}
               </p>
             </div>
           </div>
@@ -397,7 +370,7 @@ export default function DemoSimulation() {
                         )}
                         <div className="flex-1">
                           <p className="text-xs text-muted-foreground mb-1">
-                            {entry.role === "user" ? "Tu decisión" : entry.role === "system" ? "Contexto" : "Resultado"}
+                            {entry.role === "user" ? t("demoSimulation.yourDecision") : entry.role === "system" ? t("demoSimulation.contextLabel") : t("demoSimulation.resultLabel")}
                           </p>
                           <p className="text-sm whitespace-pre-line">{entry.content}</p>
                         </div>
@@ -417,7 +390,7 @@ export default function DemoSimulation() {
                           <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                           <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                         </div>
-                        <span className="text-sm text-muted-foreground">Procesando tu decisión...</span>
+                        <span className="text-sm text-muted-foreground">{t("demoSimulation.processingDecision")}</span>
                       </div>
                     </motion.div>
                   )}
@@ -428,12 +401,11 @@ export default function DemoSimulation() {
             {!isComplete && currentDecisionData && (
               <div className="border-t p-6 bg-background">
                 <div className="max-w-2xl mx-auto space-y-6">
-                  {/* Task callout module - visually dominant */}
                   <div className="p-5 rounded-xl bg-primary/5 border-2 border-primary/20">
                     <div className="flex items-center gap-2 mb-3">
                       <Target className="w-5 h-5 text-primary" />
                       <span className="text-sm font-semibold text-primary uppercase tracking-wide">
-                        Tu decisión ahora
+                        {t("demoSimulation.yourDecisionNow")}
                       </span>
                     </div>
                     <h3 className="text-xl font-semibold mb-3" data-testid="text-decision-title">
@@ -444,7 +416,6 @@ export default function DemoSimulation() {
                     </p>
                   </div>
 
-                  {/* Input area - clearly connected to task */}
                   <div className="space-y-4">
                     {currentDecisionData.format === "multiple_choice" && currentDecisionData.options && (
                       <RadioGroup value={selectedOption} onValueChange={setSelectedOption} className="space-y-3">
@@ -471,7 +442,7 @@ export default function DemoSimulation() {
                           setWrittenResponse(e.target.value);
                           if (inputWarning) setInputWarning(null);
                         }}
-                        placeholder={currentDecisionData.placeholder || "Escribe tu respuesta..."}
+                        placeholder={currentDecisionData.placeholder || t("demoSimulation.writeYourResponse")}
                         rows={5}
                         className="resize-none text-base"
                         data-testid="input-written-response"
@@ -497,11 +468,11 @@ export default function DemoSimulation() {
                       data-testid="button-submit-decision"
                     >
                       {isProcessing ? (
-                        "Procesando..."
+                        t("demoSimulation.processingText")
                       ) : (
                         <>
                           <Send className="w-5 h-5 mr-2" />
-                          Enviar Decisión
+                          {t("demoSimulation.sendDecision")}
                         </>
                       )}
                     </Button>
@@ -513,25 +484,23 @@ export default function DemoSimulation() {
             {isComplete && (
               <div className="flex-1 overflow-auto p-6 bg-background">
                 <div className="max-w-3xl mx-auto space-y-8">
-                  {/* Header */}
                   <div className="text-center space-y-3">
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-2">
                       <CheckCircle2 className="w-8 h-8 text-primary" />
                     </div>
                     <h2 className="text-2xl font-bold" data-testid="text-summary-title">
-                      Resumen de tu simulación
+                      {t("demoSimulation.summaryTitle")}
                     </h2>
                     <p className="text-muted-foreground max-w-lg mx-auto">
-                      Has navegado con criterio una situación compleja. Aquí está el impacto de tus decisiones.
+                      {t("demoSimulation.summaryDesc")}
                     </p>
                   </div>
 
-                  {/* Final Indicators Snapshot */}
                   <Card>
                     <CardHeader className="pb-4">
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Target className="w-5 h-5 text-primary" />
-                        Indicadores Finales
+                        {t("demoSimulation.finalIndicators")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -540,7 +509,7 @@ export default function DemoSimulation() {
                           const totalChange = indicator.value - INITIAL_INDICATOR_VALUES[indicator.id];
                           return (
                             <div key={indicator.id} className="p-4 rounded-lg bg-muted/50 space-y-2">
-                              <p className="text-sm text-muted-foreground">{indicator.label}</p>
+                              <p className="text-sm text-muted-foreground">{indicatorLabels[indicator.id] || indicator.label}</p>
                               <div className="flex items-baseline gap-2">
                                 <span className="text-2xl font-bold">{indicator.value}%</span>
                                 {totalChange !== 0 && (
@@ -567,12 +536,11 @@ export default function DemoSimulation() {
                     </CardContent>
                   </Card>
 
-                  {/* Compact Decision Recap */}
                   <Card>
                     <CardHeader className="pb-4">
                       <CardTitle className="text-lg flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-primary" />
-                        Tus Decisiones
+                        {t("demoSimulation.yourDecisions")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -583,7 +551,7 @@ export default function DemoSimulation() {
                               {index + 1}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium mb-1">Decisión {index + 1}</p>
+                              <p className="text-sm font-medium mb-1">{t("demoSimulation.decisionN", { n: index + 1 })}</p>
                               <p className="text-sm text-muted-foreground line-clamp-2">
                                 {decision.content.length > 150 
                                   ? decision.content.substring(0, 150) + "..." 
@@ -596,18 +564,15 @@ export default function DemoSimulation() {
                     </CardContent>
                   </Card>
 
-                  {/* Accomplishment Close */}
                   <div className="text-center p-6 rounded-xl bg-primary/5 border border-primary/20">
                     <p className="text-lg font-medium mb-2">
-                      Completaste la simulación con éxito
+                      {t("demoSimulation.completedSuccess")}
                     </p>
                     <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                      Cada decisión que tomaste reveló cómo diferentes factores se conectan en situaciones reales. 
-                      Esta experiencia refleja lo que verán tus estudiantes.
+                      {t("demoSimulation.completedSuccessDesc")}
                     </p>
                   </div>
 
-                  {/* Action Buttons */}
                   <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
                     <Button 
                       onClick={() => {
@@ -620,7 +585,7 @@ export default function DemoSimulation() {
                       data-testid="button-review-decisions"
                     >
                       <Eye className="w-4 h-4 mr-2" />
-                      Revisar mis decisiones
+                      {t("demoSimulation.reviewDecisions")}
                     </Button>
                     <Button 
                       variant="outline" 
@@ -628,7 +593,7 @@ export default function DemoSimulation() {
                       className="min-w-[200px]"
                       data-testid="button-back-home"
                     >
-                      Volver al inicio
+                      {t("demoSimulation.backToHome")}
                     </Button>
                   </div>
                 </div>
@@ -640,7 +605,7 @@ export default function DemoSimulation() {
             <div className="space-y-8">
               <div>
                 <h3 className="text-base font-semibold uppercase tracking-wide text-muted-foreground mb-6">
-                  Indicadores
+                  {t("demoSimulation.indicatorsTitle")}
                 </h3>
                 <div className="space-y-5">
                   {indicators.map((indicator) => {
@@ -651,7 +616,7 @@ export default function DemoSimulation() {
                     return (
                       <div key={indicator.id} className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-base font-medium">{indicator.label}</span>
+                          <span className="text-base font-medium">{indicatorLabels[indicator.id] || indicator.label}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-lg font-semibold">{indicator.value}%</span>
                             {change !== 0 && (
@@ -680,7 +645,6 @@ export default function DemoSimulation() {
                           className={`h-3 ${change > 0 ? "[&>div]:bg-green-500" : change < 0 ? "[&>div]:bg-red-500" : ""}`}
                         />
                         
-                        {/* Explainability button */}
                         {hasRationale && change !== 0 && (
                           <div className="pt-1">
                             <button
@@ -689,7 +653,7 @@ export default function DemoSimulation() {
                               data-testid={`button-why-${indicator.id}`}
                             >
                               <HelpCircle className="w-4 h-4" />
-                              <span>¿Por qué cambió?</span>
+                              <span>{t("demoSimulation.whyChanged")}</span>
                               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             </button>
                             
@@ -726,7 +690,7 @@ export default function DemoSimulation() {
                   animate={{ opacity: 1, y: 0 }}
                 >
                   <h3 className="text-base font-semibold uppercase tracking-wide text-muted-foreground mb-4">
-                    Observaciones
+                    {t("demoSimulation.observations")}
                   </h3>
                   <Card className="bg-primary/5 border-primary/20">
                     <CardContent className="p-5">

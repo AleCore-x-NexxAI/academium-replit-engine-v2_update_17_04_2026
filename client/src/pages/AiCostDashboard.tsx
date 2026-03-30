@@ -7,6 +7,8 @@ import { DollarSign, Zap, Database, AlertTriangle, ArrowLeft } from "lucide-reac
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useLocation } from "wouter";
 import type { User } from "@shared/schema";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 interface CostSummary {
   totalCalls: number;
@@ -85,16 +87,17 @@ function formatNumber(value: number): string {
   return value.toLocaleString();
 }
 
-const PERIOD_LABELS: Record<string, string> = {
-  "24h": "24 horas",
-  "7d": "7 dias",
-  "30d": "30 dias",
-  "all": "Todo",
-};
-
 export default function AiCostDashboard() {
   const [period, setPeriod] = useState("7d");
   const [, navigate] = useLocation();
+  const { t } = useTranslation();
+
+  const PERIOD_LABELS: Record<string, string> = {
+    "24h": t("aiCostDashboard.period24h"),
+    "7d": t("aiCostDashboard.period7d"),
+    "30d": t("aiCostDashboard.period30d"),
+    "all": t("aiCostDashboard.periodAll"),
+  };
 
   const { data: user } = useQuery<User>({
     queryKey: ["/api/auth/user"],
@@ -107,7 +110,7 @@ export default function AiCostDashboard() {
   if (!user?.isSuperAdmin) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Acceso denegado. Solo super administradores.</p>
+        <p className="text-muted-foreground">{t("aiCostDashboard.accessDenied")}</p>
       </div>
     );
   }
@@ -125,7 +128,10 @@ export default function AiCostDashboard() {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <DollarSign className="w-6 h-6 text-primary" />
-          <h1 className="text-2xl font-bold">Panel de Costos de IA</h1>
+          <h1 className="text-2xl font-bold">{t("aiCostDashboard.title")}</h1>
+          <div className="ml-auto">
+            <LanguageToggle />
+          </div>
         </div>
 
         <div className="flex items-center gap-2 mb-6 flex-wrap">
@@ -143,14 +149,14 @@ export default function AiCostDashboard() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <p className="text-muted-foreground">Cargando datos de costos...</p>
+            <p className="text-muted-foreground">{t("aiCostDashboard.loadingCosts")}</p>
           </div>
         ) : data ? (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Costo Total</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{t("aiCostDashboard.totalCost")}</CardTitle>
                   <DollarSign className="w-4 h-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -163,33 +169,33 @@ export default function AiCostDashboard() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Llamadas Totales</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{t("aiCostDashboard.totalCalls")}</CardTitle>
                   <Zap className="w-4 h-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold" data-testid="text-total-calls">
                     {formatNumber(data.summary.totalCalls)}
                   </p>
-                  <p className="text-xs text-muted-foreground">solicitudes a LLM</p>
+                  <p className="text-xs text-muted-foreground">{t("aiCostDashboard.llmRequests")}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Tokens Totales</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{t("aiCostDashboard.totalTokens")}</CardTitle>
                   <Database className="w-4 h-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold" data-testid="text-total-tokens">
                     {formatNumber(data.summary.totalTokens)}
                   </p>
-                  <p className="text-xs text-muted-foreground">input + output</p>
+                  <p className="text-xs text-muted-foreground">{t("aiCostDashboard.inputOutput")}</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Tasa de Error</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{t("aiCostDashboard.errorRate")}</CardTitle>
                   <AlertTriangle className="w-4 h-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -198,7 +204,7 @@ export default function AiCostDashboard() {
                       ? ((data.summary.totalErrors / data.summary.totalCalls) * 100).toFixed(1)
                       : "0"}%
                   </p>
-                  <p className="text-xs text-muted-foreground">{formatNumber(data.summary.totalErrors)} errores</p>
+                  <p className="text-xs text-muted-foreground">{formatNumber(data.summary.totalErrors)} {t("aiCostDashboard.errors")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -206,7 +212,7 @@ export default function AiCostDashboard() {
             {data.byDay.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Costo Diario</CardTitle>
+                  <CardTitle className="text-base">{t("aiCostDashboard.dailyCost")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -222,8 +228,8 @@ export default function AiCostDashboard() {
                         tickFormatter={(v) => `$${v}`}
                       />
                       <Tooltip
-                        formatter={(value: number) => [formatCost(value), "Costo"]}
-                        labelFormatter={(label) => `Fecha: ${label}`}
+                        formatter={(value: number) => [formatCost(value), t("aiCostDashboard.cost")]}
+                        labelFormatter={(label) => `${t("aiCostDashboard.date")}: ${label}`}
                       />
                       <Bar dataKey="costUsd" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -235,11 +241,11 @@ export default function AiCostDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Por Proveedor</CardTitle>
+                  <CardTitle className="text-base">{t("aiCostDashboard.byProvider")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {data.byProvider.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Sin datos</p>
+                    <p className="text-sm text-muted-foreground">{t("aiCostDashboard.noData")}</p>
                   ) : (
                     <div className="space-y-3">
                       {data.byProvider
@@ -255,8 +261,8 @@ export default function AiCostDashboard() {
                               )}
                             </div>
                             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <span>{formatNumber(p.calls)} calls</span>
-                              <span>{formatNumber(p.totalTokens)} tok</span>
+                              <span>{formatNumber(p.calls)} {t("aiCostDashboard.calls")}</span>
+                              <span>{formatNumber(p.totalTokens)} {t("aiCostDashboard.tok")}</span>
                               <span className="font-medium text-foreground">{formatCost(p.costUsd)}</span>
                             </div>
                           </div>
@@ -268,11 +274,11 @@ export default function AiCostDashboard() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Por Agente</CardTitle>
+                  <CardTitle className="text-base">{t("aiCostDashboard.byAgent")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {data.byAgent.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Sin datos</p>
+                    <p className="text-sm text-muted-foreground">{t("aiCostDashboard.noData")}</p>
                   ) : (
                     <div className="space-y-3">
                       {data.byAgent
@@ -281,8 +287,8 @@ export default function AiCostDashboard() {
                           <div key={a.name} className="flex items-center justify-between gap-2 flex-wrap" data-testid={`row-agent-${a.name}`}>
                             <span className="text-sm font-medium">{a.name}</span>
                             <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                              <span>{formatNumber(a.calls)} calls</span>
-                              <span>{formatNumber(a.totalTokens)} tok</span>
+                              <span>{formatNumber(a.calls)} {t("aiCostDashboard.calls")}</span>
+                              <span>{formatNumber(a.totalTokens)} {t("aiCostDashboard.tok")}</span>
                               <span className="font-medium text-foreground">{formatCost(a.costUsd)}</span>
                             </div>
                           </div>
@@ -296,18 +302,18 @@ export default function AiCostDashboard() {
             {data.bySession.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Sesiones Mas Costosas (Top 50)</CardTitle>
+                  <CardTitle className="text-base">{t("aiCostDashboard.costlySessions")} {t("aiCostDashboard.top50")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-left">
-                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Session ID</th>
-                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Llamadas</th>
-                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Tokens</th>
-                          <th className="pb-2 pr-4 font-medium text-muted-foreground">Costo</th>
-                          <th className="pb-2 font-medium text-muted-foreground">Usuario</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">{t("aiCostDashboard.sessionIdHeader")}</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">{t("aiCostDashboard.callsHeader")}</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">{t("aiCostDashboard.tokensHeader")}</th>
+                          <th className="pb-2 pr-4 font-medium text-muted-foreground">{t("aiCostDashboard.costHeader")}</th>
+                          <th className="pb-2 font-medium text-muted-foreground">{t("aiCostDashboard.userHeader")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -329,24 +335,24 @@ export default function AiCostDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Llamadas Recientes (Ultimas 100)</CardTitle>
+                <CardTitle className="text-base">{t("aiCostDashboard.recentCalls")} {t("aiCostDashboard.last100")}</CardTitle>
               </CardHeader>
               <CardContent>
                 {data.recentLogs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin llamadas registradas</p>
+                  <p className="text-sm text-muted-foreground">{t("aiCostDashboard.noCallsRegistered")}</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b text-left">
-                          <th className="pb-2 pr-3 font-medium text-muted-foreground">Hora</th>
-                          <th className="pb-2 pr-3 font-medium text-muted-foreground">Proveedor</th>
-                          <th className="pb-2 pr-3 font-medium text-muted-foreground">Modelo</th>
-                          <th className="pb-2 pr-3 font-medium text-muted-foreground">Agente</th>
-                          <th className="pb-2 pr-3 font-medium text-muted-foreground">Tokens</th>
-                          <th className="pb-2 pr-3 font-medium text-muted-foreground">Costo</th>
-                          <th className="pb-2 pr-3 font-medium text-muted-foreground">Latencia</th>
-                          <th className="pb-2 font-medium text-muted-foreground">Estado</th>
+                          <th className="pb-2 pr-3 font-medium text-muted-foreground">{t("aiCostDashboard.timeHeader")}</th>
+                          <th className="pb-2 pr-3 font-medium text-muted-foreground">{t("aiCostDashboard.providerHeader")}</th>
+                          <th className="pb-2 pr-3 font-medium text-muted-foreground">{t("aiCostDashboard.modelHeader")}</th>
+                          <th className="pb-2 pr-3 font-medium text-muted-foreground">{t("aiCostDashboard.agentHeader")}</th>
+                          <th className="pb-2 pr-3 font-medium text-muted-foreground">{t("aiCostDashboard.tokensHeader")}</th>
+                          <th className="pb-2 pr-3 font-medium text-muted-foreground">{t("aiCostDashboard.costHeader")}</th>
+                          <th className="pb-2 pr-3 font-medium text-muted-foreground">{t("aiCostDashboard.latencyHeader")}</th>
+                          <th className="pb-2 font-medium text-muted-foreground">{t("aiCostDashboard.statusHeader")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -387,7 +393,7 @@ export default function AiCostDashboard() {
           </div>
         ) : (
           <div className="flex items-center justify-center py-20">
-            <p className="text-muted-foreground">No se pudieron cargar los datos</p>
+            <p className="text-muted-foreground">{t("aiCostDashboard.couldNotLoad")}</p>
           </div>
         )}
       </div>

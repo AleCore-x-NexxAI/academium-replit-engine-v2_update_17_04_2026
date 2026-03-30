@@ -115,6 +115,7 @@ export interface IStorage {
   
   // User profile operations
   updateUserProfile(id: string, data: { firstName?: string; lastName?: string }): Promise<User | undefined>;
+  updateUserLanguage(id: string, language: "es" | "en"): Promise<User | undefined>;
   
   // Student Enrollment operations
   getStudentEnrollments(studentId: string): Promise<{ scenarioId: string }[]>;
@@ -686,6 +687,15 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db
       .update(users)
       .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateUserLanguage(id: string, language: "es" | "en"): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ language, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
     return updated;

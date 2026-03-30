@@ -48,6 +48,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import type { Scenario, AgentPrompts, DecisionPoint } from "@shared/schema";
 
 interface ScenarioConfig {
@@ -110,6 +112,7 @@ export default function ScenarioEdit() {
   const [, navigate] = useLocation();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t, language } = useTranslation();
   
   // AI Configuration state
   const [llmModel, setLlmModel] = useState("gpt-4o");
@@ -215,11 +218,11 @@ export default function ScenarioEdit() {
         additions.push({
           number: i + 1,
           format: "written",
-          prompt: `Decisión ${i + 1} — pendiente de configurar`,
+          prompt: `${t("scenarioEdit.decision")} ${i + 1} — ${t("scenarioEdit.pendingConfig")}`,
           requiresJustification: true,
           includesReflection: false,
-          focusCue: "Considera los factores clave antes de decidir.",
-          thinkingScaffold: ["Stakeholders clave", "Trade-offs principales", "Consecuencias futuras"],
+          focusCue: t("scenarioEdit.considerKeyFactors"),
+          thinkingScaffold: [t("scenarioEdit.keyStakeholders"), t("scenarioEdit.mainTradeoffs"), t("scenarioEdit.futureConsequences")],
           depthStrictness: "standard",
         });
       }
@@ -262,11 +265,11 @@ export default function ScenarioEdit() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios"] });
-      toast({ title: "Scenario updated successfully" });
+      toast({ title: t("scenarioEdit.scenarioUpdated") });
       navigate("/");
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to update scenario", description: error.message, variant: "destructive" });
+      toast({ title: t("scenarioEdit.failedUpdateScenario"), description: error.message, variant: "destructive" });
     },
   });
   
@@ -278,10 +281,10 @@ export default function ScenarioEdit() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId, "config"] });
-      toast({ title: "AI configuration updated" });
+      toast({ title: t("scenarioEdit.aiConfigUpdated") });
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to update AI configuration", description: error.message, variant: "destructive" });
+      toast({ title: t("scenarioEdit.failedUpdateAIConfig"), description: error.message, variant: "destructive" });
     },
   });
   
@@ -308,7 +311,7 @@ export default function ScenarioEdit() {
 
   useEffect(() => {
     if (scenarioError && isUnauthorizedError(scenarioError as Error)) {
-      toast({ title: "Session Expired", description: "Please sign in again.", variant: "destructive" });
+      toast({ title: t("scenarioEdit.sessionExpired"), description: t("scenarioEdit.pleaseSignInAgain"), variant: "destructive" });
       setTimeout(() => { window.location.href = "/api/login"; }, 500);
     }
   }, [scenarioError, toast]);
@@ -348,7 +351,7 @@ export default function ScenarioEdit() {
                 <ArrowLeft className="w-5 h-5" />
               </Link>
             </Button>
-            <h1 className="text-xl font-semibold">Edit Scenario</h1>
+            <h1 className="text-xl font-semibold">{t("scenarioEdit.editScenario")}</h1>
           </div>
           <Button 
             onClick={form.handleSubmit(onSubmit)} 
@@ -360,8 +363,9 @@ export default function ScenarioEdit() {
             ) : (
               <Save className="w-4 h-4 mr-2" />
             )}
-            Save Changes
+            {t("scenarioEdit.saveChanges")}
           </Button>
+          <LanguageToggle />
         </div>
       </header>
 
@@ -371,7 +375,7 @@ export default function ScenarioEdit() {
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-6">
                 <BookOpen className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Basic Information</h2>
+                <h2 className="text-lg font-semibold">{t("scenarioEdit.basicInformation")}</h2>
               </div>
               <div className="grid gap-6">
                 <FormField
@@ -473,7 +477,7 @@ export default function ScenarioEdit() {
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-6">
                 <Building2 className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Company Context</h2>
+                <h2 className="text-lg font-semibold">{t("scenarioEdit.companyContext")}</h2>
               </div>
               <div className="grid gap-6">
                 <div className="grid grid-cols-3 gap-4">
@@ -482,9 +486,9 @@ export default function ScenarioEdit() {
                     name="companyName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Company Name</FormLabel>
+                        <FormLabel>{t("scenarioEdit.companyName")}</FormLabel>
                         <FormControl>
-                          <Input placeholder="Company name" {...field} data-testid="input-company" />
+                          <Input placeholder={t("scenarioEdit.companyNamePlaceholder")} {...field} data-testid="input-company" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -495,11 +499,11 @@ export default function ScenarioEdit() {
                     name="industry"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Industry</FormLabel>
+                        <FormLabel>{t("scenarioEdit.industry")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value || ""}>
                           <FormControl>
                             <SelectTrigger data-testid="select-industry">
-                              <SelectValue placeholder="Select industry" />
+                              <SelectValue placeholder={t("scenarioEdit.selectIndustry")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -517,11 +521,11 @@ export default function ScenarioEdit() {
                     name="companySize"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Company Size</FormLabel>
+                        <FormLabel>{t("scenarioEdit.companySize")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value || ""}>
                           <FormControl>
                             <SelectTrigger data-testid="select-size">
-                              <SelectValue placeholder="Select size" />
+                              <SelectValue placeholder={t("scenarioEdit.selectSize")} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -542,9 +546,9 @@ export default function ScenarioEdit() {
                   name="situationBackground"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Situation Background</FormLabel>
+                      <FormLabel>{t("scenarioEdit.situationBackground")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Describe the situation..." rows={4} {...field} data-testid="input-background" />
+                        <Textarea placeholder={t("scenarioEdit.describeSituation")} rows={4} {...field} data-testid="input-background" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -556,7 +560,7 @@ export default function ScenarioEdit() {
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-6">
                 <Users className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Player Role</h2>
+                <h2 className="text-lg font-semibold">{t("scenarioEdit.playerRole")}</h2>
               </div>
               <div className="grid gap-6">
                 <FormField
@@ -564,9 +568,9 @@ export default function ScenarioEdit() {
                   name="role"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Role Title</FormLabel>
+                      <FormLabel>{t("scenarioEdit.roleTitle")}</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., CEO, Marketing Director" {...field} data-testid="input-role" />
+                        <Input placeholder={t("scenarioEdit.rolePlaceholder")} {...field} data-testid="input-role" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -577,9 +581,9 @@ export default function ScenarioEdit() {
                   name="objective"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Primary Objective</FormLabel>
+                      <FormLabel>{t("scenarioEdit.primaryObjective")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="What must the player achieve?" rows={2} {...field} data-testid="input-objective" />
+                        <Textarea placeholder={t("scenarioEdit.objectivePlaceholder")} rows={2} {...field} data-testid="input-objective" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -590,9 +594,9 @@ export default function ScenarioEdit() {
                   name="introText"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Introduction Text</FormLabel>
+                      <FormLabel>{t("scenarioEdit.introductionText")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Opening narrative shown to the player..." rows={4} {...field} data-testid="input-intro" />
+                        <Textarea placeholder={t("scenarioEdit.introPlaceholder")} rows={4} {...field} data-testid="input-intro" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -604,7 +608,7 @@ export default function ScenarioEdit() {
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-6">
                 <Target className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Learning Objectives</h2>
+                <h2 className="text-lg font-semibold">{t("scenarioEdit.learningObjectives")}</h2>
               </div>
               <div className="grid gap-6">
                 <FormField
@@ -612,9 +616,9 @@ export default function ScenarioEdit() {
                   name="learningObjectivesText"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Learning Objectives (one per line)</FormLabel>
+                      <FormLabel>{t("scenarioEdit.learningObjectivesPerLine")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Enter each objective on a new line..." rows={4} {...field} data-testid="input-objectives" />
+                        <Textarea placeholder={t("scenarioEdit.objectivesPlaceholder")} rows={4} {...field} data-testid="input-objectives" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -625,9 +629,9 @@ export default function ScenarioEdit() {
                   name="keyConstraintsText"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Key Constraints (one per line)</FormLabel>
+                      <FormLabel>{t("scenarioEdit.keyConstraints")}</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Enter each constraint on a new line..." rows={3} {...field} data-testid="input-constraints" />
+                        <Textarea placeholder={t("scenarioEdit.constraintsPlaceholder")} rows={3} {...field} data-testid="input-constraints" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -641,7 +645,7 @@ export default function ScenarioEdit() {
                 <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Settings2 className="w-5 h-5 text-primary" />
-                    <h2 className="text-lg font-semibold">Puntos de Decisión</h2>
+                    <h2 className="text-lg font-semibold">{t("scenarioEdit.decisionPoints")}</h2>
                     <Badge variant="outline" className="text-xs">{decisionPoints.length}</Badge>
                   </div>
                   <div className="flex items-center gap-2">
@@ -658,7 +662,7 @@ export default function ScenarioEdit() {
                       <SelectContent>
                         {Array.from({ length: 8 }, (_, i) => i + 3).map((n) => (
                           <SelectItem key={n} value={String(n)}>
-                            {n} decisiones{n === 3 ? " (estándar)" : ""}
+                            {n} {t("scenarioEdit.decisions")}{n === 3 ? " " + t("scenarioEdit.standard") : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -671,7 +675,7 @@ export default function ScenarioEdit() {
                       <div className="flex items-start justify-between gap-4 flex-wrap">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium" data-testid={`text-decision-prompt-${idx}`}>
-                            Decisión {dp.number}: {dp.prompt}
+                            {t("scenarioEdit.decision")} {dp.number}: {dp.prompt}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {dp.format === "multiple_choice" ? "Opción múltiple" : "Respuesta escrita"}
@@ -681,7 +685,7 @@ export default function ScenarioEdit() {
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
                         <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                          Exigencia de Profundidad:
+                          {t("scenarioEdit.depthStrictness")}
                         </label>
                         <Select
                           value={dp.depthStrictness || "standard"}
@@ -701,7 +705,7 @@ export default function ScenarioEdit() {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground mt-4">
-                  Flexible: acepta casi cualquier respuesta relevante. Estándar: requiere al menos un criterio de profundidad. Rigurosa: requiere al menos dos dimensiones de razonamiento.
+                  {t("scenarioEdit.depthStrictnessDesc")}
                 </p>
               </Card>
             )}
@@ -711,7 +715,7 @@ export default function ScenarioEdit() {
               <Card className="p-6">
                 <div className="flex items-center gap-2 mb-6">
                   <Brain className="w-5 h-5 text-primary" />
-                  <h2 className="text-lg font-semibold">AI Configuration</h2>
+                  <h2 className="text-lg font-semibold">{t("scenarioEdit.aiConfiguration")}</h2>
                   {configMutation.isPending && (
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                   )}
@@ -720,13 +724,13 @@ export default function ScenarioEdit() {
                 <div className="grid gap-6">
                   {/* LLM Model Selection */}
                   <div>
-                    <label className="text-sm font-medium mb-2 block">AI Model</label>
+                    <label className="text-sm font-medium mb-2 block">{t("scenarioEdit.aiModel")}</label>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Choose the AI model used for generating narratives and evaluations
+                      {t("scenarioEdit.aiModelDesc")}
                     </p>
                     <Select value={llmModel} onValueChange={handleLlmModelChange}>
                       <SelectTrigger className="w-full max-w-md" data-testid="select-llm-model">
-                        <SelectValue placeholder="Select AI model" />
+                        <SelectValue placeholder={t("scenarioEdit.selectAIModel")} />
                       </SelectTrigger>
                       <SelectContent>
                         {(configData.supportedModels || ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"]).map((model) => (
@@ -744,8 +748,8 @@ export default function ScenarioEdit() {
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <Settings2 className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-medium">Agent Prompts</span>
-                          <Badge variant="outline" className="text-xs">Superadmin</Badge>
+                          <span className="font-medium">{t("scenarioEdit.agentPrompts")}</span>
+                          <Badge variant="outline" className="text-xs">{t("scenarioEdit.superadmin")}</Badge>
                         </div>
                         <Button 
                           variant="outline" 
@@ -759,7 +763,7 @@ export default function ScenarioEdit() {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground mb-4">
-                        Customize the system prompts for each AI agent. Leave empty to use defaults.
+                        {t("scenarioEdit.customizePrompts")}
                       </p>
                       
                       <div className="space-y-3">
@@ -791,7 +795,7 @@ export default function ScenarioEdit() {
                                     <Brain className="w-4 h-4 text-muted-foreground" />
                                     <span className="font-medium text-sm">{agentLabels[agent]}</span>
                                     {hasCustomPrompt && (
-                                      <Badge variant="secondary" className="text-xs">Custom</Badge>
+                                      <Badge variant="secondary" className="text-xs">{t("scenarioEdit.custom")}</Badge>
                                     )}
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -810,7 +814,7 @@ export default function ScenarioEdit() {
                                 <div className="p-3 border border-t-0 rounded-b-lg space-y-3">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-muted-foreground">
-                                      {hasCustomPrompt ? "Using custom prompt" : "Using default prompt"}
+                                      {hasCustomPrompt ? t("scenarioEdit.usingCustomPrompt") : t("scenarioEdit.usingDefaultPrompt")}
                                     </span>
                                     {hasCustomPrompt && (
                                       <Button
@@ -825,7 +829,7 @@ export default function ScenarioEdit() {
                                     )}
                                   </div>
                                   <Textarea
-                                    placeholder={configData.defaultPrompts?.[agent] || "Enter custom prompt..."}
+                                    placeholder={configData.defaultPrompts?.[agent] || t("scenarioEdit.enterCustomPrompt")}
                                     value={agentPrompts[agent] || ""}
                                     onChange={(e) => handleAgentPromptChange(agent, e.target.value)}
                                     rows={8}
@@ -835,7 +839,7 @@ export default function ScenarioEdit() {
                                   {!hasCustomPrompt && (
                                     <details className="text-xs">
                                       <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                                        View default prompt
+                                        {t("scenarioEdit.viewDefaultPrompt")}
                                       </summary>
                                       <pre className="mt-2 p-2 bg-muted rounded text-xs whitespace-pre-wrap max-h-48 overflow-auto">
                                         {configData.defaultPrompts?.[agent]}

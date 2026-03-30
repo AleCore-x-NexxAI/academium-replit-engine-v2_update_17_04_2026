@@ -36,6 +36,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import type { SimulationSession, Scenario, Turn, Indicator, MetricExplanation } from "@shared/schema";
 import { t, type SimulationLanguage } from "@/lib/i18n";
 
@@ -111,6 +113,18 @@ const INDICATOR_ICON_COLORS: Record<string, string> = {
   strategicFlexibility: "text-cyan-600 dark:text-cyan-400",
 };
 
+function formatKpiValue(key: string, value: number, lang: SimulationLanguage = "es"): string {
+  if (key === "revenue") {
+    return new Intl.NumberFormat(lang === "en" ? "en-US" : "es-MX", {
+      style: "currency",
+      currency: "USD",
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value);
+  }
+  return `${value}%`;
+}
+
 interface IndicatorCardProps {
   item: { key: string; label: string; initial: number; final: number; delta: number; Icon: React.ElementType };
   index: number;
@@ -118,13 +132,14 @@ interface IndicatorCardProps {
   explanations?: Array<{ turnNumber: number; shortReason: string; causalChain: string[] }>;
   direction?: string;
   defaultExpanded?: boolean;
-  language?: SimulationLanguage;
 }
 
-function IndicatorResultCard({ item, index, useIndicators, explanations, direction, defaultExpanded = false, language = "es" }: IndicatorCardProps) {
+function IndicatorResultCard({ item, index, useIndicators, explanations, direction, defaultExpanded = false }: IndicatorCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const { key, label, initial, final: finalVal, Icon } = item;
   const hasExplanations = explanations && explanations.length > 0;
+  const { t, language } = useTranslation();
+  const locale = language === "en" ? "en-US" : "es-MX";
 
   useEffect(() => {
     if (defaultExpanded) setExpanded(true);
@@ -150,20 +165,20 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
         <h3 className="font-semibold text-sm mb-1">{label}</h3>
         {direction && (
           <p className="text-xs text-muted-foreground mb-2">
-            {direction === "down_better" ? t("kpi.direction.down", language) : t("kpi.direction.up", language)}
+            {direction === "down_better" ? t("kpi.direction.down", { lang: language }) : t("kpi.direction.up", { lang: language })}
           </p>
         )}
         
         <div className="flex items-center gap-3 mt-2">
           <div className="text-center" data-testid={`indicator-${key}-start`}>
-            <span className="text-xs text-muted-foreground block">{t("results.start", language)}</span>
+            <span className="text-xs text-muted-foreground block">{t("results.start", { lang: language })}</span>
             <span className="text-lg font-semibold">
               {useIndicators ? initial : formatKpiValue(key, initial, language)}
             </span>
           </div>
           <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
           <div className="text-center" data-testid={`indicator-${key}-end`}>
-            <span className="text-xs text-muted-foreground block">{t("results.end", language)}</span>
+            <span className="text-xs text-muted-foreground block">{t("results.end", { lang: language })}</span>
             <span className="text-2xl font-bold">
               {useIndicators ? finalVal : formatKpiValue(key, finalVal, language)}
             </span>
@@ -192,7 +207,7 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
             >
               <Lightbulb className="w-4 h-4 text-amber-500" />
               <span className="text-xs font-medium">
-                {expanded ? t("results.hide", language) : t("results.why", language)}
+                {expanded ? t("results.hide", { lang: language }) : t("results.why", { lang: language })}
               </span>
               <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ml-auto ${expanded ? 'rotate-180' : ''}`} />
             </Button>
@@ -212,7 +227,7 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
                 {explanations!.map((exp, i) => (
                   <div key={i} className="text-xs space-y-1">
                     <p className="font-medium text-foreground/80">
-                      {t("results.decision.label", language)} {exp.turnNumber}: {exp.shortReason}
+                      {t("results.decision.label", { lang: language })} {exp.turnNumber}: {exp.shortReason}
                     </p>
                     {exp.causalChain.length > 0 && (
                       <ul className="pl-3 space-y-0.5">
@@ -234,23 +249,13 @@ function IndicatorResultCard({ item, index, useIndicators, explanations, directi
   );
 }
 
-function formatKpiValue(key: string, value: number, lang: SimulationLanguage = "es"): string {
-  if (key === "revenue") {
-    return new Intl.NumberFormat(lang === "en" ? "en-US" : "es-MX", {
-      style: "currency",
-      currency: "USD",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(value);
-  }
-  return `${value}%`;
-}
-
 export default function SessionResults() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [, navigate] = useLocation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t, language } = useTranslation();
+  const locale = language === "en" ? "en-US" : "es-MX";
 
   const { data: session, isLoading: sessionLoading } = useQuery<
     SimulationSession & { scenario?: Scenario }
@@ -384,7 +389,9 @@ export default function SessionResults() {
         <div className="text-center">
           <p className="text-sm font-medium">{t("results.experience", lang)}</p>
         </div>
-        <div className="w-20" />
+        <div className="w-20 flex justify-end">
+          <LanguageToggle />
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto p-6 space-y-8">
@@ -719,7 +726,7 @@ export default function SessionResults() {
           </motion.div>
         )}
 
-        {/* S11: Decision Timeline — "Línea de Decisiones" */}
+        {/* S11: Decision Timeline */}
         {turns && turns.length > 0 && (() => {
           const totalDecisions = session.scenario?.initialState?.totalDecisions || 3;
           const isReflectionTurn = (turn: Turn) => {

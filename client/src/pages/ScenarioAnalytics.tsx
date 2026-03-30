@@ -74,6 +74,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import type { Scenario, SimulationSession, Turn, User, TurnEvent, Indicator, MetricExplanation } from "@shared/schema";
 
 interface SessionWithUserInfo extends SimulationSession {
@@ -123,6 +125,7 @@ function getTextContent(value: any): string {
 }
 
 function ConversationViewer({ sessionId }: { sessionId: string }) {
+  const { t, language } = useTranslation();
   const { data, isLoading } = useQuery<ConversationData>({
     queryKey: ["/api/professor/sessions", sessionId, "conversation"],
   });
@@ -132,7 +135,7 @@ function ConversationViewer({ sessionId }: { sessionId: string }) {
   }
 
   if (!data?.turns || data.turns.length === 0) {
-    return <p className="text-muted-foreground text-center p-4">Sin historial de decisiones</p>;
+    return <p className="text-muted-foreground text-center p-4">{t("scenarioAnalytics.noDecisionHistory")}</p>;
   }
 
   return (
@@ -149,10 +152,10 @@ function ConversationViewer({ sessionId }: { sessionId: string }) {
             <div key={turn.id} className="border rounded-lg p-4 space-y-4">
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className="font-mono">
-                  Decisión {decisionNumber}
+                  {t("scenarioAnalytics.decisionN", { n: decisionNumber })}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
-                  {turn.createdAt && new Date(turn.createdAt).toLocaleDateString("es-ES", {
+                  {turn.createdAt && new Date(turn.createdAt).toLocaleDateString(language === "en" ? "en-US" : "es-ES", {
                     day: "numeric",
                     month: "short",
                     hour: "2-digit",
@@ -163,7 +166,7 @@ function ConversationViewer({ sessionId }: { sessionId: string }) {
               
               <div className="space-y-3">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Respuesta del Estudiante:</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.studentResponse")}</p>
                   <div className="bg-primary/5 border-l-2 border-primary rounded-r-lg p-3">
                     <p className="text-sm whitespace-pre-wrap">{turn.studentInput}</p>
                   </div>
@@ -171,7 +174,7 @@ function ConversationViewer({ sessionId }: { sessionId: string }) {
                 
                 {narrativeText && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Narrativa de Simulación:</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.simulationNarrative")}</p>
                     <div className="bg-muted/50 rounded-lg p-3">
                       <p className="text-sm whitespace-pre-wrap">{narrativeText}</p>
                     </div>
@@ -180,7 +183,7 @@ function ConversationViewer({ sessionId }: { sessionId: string }) {
 
                 {reflectionText && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Reflexión Final:</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.finalReflection")}</p>
                     <div className="bg-amber-50 dark:bg-amber-950/30 border-l-2 border-amber-500 rounded-r-lg p-3">
                       <p className="text-sm whitespace-pre-wrap">{reflectionText}</p>
                     </div>
@@ -189,7 +192,7 @@ function ConversationViewer({ sessionId }: { sessionId: string }) {
 
                 {feedbackText && (
                   <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Retroalimentación:</p>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.feedback")}</p>
                     <div className="bg-blue-50 dark:bg-blue-950/30 border-l-2 border-blue-500 rounded-r-lg p-3">
                       <p className="text-sm whitespace-pre-wrap">{feedbackText}</p>
                     </div>
@@ -205,6 +208,7 @@ function ConversationViewer({ sessionId }: { sessionId: string }) {
 }
 
 function EventLogViewer({ sessionId }: { sessionId: string }) {
+  const { t, language } = useTranslation();
   const { data: events, isLoading } = useQuery<TurnEvent[]>({
     queryKey: ["/api/professor/sessions", sessionId, "events"],
   });
@@ -227,8 +231,8 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
     return (
       <div className="text-center py-8">
         <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
-        <p className="text-muted-foreground">Sin eventos registrados</p>
-        <p className="text-xs text-muted-foreground mt-1">Los eventos se registran a partir de ahora en nuevas sesiones.</p>
+        <p className="text-muted-foreground">{t("scenarioAnalytics.noEventsRecorded")}</p>
+        <p className="text-xs text-muted-foreground mt-1">{t("scenarioAnalytics.eventsRecordedFromNow")}</p>
       </div>
     );
   }
@@ -246,11 +250,11 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
 
   const getEventLabel = (type: string, data: any) => {
     switch (type) {
-      case "input_rejected": return "Entrada Rechazada";
-      case "input_accepted": return data?.validatedBy === "mcq_bypass" ? "MCQ Aceptada" : "Entrada Aceptada";
-      case "agent_call": return `Agente: ${data?.agentName || "desconocido"}`;
-      case "turn_completed": return "Turno Completado";
-      case "turn_error": return "Error en Turno";
+      case "input_rejected": return t("scenarioAnalytics.inputRejected");
+      case "input_accepted": return data?.validatedBy === "mcq_bypass" ? t("scenarioAnalytics.mcqAccepted") : t("scenarioAnalytics.inputAccepted");
+      case "agent_call": return t("scenarioAnalytics.agentName", { name: data?.agentName || t("scenarioAnalytics.unknown") });
+      case "turn_completed": return t("scenarioAnalytics.turnCompleted");
+      case "turn_error": return t("scenarioAnalytics.turnError");
       default: return type;
     }
   };
@@ -273,13 +277,13 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 px-4 pt-2">
         <Badge variant="destructive" data-testid="badge-rejected-count">
-          {rejectedCount} rechazadas
+          {rejectedCount} {t("scenarioAnalytics.rejected")}
         </Badge>
         <Badge data-testid="badge-accepted-count">
-          {acceptedCount} aceptadas
+          {acceptedCount} {t("scenarioAnalytics.accepted")}
         </Badge>
         <Badge variant="secondary" data-testid="badge-agent-count">
-          {agentCount} llamadas a agentes
+          {agentCount} {t("scenarioAnalytics.agentCalls")}
         </Badge>
       </div>
 
@@ -312,11 +316,11 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
                   </Badge>
                   {event.turnNumber && (
                     <span className="text-xs text-muted-foreground">
-                      Decisión {event.turnNumber}
+                      {t("scenarioAnalytics.decisionN", { n: event.turnNumber })}
                     </span>
                   )}
                   <span className="text-xs text-muted-foreground ml-auto mr-2">
-                    {event.createdAt && new Date(event.createdAt).toLocaleTimeString("es-ES", {
+                    {event.createdAt && new Date(event.createdAt).toLocaleTimeString(language === "en" ? "en-US" : "es-ES", {
                       hour: "2-digit",
                       minute: "2-digit",
                       second: "2-digit",
@@ -332,7 +336,7 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
                   <div className="px-3 pb-3 space-y-2 border-t pt-2">
                     {event.rawStudentInput && (
                       <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Texto del Estudiante (verbatim):</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.studentTextVerbatim")}</p>
                         <div className="bg-muted/50 rounded-md p-2">
                           <p className="text-sm whitespace-pre-wrap font-mono">{event.rawStudentInput}</p>
                         </div>
@@ -341,7 +345,7 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
 
                     {event.eventType === "input_rejected" && data?.reason && (
                       <div>
-                        <p className="text-xs font-medium text-destructive mb-1">Razón del rechazo:</p>
+                        <p className="text-xs font-medium text-destructive mb-1">{t("scenarioAnalytics.rejectionReason")}</p>
                         <div className="bg-destructive/10 rounded-md p-2">
                           <p className="text-sm">{data.reason}</p>
                         </div>
@@ -352,25 +356,25 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
                       <div className="space-y-2">
                         {data?.interpretedAction && (
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Acción Interpretada:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.interpretedAction")}</p>
                             <p className="text-sm bg-muted/50 rounded-md p-2">{data.interpretedAction}</p>
                           </div>
                         )}
                         {data?.feedbackScore !== undefined && (
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">Puntuación:</p>
+                            <p className="text-xs font-medium text-muted-foreground">{t("scenarioAnalytics.score")}</p>
                             <Badge variant="outline">{data.feedbackScore}/100</Badge>
                           </div>
                         )}
                         {data?.feedbackMessage && (
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Retroalimentación:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.feedback")}</p>
                             <p className="text-sm bg-muted/50 rounded-md p-2">{data.feedbackMessage}</p>
                           </div>
                         )}
                         {data?.kpiDeltas && Object.keys(data.kpiDeltas).length > 0 && (
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Deltas KPI:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.kpiDeltas")}</p>
                             <div className="flex flex-wrap gap-1">
                               {Object.entries(data.kpiDeltas).map(([key, val]) => (
                                 <Badge key={key} variant="outline" className="text-xs font-mono">
@@ -382,7 +386,7 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
                         )}
                         {data?.indicatorDeltas && Object.keys(data.indicatorDeltas).length > 0 && (
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Deltas Indicadores:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.indicatorDeltas")}</p>
                             <div className="flex flex-wrap gap-1">
                               {Object.entries(data.indicatorDeltas).map(([key, val]) => (
                                 <Badge key={key} variant="outline" className="text-xs font-mono">
@@ -394,7 +398,7 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
                         )}
                         {data?.competencyScores && (
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Competencias:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.competencies")}</p>
                             <div className="flex flex-wrap gap-1">
                               {Object.entries(data.competencyScores).map(([key, val]) => (
                                 <Badge key={key} variant="outline" className="text-xs">
@@ -406,15 +410,15 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
                         )}
                         {data?.isDeepEnough !== undefined && (
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">Profundidad suficiente:</p>
+                            <p className="text-xs font-medium text-muted-foreground">{t("scenarioAnalytics.sufficientDepth")}</p>
                             <Badge variant={data.isDeepEnough ? "default" : "destructive"}>
-                              {data.isDeepEnough ? "Si" : "No"}
+                              {data.isDeepEnough ? t("common.yes") : t("common.no")}
                             </Badge>
                           </div>
                         )}
                         {data?.durationMs && (
                           <p className="text-xs text-muted-foreground">
-                            Duración: {(data.durationMs / 1000).toFixed(1)}s
+                            {t("scenarioAnalytics.duration", { seconds: (data.durationMs / 1000).toFixed(1) })}
                           </p>
                         )}
                       </div>
@@ -424,25 +428,25 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
                       <div className="space-y-2">
                         {data?.feedbackScore !== undefined && (
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-medium text-muted-foreground">Puntuación:</p>
+                            <p className="text-xs font-medium text-muted-foreground">{t("scenarioAnalytics.score")}</p>
                             <Badge variant="outline">{data.feedbackScore}/100</Badge>
                           </div>
                         )}
                         {data?.feedbackMessage && (
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Retroalimentación:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.feedback")}</p>
                             <p className="text-sm bg-muted/50 rounded-md p-2">{data.feedbackMessage}</p>
                           </div>
                         )}
                         {data?.narrativeText && (
                           <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Narrativa:</p>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">{t("scenarioAnalytics.narrative")}</p>
                             <p className="text-sm bg-muted/50 rounded-md p-2 max-h-32 overflow-y-auto">{data.narrativeText}</p>
                           </div>
                         )}
                         {data?.durationMs && (
                           <p className="text-xs text-muted-foreground">
-                            Duración total: {(data.durationMs / 1000).toFixed(1)}s
+                            {t("scenarioAnalytics.totalDuration", { seconds: (data.durationMs / 1000).toFixed(1) })}
                           </p>
                         )}
                       </div>
@@ -450,7 +454,7 @@ function EventLogViewer({ sessionId }: { sessionId: string }) {
 
                     {event.eventType === "turn_error" && data?.error && (
                       <div>
-                        <p className="text-xs font-medium text-destructive mb-1">Error:</p>
+                        <p className="text-xs font-medium text-destructive mb-1">{t("scenarioAnalytics.errorLabel")}</p>
                         <div className="bg-destructive/10 rounded-md p-2">
                           <p className="text-sm font-mono">{data.error}</p>
                         </div>
@@ -473,14 +477,15 @@ const RESULT_INDICATOR_ICONS: Record<string, React.ElementType> = {
   reputation: Star, efficiency: TrendingUp, trust: Users,
 };
 
-const RESULT_INDICATOR_LABELS: Record<string, string> = {
-  teamMorale: "Moral del Equipo", budgetHealth: "Salud Presupuestaria", budgetImpact: "Impacto Presupuestario",
-  operationalRisk: "Riesgo Operacional", strategicFlexibility: "Flexibilidad Estratégica",
-  revenue: "Ingresos", morale: "Moral del Equipo", reputation: "Reputación de Marca",
-  efficiency: "Eficiencia Operacional", trust: "Confianza de Stakeholders",
-};
+function getResultIndicatorLabel(key: string, t: (k: string) => string): string {
+  const translationKey = `scenarioAnalytics.${key}`;
+  const result = t(translationKey);
+  if (result !== translationKey) return result;
+  return key;
+}
 
 function ResultsViewer({ sessionId }: { sessionId: string }) {
+  const { t, language } = useTranslation();
   const { data, isLoading } = useQuery<ConversationData>({
     queryKey: ["/api/professor/sessions", sessionId, "conversation"],
   });
@@ -494,8 +499,8 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
     return (
       <div className="p-8 text-center space-y-2">
         <Gauge className="w-8 h-8 text-muted-foreground mx-auto" />
-        <p className="text-muted-foreground">Sin resultados disponibles</p>
-        <p className="text-xs text-muted-foreground">El estudiante no completó ninguna decisión.</p>
+        <p className="text-muted-foreground">{t("scenarioAnalytics.noResultsAvailable")}</p>
+        <p className="text-xs text-muted-foreground">{t("scenarioAnalytics.studentNoDecisions")}</p>
       </div>
     );
   }
@@ -531,7 +536,7 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
         const initial = initialIndicators.find((i) => i.id === indicator.id);
         return {
           key: indicator.id,
-          label: RESULT_INDICATOR_LABELS[indicator.id] || indicator.label,
+          label: getResultIndicatorLabel(indicator.id, t) !== indicator.id ? getResultIndicatorLabel(indicator.id, t) : indicator.label,
           initial: initial?.value ?? indicator.value,
           final: indicator.value,
           delta: initial ? indicator.value - initial.value : 0,
@@ -541,7 +546,7 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
       })
     : Object.entries(currentState?.kpis || {}).map(([key, val]) => ({
         key,
-        label: RESULT_INDICATOR_LABELS[key] || key,
+        label: getResultIndicatorLabel(key, t),
         initial: (initialState?.kpis as any)?.[key] ?? 50,
         final: val as number,
         delta: ((val as number) - ((initialState?.kpis as any)?.[key] ?? 50)),
@@ -568,8 +573,8 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
     return (
       <div className="p-8 text-center space-y-2">
         <Gauge className="w-8 h-8 text-muted-foreground mx-auto" />
-        <p className="text-muted-foreground">Sin datos de indicadores</p>
-        <p className="text-xs text-muted-foreground">Esta sesión no tiene información de indicadores registrada.</p>
+        <p className="text-muted-foreground">{t("scenarioAnalytics.noIndicatorData")}</p>
+        <p className="text-xs text-muted-foreground">{t("scenarioAnalytics.noIndicatorDataDesc")}</p>
       </div>
     );
   }
@@ -579,7 +584,7 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-2 mb-2">
           <BarChart3 className="w-4 h-4 text-primary" />
-          <h3 className="font-semibold text-sm">Indicadores: Inicio vs. Final</h3>
+          <h3 className="font-semibold text-sm">{t("scenarioAnalytics.indicatorsStartVsFinal")}</h3>
         </div>
 
         <div className="space-y-3">
@@ -598,17 +603,17 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{item.label}</p>
                     <p className="text-xs text-muted-foreground">
-                      {item.direction === "down_better" ? "Menor es mejor" : "Mayor es mejor"}
+                      {item.direction === "down_better" ? t("scenarioAnalytics.lowerIsBetter") : t("scenarioAnalytics.higherIsBetter")}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-center">
-                      <span className="text-xs text-muted-foreground block">Inicio</span>
+                      <span className="text-xs text-muted-foreground block">{t("scenarioAnalytics.start")}</span>
                       <span className="text-sm font-semibold">{Math.round(item.initial)}</span>
                     </div>
                     <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
                     <div className="text-center">
-                      <span className="text-xs text-muted-foreground block">Final</span>
+                      <span className="text-xs text-muted-foreground block">{t("scenarioAnalytics.final")}</span>
                       <span className="text-lg font-bold">{Math.round(item.final)}</span>
                     </div>
                     <Badge variant="outline" className={`font-mono text-xs ${getDeltaColor(item.delta, item.direction)}`}>
@@ -627,7 +632,7 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
                       data-testid={`button-why-result-${item.key}`}
                     >
                       <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                      {isExpanded ? "Ocultar detalles" : "Ver por qué cambió"}
+                      {isExpanded ? t("scenarioAnalytics.hideDetails") : t("scenarioAnalytics.seeWhyChanged")}
                       <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                     </Button>
 
@@ -636,7 +641,7 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
                         {exps.map((exp, i) => (
                           <div key={i} className="text-xs space-y-1">
                             <p className="font-medium text-foreground/80">
-                              Decisión {exp.turnNumber}: {exp.shortReason}
+                              {t("scenarioAnalytics.decisionN", { n: exp.turnNumber })}: {exp.shortReason}
                             </p>
                             {exp.causalChain.length > 0 && (
                               <ul className="pl-3 space-y-0.5">
@@ -652,7 +657,7 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
                   </div>
                 ) : item.delta !== 0 ? (
                   <p className="mt-2 text-xs text-muted-foreground italic">
-                    Detalles de explicación no disponibles para esta sesión.
+                    {t("scenarioAnalytics.explanationNotAvailable")}
                   </p>
                 ) : null}
               </Card>
@@ -663,7 +668,7 @@ function ResultsViewer({ sessionId }: { sessionId: string }) {
         {data.turns.length > 0 && (
           <div className="pt-2 border-t">
             <p className="text-xs text-muted-foreground">
-              Basado en {data.turns.length} decisión{data.turns.length !== 1 ? "es" : ""} del estudiante.
+              {t("scenarioAnalytics.basedOnDecisions", { count: data.turns.length, plural: data.turns.length !== 1 ? t("scenarioAnalytics.pluralEs") : "" })}
             </p>
           </div>
         )}
@@ -716,45 +721,48 @@ const CHART_COLORS = [
   "hsl(var(--chart-5))",
 ];
 
-const COMPETENCY_LABELS_ES: Record<string, string> = {
-  decisiondecisiveness: "Decisión y Determinación",
-  decisiveness: "Determinación",
-  ethicalreasoning: "Razonamiento Ético",
-  stakeholderempathy: "Empatía con Stakeholders",
-  stakeholderawareness: "Conciencia de Stakeholders",
-  strategicthinking: "Pensamiento Estratégico",
-  financialanalysis: "Análisis Financiero",
-  financial_analysis: "Análisis Financiero",
-  riskassessment: "Evaluación de Riesgos",
-  risk_assessment: "Evaluación de Riesgos",
-  riskmanagement: "Gestión de Riesgos",
-  communication: "Comunicación",
-  comunicación: "Comunicación",
-  leadership: "Liderazgo",
-  liderazgo: "Liderazgo",
-  teammanagement: "Gestión de Equipos",
-  team_management: "Gestión de Equipos",
-  budgetmanagement: "Gestión Presupuestaria",
-  budget_management: "Gestión Presupuestaria",
-  costanalysis: "Análisis de Costos",
-  cost_analysis: "Análisis de Costos",
-  problemsolving: "Resolución de Problemas",
-  criticalthinking: "Pensamiento Crítico",
-  negotiation: "Negociación",
-  adaptability: "Adaptabilidad",
-  innovation: "Innovación",
-  timemanagement: "Gestión del Tiempo",
-  conflictresolution: "Resolución de Conflictos",
-  dataanalysis: "Análisis de Datos",
-  changemanagement: "Gestión del Cambio",
-  customerorientation: "Orientación al Cliente",
-  sustainability: "Sostenibilidad",
-  compliance: "Cumplimiento Normativo",
+const COMPETENCY_KEYS: Record<string, string> = {
+  decisiondecisiveness: "compDecisionDecisiveness",
+  decisiveness: "compDecisiveness",
+  ethicalreasoning: "compEthicalReasoning",
+  stakeholderempathy: "compStakeholderEmpathy",
+  stakeholderawareness: "compStakeholderAwareness",
+  strategicthinking: "compStrategicThinking",
+  financialanalysis: "compFinancialAnalysis",
+  financial_analysis: "compFinancialAnalysis",
+  riskassessment: "compRiskAssessment",
+  risk_assessment: "compRiskAssessment",
+  riskmanagement: "compRiskManagement",
+  communication: "compCommunication",
+  comunicación: "compCommunication",
+  leadership: "compLeadership",
+  liderazgo: "compLeadership",
+  teammanagement: "compTeamManagement",
+  team_management: "compTeamManagement",
+  budgetmanagement: "compBudgetManagement",
+  budget_management: "compBudgetManagement",
+  costanalysis: "compCostAnalysis",
+  cost_analysis: "compCostAnalysis",
+  problemsolving: "compProblemSolving",
+  criticalthinking: "compCriticalThinking",
+  negotiation: "compNegotiation",
+  adaptability: "compAdaptability",
+  innovation: "compInnovation",
+  timemanagement: "compTimeManagement",
+  conflictresolution: "compConflictResolution",
+  dataanalysis: "compDataAnalysis",
+  changemanagement: "compChangeManagement",
+  customerorientation: "compCustomerOrientation",
+  sustainability: "compSustainability",
+  compliance: "compCompliance",
 };
 
-function translateCompetency(name: string): string {
+function translateCompetency(name: string, t: (k: string) => string): string {
   const key = name.replace(/[_\s-]/g, "").toLowerCase();
-  if (COMPETENCY_LABELS_ES[key]) return COMPETENCY_LABELS_ES[key];
+  if (COMPETENCY_KEYS[key]) {
+    const result = t(`scenarioAnalytics.${COMPETENCY_KEYS[key]}`);
+    if (result !== `scenarioAnalytics.${COMPETENCY_KEYS[key]}`) return result;
+  }
   const withSpaces = name
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/_/g, " ")
@@ -791,6 +799,7 @@ const PROFILE_COLORS: Record<string, string> = {
 };
 
 function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: CohortAnalyticsData["conceptGaps"]; hasCourseConcepts?: boolean }) {
+  const { t } = useTranslation();
   const [expandedConcept, setExpandedConcept] = useState<string | null>(null);
 
   if (!conceptGaps || conceptGaps.length === 0) {
@@ -798,14 +807,14 @@ function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: 
       <Card className="p-6" data-testid="card-concept-gaps">
         <div className="flex items-center gap-2 mb-4">
           <Search className="w-5 h-5 text-blue-500" />
-          <h3 className="font-semibold">Brechas Conceptuales</h3>
+          <h3 className="font-semibold">{t("scenarioAnalytics.conceptGaps")}</h3>
         </div>
         <div className="text-center py-6">
           <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">
             {hasCourseConcepts
-              ? "Sin datos suficientes aún. Las brechas conceptuales aparecerán cuando los estudiantes completen decisiones."
-              : "Sin conceptos configurados. Agrega etiquetas de conceptos del curso en el editor para habilitar esta sección."}
+              ? t("scenarioAnalytics.noConceptDataYet")
+              : t("scenarioAnalytics.noConceptsConfigured")}
           </p>
         </div>
       </Card>
@@ -818,10 +827,10 @@ function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: 
     <Card className="p-6" data-testid="card-concept-gaps">
       <div className="flex items-center gap-2 mb-4">
         <Search className="w-5 h-5 text-blue-500" />
-        <h3 className="font-semibold">Brechas Conceptuales</h3>
+        <h3 className="font-semibold">{t("scenarioAnalytics.conceptGaps")}</h3>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Señales de fricción por concepto del curso — dónde los estudiantes encontraron más dificultad.
+        {t("scenarioAnalytics.frictionByConceptDesc")}
       </p>
       <div className="space-y-3">
         {conceptGaps.map((gap, idx) => {
@@ -850,11 +859,11 @@ function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: 
                     </div>
                   </div>
                   <span className="text-xs text-muted-foreground shrink-0">
-                    Fricción: {gap.combinedFriction}
+                    {t("scenarioAnalytics.friction", { value: gap.combinedFriction })}
                   </span>
                   {gap.hardestStep != null && (
                     <Badge variant="outline" className="text-xs shrink-0">
-                      Paso más difícil: {gap.hardestStep}
+                      {t("scenarioAnalytics.hardestStep", { step: gap.hardestStep })}
                     </Badge>
                   )}
                   {isExpanded ? (
@@ -867,13 +876,13 @@ function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: 
               {isExpanded && (
                 <div className="mt-2 ml-4 pl-4 border-l-2 border-muted space-y-2">
                   <div className="flex gap-4 flex-wrap text-xs text-muted-foreground">
-                    <span>Rechazos: {gap.validationFriction}</span>
-                    <span>Tiempo promedio: {gap.timeFriction} min</span>
-                    <span>Uso de evidencia: {gap.evidenceUse}%</span>
+                    <span>{t("scenarioAnalytics.rejections", { count: gap.validationFriction })}</span>
+                    <span>{t("scenarioAnalytics.avgTime", { time: gap.timeFriction })}</span>
+                    <span>{t("scenarioAnalytics.evidenceUse", { pct: gap.evidenceUse })}</span>
                   </div>
                   {gap.topExamples.length > 0 && (
                     <div className="space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Ejemplos anónimos:</p>
+                      <p className="text-xs font-medium text-muted-foreground">{t("scenarioAnalytics.anonymousExamples")}</p>
                       {gap.topExamples.map((ex, i) => (
                         <p key={i} className="text-xs italic text-muted-foreground/80 pl-2 truncate">
                           &ldquo;{ex}&rdquo;
@@ -883,7 +892,7 @@ function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: 
                   )}
                   {gap.topExamples.length === 0 && (
                     <p className="text-xs text-muted-foreground/60">
-                      Ejemplos disponibles con 5+ estudiantes.
+                      {t("scenarioAnalytics.examplesAvailableWith5")}
                     </p>
                   )}
                 </div>
@@ -897,6 +906,8 @@ function ConceptGapsSection({ conceptGaps, hasCourseConcepts }: { conceptGaps?: 
 }
 
 function ReasoningPatternsSection({ reasoningPatterns }: { reasoningPatterns?: CohortAnalyticsData["reasoningPatterns"] }) {
+  const { t } = useTranslation();
+
   if (!reasoningPatterns || reasoningPatterns.length === 0) {
     return null;
   }
@@ -905,10 +916,10 @@ function ReasoningPatternsSection({ reasoningPatterns }: { reasoningPatterns?: C
     <Card className="p-6" data-testid="card-reasoning-patterns">
       <div className="flex items-center gap-2 mb-4">
         <Lightbulb className="w-5 h-5 text-amber-500" />
-        <h3 className="font-semibold">Patrones de Razonamiento</h3>
+        <h3 className="font-semibold">{t("scenarioAnalytics.reasoningPatterns")}</h3>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Señales observadas en las respuestas del grupo — qué patrones de pensamiento aparecen con más frecuencia.
+        {t("scenarioAnalytics.reasoningPatternsDesc")}
       </p>
       <div className="space-y-3">
         {reasoningPatterns.map((rp, idx) => (
@@ -937,6 +948,7 @@ function ReasoningPatternsSection({ reasoningPatterns }: { reasoningPatterns?: C
 }
 
 function TeachingRecommendationsSection({ recommendations }: { recommendations?: string[] }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
 
   if (!recommendations || recommendations.length === 0) {
@@ -946,9 +958,9 @@ function TeachingRecommendationsSection({ recommendations }: { recommendations?:
   const handleCopy = () => {
     const text = recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n");
     navigator.clipboard.writeText(text).then(() => {
-      toast({ title: "Copiado", description: "Recomendaciones copiadas al portapapeles." });
+      toast({ title: t("scenarioAnalytics.copied"), description: t("scenarioAnalytics.recommendationsCopied") });
     }).catch(() => {
-      toast({ title: "Error", description: "No se pudieron copiar.", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("scenarioAnalytics.couldNotCopy"), variant: "destructive" });
     });
   };
 
@@ -957,7 +969,7 @@ function TeachingRecommendationsSection({ recommendations }: { recommendations?:
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-emerald-500" />
-          <h3 className="font-semibold">Recomendaciones para la Enseñanza</h3>
+          <h3 className="font-semibold">{t("scenarioAnalytics.teachingRecommendations")}</h3>
         </div>
         <Button
           variant="ghost"
@@ -969,7 +981,7 @@ function TeachingRecommendationsSection({ recommendations }: { recommendations?:
         </Button>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Insights accionables basados en los patrones observados en la clase.
+        {t("scenarioAnalytics.actionableInsights")}
       </p>
       <div className="space-y-3">
         {recommendations.map((rec, idx) => (
@@ -990,6 +1002,7 @@ function TeachingRecommendationsSection({ recommendations }: { recommendations?:
 }
 
 function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
+  const { t, language } = useTranslation();
   const { data, isLoading } = useQuery<CohortAnalyticsData>({
     queryKey: ["/api/scenarios", scenarioId, "cohort-analytics"],
     enabled: !!scenarioId,
@@ -1009,9 +1022,9 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
     return (
       <div className="text-center py-12">
         <GraduationCap className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-        <h3 className="text-lg font-medium mb-2">Sin Datos de Clase</h3>
+        <h3 className="text-lg font-medium mb-2">{t("scenarioAnalytics.noClassData")}</h3>
         <p className="text-sm text-muted-foreground">
-          Los patrones de clase aparecerán cuando los estudiantes completen decisiones.
+          {t("scenarioAnalytics.classPatternsWillAppear")}
         </p>
       </div>
     );
@@ -1029,7 +1042,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
             </div>
             <div>
               <p className="text-2xl font-bold" data-testid="text-cohort-total">{data.totalStudents}</p>
-              <p className="text-sm text-muted-foreground">Total de sesiones</p>
+              <p className="text-sm text-muted-foreground">{t("scenarioAnalytics.totalSessions")}</p>
             </div>
           </div>
         </Card>
@@ -1040,7 +1053,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
             </div>
             <div>
               <p className="text-2xl font-bold" data-testid="text-cohort-completed">{data.completedStudents}</p>
-              <p className="text-sm text-muted-foreground">Completaron la simulación</p>
+              <p className="text-sm text-muted-foreground">{t("scenarioAnalytics.completedSimulation")}</p>
             </div>
           </div>
         </Card>
@@ -1050,20 +1063,20 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
         <Card className="p-6" data-testid="card-decision-distribution">
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold">Distribución de Decisiones</h3>
+            <h3 className="font-semibold">{t("scenarioAnalytics.decisionDistribution")}</h3>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Cómo se distribuyeron las respuestas en cada punto de decisión.
+            {t("scenarioAnalytics.decisionDistributionDesc")}
           </p>
           <div className="space-y-6">
             {data.decisionDistribution.map((dd) => (
               <div key={dd.decisionNumber} className="space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="outline" className="font-mono text-xs">
-                    Decisión {dd.decisionNumber}
+                    {t("scenarioAnalytics.decisionN", { n: dd.decisionNumber })}
                   </Badge>
                   <span className="text-sm text-muted-foreground truncate flex-1">{dd.prompt}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">{dd.totalResponses} respuestas</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{dd.totalResponses} {t("scenarioAnalytics.responses")}</span>
                 </div>
 
                 {dd.format === "multiple_choice" && dd.choices.length > 0 ? (
@@ -1095,7 +1108,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
                             return (
                               <div className="bg-popover border rounded-lg p-3 shadow-md max-w-xs">
                                 <p className="text-xs text-muted-foreground mb-1 break-words">{item.option}</p>
-                                <p className="text-sm font-medium">{item.percentage}% ({item.count} estudiante{item.count !== 1 ? "s" : ""})</p>
+                                <p className="text-sm font-medium">{item.percentage}% ({item.count} {item.count !== 1 ? t("scenarioAnalytics.studentsCount") : t("scenarioAnalytics.studentCount")})</p>
                               </div>
                             );
                           }}
@@ -1111,7 +1124,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
                 ) : (
                   <div className="bg-muted/30 rounded-lg p-3">
                     <p className="text-sm text-muted-foreground">
-                      Respuesta abierta — {dd.totalResponses} estudiantes respondieron en esta decisión.
+                      {t("scenarioAnalytics.openResponseDesc", { count: dd.totalResponses })}
                     </p>
                   </div>
                 )}
@@ -1125,10 +1138,10 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
         <Card className="p-6" data-testid="card-stuck-nodes">
           <div className="flex items-center gap-2 mb-4">
             <Flame className="w-5 h-5 text-orange-500" />
-            <h3 className="font-semibold">Nodos Problemáticos</h3>
+            <h3 className="font-semibold">{t("scenarioAnalytics.stuckNodes")}</h3>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Puntos de decisión donde los estudiantes necesitaron más orientación (recibieron NUDGE).
+            {t("scenarioAnalytics.stuckNodesDesc")}
           </p>
           <div className="space-y-2">
             {data.stuckNodes.map((node) => {
@@ -1141,7 +1154,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
                   data-testid={`stuck-node-${node.decisionNumber}`}
                 >
                   <Badge variant="outline" className="font-mono text-xs shrink-0">
-                    Decisión {node.decisionNumber}
+                    {t("scenarioAnalytics.decisionN", { n: node.decisionNumber })}
                   </Badge>
                   <div className="flex-1">
                     <div className="w-full bg-background/50 rounded-full h-2.5">
@@ -1159,11 +1172,11 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
                     {node.nudgeRate}%
                   </span>
                   <span className="text-xs text-muted-foreground shrink-0">
-                    ({node.nudgeCount} de {node.totalAttempts})
+                    ({node.nudgeCount} {t("scenarioAnalytics.ofTotal")} {node.totalAttempts})
                   </span>
                   {isMax && (
                     <Badge variant="destructive" className="text-xs shrink-0">
-                      Mayor fricción
+                      {t("scenarioAnalytics.highestFriction")}
                     </Badge>
                   )}
                 </div>
@@ -1177,10 +1190,10 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
         <Card className="p-6" data-testid="card-style-profiles">
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5 text-violet-500" />
-            <h3 className="font-semibold">Perfiles de Razonamiento</h3>
+            <h3 className="font-semibold">{t("scenarioAnalytics.reasoningProfiles")}</h3>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Tendencias observadas en los estilos de toma de decisiones de la clase.
+            {t("scenarioAnalytics.reasoningProfilesDesc")}
           </p>
           <div className="space-y-3">
             {data.styleProfiles.map((profile) => {
@@ -1196,7 +1209,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
                     <IconComp className="w-5 h-5" />
                     <p className="font-medium text-sm">{profile.label}</p>
                     <Badge variant="outline" className="ml-auto text-xs">
-                      {profile.count} estudiante{profile.count !== 1 ? "s" : ""}
+                      {profile.count} {profile.count !== 1 ? t("scenarioAnalytics.studentsCount") : t("scenarioAnalytics.studentCount")}
                     </Badge>
                   </div>
                   {profile.representativePhrases && profile.representativePhrases.length > 0 && (
@@ -1219,17 +1232,17 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
         <Card className="p-6" data-testid="card-class-strengths">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-emerald-500" />
-            <h3 className="font-semibold">Fortalezas de la Clase</h3>
+            <h3 className="font-semibold">{t("scenarioAnalytics.classStrengths")}</h3>
           </div>
           <p className="text-sm text-muted-foreground mb-4">
-            Competencias más fuertes observadas en las respuestas del grupo.
+            {t("scenarioAnalytics.classStrengthsDesc")}
           </p>
           <div className="space-y-2">
             {data.classStrengths.map((strength) => {
               const pct = (strength.averageScore / 5) * 100;
               return (
                 <div key={strength.name} className="flex items-center gap-3" data-testid={`strength-${strength.name}`}>
-                  <span className="text-sm w-48 truncate">{translateCompetency(strength.name)}</span>
+                  <span className="text-sm w-48 truncate">{translateCompetency(strength.name, t)}</span>
                   <div className="flex-1">
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
@@ -1259,6 +1272,7 @@ function CohortAnalyticsView({ scenarioId }: { scenarioId: string }) {
 }
 
 function SessionDetailDialog({ session }: { session: SessionWithUserInfo }) {
+  const { t } = useTranslation();
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -1269,19 +1283,19 @@ function SessionDetailDialog({ session }: { session: SessionWithUserInfo }) {
       <DialogContent className="max-w-3xl max-h-[85vh]">
         <DialogHeader>
           <DialogTitle>
-            {session.user?.firstName} {session.user?.lastName} - Detalle de Sesión
+            {session.user?.firstName} {session.user?.lastName} - {t("scenarioAnalytics.sessionDetail")}
           </DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="results">
           <TabsList className="w-full">
             <TabsTrigger value="results" className="flex-1" data-testid="tab-results">
-              Resultados
+              {t("scenarioAnalytics.results")}
             </TabsTrigger>
             <TabsTrigger value="conversation" className="flex-1" data-testid="tab-conversation">
-              Decisiones
+              {t("scenarioAnalytics.decisions")}
             </TabsTrigger>
             <TabsTrigger value="events" className="flex-1" data-testid="tab-events">
-              Registro de Eventos
+              {t("scenarioAnalytics.eventLog")}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="results">
@@ -1303,6 +1317,7 @@ export default function ScenarioAnalytics() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t, language } = useTranslation();
 
   const { data: scenario, isLoading: scenarioLoading, error: scenarioError } = useQuery<Scenario>({
     queryKey: ["/api/scenarios", scenarioId],
@@ -1323,10 +1338,10 @@ export default function ScenarioAnalytics() {
     onSuccess: () => {
       refetchSessions();
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios"] });
-      toast({ title: "Estado de sesión actualizado" });
+      toast({ title: t("scenarioAnalytics.sessionStatusUpdated") });
     },
     onError: (error: Error) => {
-      toast({ title: "Error al actualizar estado", description: error.message, variant: "destructive" });
+      toast({ title: t("scenarioAnalytics.errorUpdatingStatus"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -1337,19 +1352,19 @@ export default function ScenarioAnalytics() {
     onSuccess: () => {
       refetchSessions();
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios"] });
-      toast({ title: "Sesión eliminada" });
+      toast({ title: t("scenarioAnalytics.sessionDeleted") });
     },
     onError: (error: Error) => {
-      toast({ title: "Error al eliminar sesión", description: error.message, variant: "destructive" });
+      toast({ title: t("scenarioAnalytics.errorDeletingSession"), description: error.message, variant: "destructive" });
     },
   });
 
   useEffect(() => {
     if (scenarioError && isUnauthorizedError(scenarioError as Error)) {
-      toast({ title: "Sesión expirada", description: "Por favor inicia sesión de nuevo.", variant: "destructive" });
+      toast({ title: t("scenarioAnalytics.sessionExpired"), description: t("scenarioAnalytics.pleaseLoginAgain"), variant: "destructive" });
       setTimeout(() => { window.location.href = "/api/login"; }, 500);
     }
-  }, [scenarioError, toast]);
+  }, [scenarioError, toast, t]);
 
   if (authLoading || scenarioLoading) {
     return (
@@ -1379,11 +1394,11 @@ export default function ScenarioAnalytics() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
-        return <Badge className="bg-blue-500">En Progreso</Badge>;
+        return <Badge className="bg-blue-500">{t("scenarioAnalytics.statusInProgress")}</Badge>;
       case "completed":
-        return <Badge className="bg-green-500">Completada</Badge>;
+        return <Badge className="bg-green-500">{t("scenarioAnalytics.statusCompleted")}</Badge>;
       case "abandoned":
-        return <Badge variant="secondary">Abandonada</Badge>;
+        return <Badge variant="secondary">{t("scenarioAnalytics.statusAbandoned")}</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -1400,7 +1415,7 @@ export default function ScenarioAnalytics() {
               </Link>
             </Button>
             <div>
-              <h1 className="text-xl font-semibold">{scenario?.title || "Análisis de Escenario"}</h1>
+              <h1 className="text-xl font-semibold">{scenario?.title || t("scenarioAnalytics.scenarioAnalysis")}</h1>
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm text-muted-foreground">{scenario?.domain}</p>
                 {scenario?.courseConcepts && scenario.courseConcepts.length > 0 && (
@@ -1416,29 +1431,30 @@ export default function ScenarioAnalytics() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <LanguageToggle />
             <BarChart3 className="w-5 h-5 text-primary" />
-            <span className="font-medium">Analytics</span>
+            <span className="font-medium">{t("scenarioAnalytics.analyticsLabel")}</span>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
         <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Total Estudiantes" value={sessions?.length || 0} icon={Users} color="bg-primary" />
-          <StatCard label="En Progreso" value={activeSessions.length} icon={Clock} color="bg-blue-500" />
-          <StatCard label="Completadas" value={completedSessions.length} icon={CheckCircle} color="bg-green-500" />
+          <StatCard label={t("scenarioAnalytics.totalStudents")} value={sessions?.length || 0} icon={Users} color="bg-primary" />
+          <StatCard label={t("scenarioAnalytics.inProgressLabel")} value={activeSessions.length} icon={Clock} color="bg-blue-500" />
+          <StatCard label={t("scenarioAnalytics.completedLabel")} value={completedSessions.length} icon={CheckCircle} color="bg-green-500" />
         </div>
 
         <Tabs defaultValue="students">
           <TabsList>
             <TabsTrigger value="students" data-testid="tab-students">
               <Users className="w-4 h-4 mr-1.5" />
-              Estudiantes
+              {t("scenarioAnalytics.studentsTab")}
             </TabsTrigger>
             <TabsTrigger value="cohort" data-testid="tab-cohort">
               <GraduationCap className="w-4 h-4 mr-1.5" />
-              Vista de Clase
+              {t("scenarioAnalytics.classView")}
             </TabsTrigger>
           </TabsList>
 
@@ -1449,7 +1465,7 @@ export default function ScenarioAnalytics() {
           <TabsContent value="students" className="mt-4">
 
         <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Estudiantes Participantes</h2>
+          <h2 className="text-lg font-semibold mb-4">{t("scenarioAnalytics.participatingStudents")}</h2>
           
           {sessionsLoading ? (
             <div className="space-y-2">
@@ -1461,18 +1477,18 @@ export default function ScenarioAnalytics() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Estudiante</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Decisiones</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead>{t("scenarioAnalytics.studentHeader")}</TableHead>
+                  <TableHead>{t("scenarioAnalytics.statusHeader")}</TableHead>
+                  <TableHead>{t("scenarioAnalytics.decisionsHeader")}</TableHead>
+                  <TableHead>{t("scenarioAnalytics.dateHeader")}</TableHead>
+                  <TableHead className="text-right">{t("scenarioAnalytics.actionsHeader")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sessions.map((session) => {
                   const currentState = session.currentState as any;
                   const completedDate = session.updatedAt 
-                    ? new Date(session.updatedAt).toLocaleDateString("es-ES", {
+                    ? new Date(session.updatedAt).toLocaleDateString(language === "en" ? "en-US" : "es-ES", {
                         day: "numeric",
                         month: "short",
                         year: "numeric",
@@ -1492,7 +1508,7 @@ export default function ScenarioAnalytics() {
                       <TableCell>
                         {(session.turnCount || currentState?.turnCount || 0) === 0 ? (
                           <Badge variant="outline" className="text-xs text-muted-foreground" data-testid={`badge-no-interaction-${session.id}`}>
-                            Sin interacción
+                            {t("scenarioAnalytics.noInteraction")}
                           </Badge>
                         ) : (
                           session.turnCount || currentState?.turnCount || 0
@@ -1531,7 +1547,7 @@ export default function ScenarioAnalytics() {
                             variant="ghost"
                             size="icon"
                             onClick={() => {
-                              if (confirm("¿Eliminar esta sesión permanentemente?")) {
+                              if (confirm(t("scenarioAnalytics.deleteSessionConfirm"))) {
                                 deleteSessionMutation.mutate(session.id);
                               }
                             }}
@@ -1550,9 +1566,9 @@ export default function ScenarioAnalytics() {
           ) : (
             <div className="text-center py-12">
               <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-              <h3 className="text-lg font-medium mb-2">Sin Estudiantes Aún</h3>
+              <h3 className="text-lg font-medium mb-2">{t("scenarioAnalytics.noStudentsYet")}</h3>
               <p className="text-sm text-muted-foreground">
-                Los estudiantes aparecerán aquí cuando inicien esta simulación.
+                {t("scenarioAnalytics.studentsWillAppear")}
               </p>
             </div>
           )}

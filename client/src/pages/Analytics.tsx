@@ -36,14 +36,9 @@ import {
 } from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import type { SimulationSession, Scenario, User } from "@shared/schema";
-
-const COMPETENCY_LABELS: Record<string, string> = {
-  strategicThinking: "Strategic Thinking",
-  ethicalReasoning: "Ethical Reasoning",
-  decisionDecisiveness: "Decisiveness",
-  stakeholderEmpathy: "Empathy",
-};
 
 const COMPETENCY_COLORS = [
   "hsl(var(--chart-1))",
@@ -65,6 +60,14 @@ export default function Analytics() {
   const [, navigate] = useLocation();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t, language } = useTranslation();
+
+  const COMPETENCY_LABELS: Record<string, string> = {
+    strategicThinking: t("analytics.strategicThinking"),
+    ethicalReasoning: t("analytics.ethicalReasoning"),
+    decisionDecisiveness: t("analytics.decisiveness"),
+    stakeholderEmpathy: t("analytics.empathy"),
+  };
 
   const { data: analyticsData, isLoading } = useQuery<AnalyticsData>({
     queryKey: ["/api/analytics"],
@@ -74,26 +77,26 @@ export default function Analytics() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       toast({
-        title: "Please sign in",
-        description: "You need to be signed in to access analytics.",
+        title: t("analytics.pleaseSignIn"),
+        description: t("analytics.pleaseSignInDesc"),
         variant: "destructive",
       });
       setTimeout(() => {
         window.location.href = "/api/login";
       }, 500);
     }
-  }, [authLoading, isAuthenticated, toast]);
+  }, [authLoading, isAuthenticated, toast, t]);
 
   useEffect(() => {
     if (!authLoading && user && user.role !== "professor" && user.role !== "admin") {
       toast({
-        title: "Access Denied",
-        description: "Only professors can access analytics.",
+        title: t("analytics.accessDenied"),
+        description: t("analytics.accessDeniedDesc"),
         variant: "destructive",
       });
       navigate("/");
     }
-  }, [authLoading, user, navigate, toast]);
+  }, [authLoading, user, navigate, toast, t]);
 
   if (authLoading || isLoading) {
     return (
@@ -155,9 +158,10 @@ export default function Analytics() {
             </Button>
             <div className="flex items-center gap-2">
               <Brain className="w-6 h-6 text-primary" />
-              <span className="text-xl font-bold">Analytics Dashboard</span>
+              <span className="text-xl font-bold">{t("analytics.dashboardTitle")}</span>
             </div>
           </div>
+          <LanguageToggle />
         </div>
       </header>
 
@@ -174,7 +178,7 @@ export default function Analytics() {
                   <Users className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Sessions</p>
+                  <p className="text-sm text-muted-foreground">{t("analytics.totalSessions")}</p>
                   <p
                     className="text-2xl font-bold"
                     data-testid="text-total-sessions"
@@ -197,7 +201,7 @@ export default function Analytics() {
                   <Target className="w-6 h-6 text-chart-2" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Completion Rate</p>
+                  <p className="text-sm text-muted-foreground">{t("analytics.completionRate")}</p>
                   <p
                     className="text-2xl font-bold"
                     data-testid="text-completion-rate"
@@ -220,7 +224,7 @@ export default function Analytics() {
                   <Award className="w-6 h-6 text-chart-4" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Average Score</p>
+                  <p className="text-sm text-muted-foreground">{t("analytics.averageScore")}</p>
                   <p
                     className="text-2xl font-bold"
                     data-testid="text-average-score"
@@ -243,7 +247,7 @@ export default function Analytics() {
                   <BookOpen className="w-6 h-6 text-chart-3" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Completed</p>
+                  <p className="text-sm text-muted-foreground">{t("analytics.completedLabel")}</p>
                   <p
                     className="text-2xl font-bold"
                     data-testid="text-completed-sessions"
@@ -266,7 +270,7 @@ export default function Analytics() {
               <div className="flex items-center gap-2 mb-6">
                 <Activity className="w-5 h-5 text-primary" />
                 <h2 className="text-lg font-semibold">
-                  Average Competency Profile
+                  {t("analytics.avgCompetencyProfile")}
                 </h2>
               </div>
               {radarData.length > 0 ? (
@@ -302,7 +306,7 @@ export default function Analytics() {
                 </div>
               ) : (
                 <div className="h-72 flex items-center justify-center text-muted-foreground">
-                  <p>No competency data available yet</p>
+                  <p>{t("analytics.noCompetencyData")}</p>
                 </div>
               )}
             </Card>
@@ -316,7 +320,7 @@ export default function Analytics() {
             <Card className="p-6">
               <div className="flex items-center gap-2 mb-6">
                 <BarChart3 className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold">Sessions by Scenario</h2>
+                <h2 className="text-lg font-semibold">{t("analytics.sessionsByScenario")}</h2>
               </div>
               {scenarioData.length > 0 ? (
                 <div className="h-72">
@@ -346,7 +350,7 @@ export default function Analytics() {
                 </div>
               ) : (
                 <div className="h-72 flex items-center justify-center text-muted-foreground">
-                  <p>No session data available yet</p>
+                  <p>{t("analytics.noSessionData")}</p>
                 </div>
               )}
             </Card>
@@ -361,7 +365,7 @@ export default function Analytics() {
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-6">
               <TrendingUp className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold">Recent Sessions</h2>
+              <h2 className="text-lg font-semibold">{t("analytics.recentSessions")}</h2>
             </div>
             {stats.recentSessions.length > 0 ? (
               <ScrollArea className="h-80">
@@ -378,10 +382,10 @@ export default function Analytics() {
                         </div>
                         <div>
                           <p className="font-medium text-sm">
-                            {session.scenario?.title || "Unknown Scenario"}
+                            {session.scenario?.title || t("analytics.unknownScenario")}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {session.currentState.turnCount} turns
+                            {session.currentState.turnCount} {t("analytics.turns")}
                           </p>
                         </div>
                       </div>
@@ -399,7 +403,7 @@ export default function Analytics() {
                         </Badge>
                         {session.scoreSummary && (
                           <span className="text-sm font-medium">
-                            Score: {session.scoreSummary.overallScore}
+                            {t("analytics.scoreLabel", { score: session.scoreSummary.overallScore })}
                           </span>
                         )}
                       </div>
@@ -411,9 +415,9 @@ export default function Analytics() {
               <div className="h-80 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
                   <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p>No sessions yet</p>
+                  <p>{t("analytics.noSessionsYet")}</p>
                   <p className="text-sm mt-1">
-                    Sessions will appear here as students complete simulations
+                    {t("analytics.sessionsWillAppear")}
                   </p>
                 </div>
               </div>

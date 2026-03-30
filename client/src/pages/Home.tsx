@@ -34,6 +34,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useTranslation } from "@/contexts/LanguageContext";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Scenario, SimulationSession } from "@shared/schema";
 import { t, type SimulationLanguage } from "@/lib/i18n";
@@ -53,7 +55,7 @@ interface ScenarioCardProps {
 }
 
 function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
-  const lang: SimulationLanguage = (scenario.language as SimulationLanguage) || "es";
+  const { t } = useTranslation();
   const isAdmin = userRole === "admin";
   const isProfessor = userRole === "professor";
   const isProfessorAndAuthor = isProfessor && scenario.authorId === userId;
@@ -82,7 +84,7 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
           <Link href={`/simulation/start/${scenario.id}`}>
             <Button variant="default" className="w-full" data-testid={`button-start-${scenario.id}`}>
               <Play className="w-4 h-4 mr-2" />
-              Iniciar Simulación
+              {t("home.startSimulation")}
             </Button>
           </Link>
           <div className="flex gap-2">
@@ -90,7 +92,7 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
               <Link href={`/scenarios/${scenario.id}/edit`} className="flex-1">
                 <Button variant="outline" className="w-full" data-testid={`button-edit-${scenario.id}`}>
                   <Pencil className="w-4 h-4 mr-2" />
-                  Editar
+                  {t("common.edit")}
                 </Button>
               </Link>
             )}
@@ -98,7 +100,7 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
               <Link href={`/scenarios/${scenario.id}/analytics`} className={canEditScenario ? "flex-1" : "w-full"}>
                 <Button variant="outline" className="w-full" data-testid={`button-analytics-${scenario.id}`}>
                   <BarChart3 className="w-4 h-4 mr-2" />
-                  Analíticas
+                  {t("common.analytics")}
                 </Button>
               </Link>
             )}
@@ -108,7 +110,6 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
     );
   }
 
-  // Student view: Focused card with prominent CTA
   return (
     <Card
       className="p-6 h-full flex flex-col"
@@ -131,7 +132,7 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
       <Link href={`/simulation/start/${scenario.id}`}>
         <Button className="w-full" data-testid={`button-comenzar-${scenario.id}`}>
           <Play className="w-4 h-4 mr-2" />
-          {t("home.start", lang)}
+          {t("common.start")}
         </Button>
       </Link>
     </Card>
@@ -139,24 +140,24 @@ function ScenarioCard({ scenario, userId, userRole }: ScenarioCardProps) {
 }
 
 function ProfessorWelcome({ userName }: { userName: string }) {
+  const { t } = useTranslation();
+
   return (
     <div className="mb-12">
-      {/* Calm Hero Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="text-center mb-12"
       >
         <p className="text-sm text-muted-foreground mb-2" data-testid="text-hero-tagline">
-          Aprendizaje experiencial para tus estudiantes
+          {t("home.experientialLearning")}
         </p>
         <h1 className="text-3xl font-bold mb-3" data-testid="text-hero-welcome">
-          Hola, {userName}
+          {t("home.hello")} {userName}
         </h1>
-        <p className="text-muted-foreground max-w-lg mx-auto text-lg" data-testid="text-hero-subtitle">Convierte decisiones en aprendizaje observable.</p>
+        <p className="text-muted-foreground max-w-lg mx-auto text-lg" data-testid="text-hero-subtitle">{t("home.turnDecisions")}</p>
       </motion.div>
 
-      {/* Primary Action - Crear Simulación */}
       <div className="max-w-2xl mx-auto mb-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -166,7 +167,6 @@ function ProfessorWelcome({ userName }: { userName: string }) {
           <Link href="/studio">
             <Card className="p-8 hover-elevate cursor-pointer" data-testid="card-create-simulation">
               <div className="flex items-center gap-6">
-                {/* Visual creation hint */}
                 <div className="bg-primary/10 rounded-xl p-4 shrink-0">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="flex items-center gap-1.5">
@@ -181,9 +181,9 @@ function ProfessorWelcome({ userName }: { userName: string }) {
                   <Plus className="w-8 h-8 mx-auto text-primary/50" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-xl font-semibold mb-2" data-testid="text-create-title">Crear simulación</h3>
+                  <h3 className="text-xl font-semibold mb-2" data-testid="text-create-title">{t("home.createSimulation")}</h3>
                   <p className="text-muted-foreground" data-testid="text-create-description">
-                    Crea un escenario con ayuda de IA o manualmente.
+                    {t("home.createSimulationDesc")}
                   </p>
                 </div>
                 <ChevronRight className="w-6 h-6 text-muted-foreground shrink-0" />
@@ -193,9 +193,7 @@ function ProfessorWelcome({ userName }: { userName: string }) {
         </motion.div>
       </div>
 
-      {/* Secondary Actions - Explorar demo + Mis simulaciones */}
       <div className="grid md:grid-cols-2 gap-4 max-w-2xl mx-auto mb-8">
-        {/* Explorar demo */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -208,9 +206,9 @@ function ProfessorWelcome({ userName }: { userName: string }) {
                   <Play className="w-5 h-5 text-chart-1" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold mb-0.5" data-testid="text-explore-title">Explorar demo</h3>
+                  <h3 className="font-semibold mb-0.5" data-testid="text-explore-title">{t("home.exploreDemo")}</h3>
                   <p className="text-sm text-muted-foreground" data-testid="text-explore-description">
-                    Vive el flujo como un estudiante.
+                    {t("home.exploreDemoDesc")}
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
@@ -219,7 +217,6 @@ function ProfessorWelcome({ userName }: { userName: string }) {
           </Link>
         </motion.div>
 
-        {/* Mis simulaciones */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -232,9 +229,9 @@ function ProfessorWelcome({ userName }: { userName: string }) {
                   <FolderOpen className="w-5 h-5 text-chart-2" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold mb-0.5" data-testid="text-my-simulations-title">Mis simulaciones</h3>
+                  <h3 className="font-semibold mb-0.5" data-testid="text-my-simulations-title">{t("home.mySimulations")}</h3>
                   <p className="text-sm text-muted-foreground" data-testid="text-my-simulations-description">
-                    Gestiona borradores y publicados.
+                    {t("home.mySimulationsDesc")}
                   </p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
@@ -244,7 +241,6 @@ function ProfessorWelcome({ userName }: { userName: string }) {
         </motion.div>
       </div>
 
-      {/* Reassurance line */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -252,16 +248,17 @@ function ProfessorWelcome({ userName }: { userName: string }) {
         className="text-center text-sm text-muted-foreground/60"
         data-testid="text-safety-message"
       >
-        Explora sin riesgo. Puedes editar antes de publicar.
+        {t("home.safetyMessage")}
       </motion.p>
     </div>
   );
 }
 
 function SessionCard({ session }: { session: SimulationSession & { scenario?: Scenario } }) {
-  const lang: SimulationLanguage = (session.scenario?.language as SimulationLanguage) || "es";
+  const { t, language } = useTranslation();
+  const locale = language === "en" ? "en-US" : "es-ES";
   const completedDate = session.updatedAt 
-    ? new Date(session.updatedAt).toLocaleDateString(lang === "en" ? "en-US" : "es-ES", {
+    ? new Date(session.updatedAt).toLocaleDateString(locale, {
         day: "numeric",
         month: "long",
         year: "numeric",
@@ -284,11 +281,11 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
 
             <div className="flex-1 min-w-0">
               <h4 className="font-medium truncate mb-1">
-                {session.scenario?.title || t("results.fallback.simulation", lang)}
+                {session.scenario?.title || t("common.simulation")}
               </h4>
               <Badge variant="secondary" className="text-xs">
                 <CheckCircle2 className="w-3 h-3 mr-1" />
-                {t("results.percent.complete", lang)}
+                {t("common.completed")}
               </Badge>
             </div>
           </div>
@@ -297,7 +294,7 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                {session.currentState.turnCount} {t("results.decisions", lang).toLowerCase()}
+                {session.currentState.turnCount} {t("common.decisions")}
               </span>
               {completedDate && (
                 <span className="flex items-center gap-1">
@@ -307,7 +304,7 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
               )}
             </div>
             <span className="flex items-center gap-1 text-primary font-medium">
-              {t("input.results", lang)}
+              {t("common.viewResults")}
               <ChevronRight className="w-4 h-4" />
             </span>
           </div>
@@ -320,8 +317,8 @@ function SessionCard({ session }: { session: SimulationSession & { scenario?: Sc
 export default function Home() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useTranslation();
   
-  // Join simulation state
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [joinError, setJoinError] = useState("");
@@ -351,8 +348,8 @@ export default function Home() {
     },
     onSuccess: (data) => {
       toast({
-        title: "Unido exitosamente",
-        description: `Te has unido a "${data.scenario.title}"`,
+        title: t("home.joinedSuccess"),
+        description: `${t("home.joinedDesc")} "${data.scenario.title}"`,
       });
       setShowJoinModal(false);
       setJoinCode("");
@@ -360,7 +357,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios"] });
     },
     onError: (error: any) => {
-      const message = error?.message || "Código inválido o expirado";
+      const message = error?.message || t("home.invalidCode");
       setJoinError(message);
     },
   });
@@ -368,7 +365,7 @@ export default function Home() {
   const handleJoinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinCode.trim()) {
-      setJoinError("Ingresa un código");
+      setJoinError(t("home.enterCode"));
       return;
     }
     setJoinError("");
@@ -378,23 +375,20 @@ export default function Home() {
   useEffect(() => {
     if (scenariosError && isUnauthorizedError(scenariosError as Error)) {
       toast({
-        title: "Sesión Expirada",
-        description: "Por favor inicia sesión nuevamente.",
+        title: t("home.sessionExpired"),
+        description: t("home.pleaseLoginAgain"),
         variant: "destructive",
       });
       setTimeout(() => {
         window.location.href = "/api/login";
       }, 500);
     }
-  }, [scenariosError, toast]);
+  }, [scenariosError, toast, t]);
 
   const effectiveRole = user?.viewingAs || user?.role || "student";
   const isProfessorOrAdmin = effectiveRole === "professor" || effectiveRole === "admin";
   
-  // For students: only show completed sessions (they can review results)
-  // For professors: show all sessions (for analytics)
   const completedSessions = sessions?.filter((s) => s.status === "completed") || [];
-  // Professors also see abandoned sessions in analytics, but students don't see them
   const isProfessor = effectiveRole === "professor" || effectiveRole === "admin";
   const showRoleSwitcher = user?.isSuperAdmin || user?.role === "admin";
 
@@ -410,7 +404,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Minimal header for first-time flow */}
+            <LanguageToggle />
             {showRoleSwitcher && user && <RoleSwitcher user={user} />}
 
             <div className="flex items-center gap-2">
@@ -427,7 +421,7 @@ export default function Home() {
                 className="text-muted-foreground"
                 data-testid="button-logout"
               >
-                <a href="/api/logout">Salir</a>
+                <a href="/api/logout">{t("common.logout")}</a>
               </Button>
             </div>
           </div>
@@ -435,28 +429,23 @@ export default function Home() {
       </header>
       <main className="max-w-7xl mx-auto px-6 py-8">
         {isProfessor ? (
-          /* Professor first-time flow: ONLY show calm hero + 3 actions + safety message
-             No dashboards, metrics, scenario lists, or completed sessions here.
-             Those are accessible via "Mis Simulaciones" link to /professor */
           (<ProfessorWelcome userName={user?.firstName || ""} />)
         ) : (
-          /* Student view: show welcome + their content */
           (<>
-            {/* Top: Greeting + Subtitle */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="mb-10 text-center"
             >
               <h1 className="text-3xl font-bold mb-4" data-testid="text-student-welcome">
-                Bienvenido/a, {user?.firstName || ""}
+                {t("home.welcomeStudent")} {user?.firstName || ""}
               </h1>
               <div className="max-w-xl mx-auto space-y-1">
                 <p className="text-lg text-foreground">
-                  Elige un escenario para comenzar.
+                  {t("home.chooseScenario")}
                 </p>
                 <p className="text-muted-foreground">
-                  No hay respuestas correctas — lo importante es tu razonamiento y cómo justificas tus decisiones.
+                  {t("home.noCorrectAnswers")}
                 </p>
               </div>
               <div className="mt-6">
@@ -466,11 +455,10 @@ export default function Home() {
                   data-testid="button-join-simulation"
                 >
                   <UserPlus className="w-4 h-4 mr-2" />
-                  Unirse con Código
+                  {t("home.joinWithCode")}
                 </Button>
               </div>
             </motion.div>
-            {/* Join Simulation Modal */}
             {showJoinModal && (
               <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                 <motion.div
@@ -480,7 +468,7 @@ export default function Home() {
                 >
                   <Card className="p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold">Unirse a Simulación</h3>
+                      <h3 className="text-lg font-semibold">{t("home.joinSimulation")}</h3>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -495,7 +483,7 @@ export default function Home() {
                       </Button>
                     </div>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Ingresa el código que te proporcionó tu profesor para unirte a una simulación.
+                      {t("home.joinSimulationDesc")}
                     </p>
                     <form onSubmit={handleJoinSubmit}>
                       <Input
@@ -504,7 +492,7 @@ export default function Home() {
                           setJoinCode(e.target.value.toUpperCase());
                           setJoinError("");
                         }}
-                        placeholder="Ej: ABC123"
+                        placeholder={t("home.joinPlaceholder")}
                         className="text-center text-lg tracking-widest uppercase mb-2"
                         maxLength={10}
                         autoFocus
@@ -526,7 +514,7 @@ export default function Home() {
                             setJoinError("");
                           }}
                         >
-                          Cancelar
+                          {t("common.cancel")}
                         </Button>
                         <Button
                           type="submit"
@@ -537,10 +525,10 @@ export default function Home() {
                           {joinMutation.isPending ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Uniendo...
+                              {t("home.joining")}
                             </>
                           ) : (
-                            "Unirse"
+                            t("home.join")
                           )}
                         </Button>
                       </div>
@@ -552,8 +540,8 @@ export default function Home() {
             {completedSessions.length > 0 && (
               <section className="mb-12">
                 <div className="flex items-center justify-between gap-4 mb-6">
-                  <h2 className="text-xl font-semibold">Mis Simulaciones Completadas</h2>
-                  <Badge variant="secondary">{completedSessions.length} completadas</Badge>
+                  <h2 className="text-xl font-semibold">{t("home.completedSimulations")}</h2>
+                  <Badge variant="secondary">{completedSessions.length} {t("home.completedCount")}</Badge>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -569,13 +557,12 @@ export default function Home() {
                 </div>
               </section>
             )}
-            {/* Middle: Escenarios Disponibles = Main Container */}
             <section className="mb-12">
               <Card className="p-6 md:p-8 bg-muted/20">
                 <div className="text-center mb-8">
-                  <h2 className="text-2xl font-bold mb-2">Escenarios Disponibles</h2>
+                  <h2 className="text-2xl font-bold mb-2">{t("home.availableScenarios")}</h2>
                   <p className="text-muted-foreground">
-                    Selecciona un escenario para comenzar tu experiencia
+                    {t("home.selectScenario")}
                   </p>
                 </div>
 
@@ -605,15 +592,14 @@ export default function Home() {
                 ) : (
                   <div className="text-center py-12">
                     <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                    <h3 className="text-lg font-medium mb-2">No Hay Escenarios Disponibles</h3>
+                    <h3 className="text-lg font-medium mb-2">{t("home.noScenarios")}</h3>
                     <p className="text-sm text-muted-foreground">
-                      Vuelve pronto para nuevas experiencias de aprendizaje.
+                      {t("home.noScenariosDesc")}
                     </p>
                   </div>
                 )}
               </Card>
             </section>
-            {/* Bottom: Coming Soon - Student Sandbox */}
             <section>
               <Card className="p-6 bg-gradient-to-r from-primary/5 via-primary/10 to-accent/10 border-primary/20">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -622,15 +608,15 @@ export default function Home() {
                       <Sparkles className="w-5 h-5 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold mb-1 text-foreground">Crea tus propias experiencias</h3>
+                      <h3 className="font-semibold mb-1 text-foreground">{t("home.createOwnExperiences")}</h3>
                       <p className="text-sm text-muted-foreground">
-                        Pronto podrás diseñar tus propias simulaciones y compartirlas.
+                        {t("home.comingSoonDesc")}
                       </p>
                     </div>
                   </div>
                   <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
                     <Lock className="w-3 h-3 mr-1.5" />
-                    Próximamente
+                    {t("home.comingSoon")}
                   </Badge>
                 </div>
               </Card>

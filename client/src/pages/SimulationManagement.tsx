@@ -34,6 +34,8 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useTranslation } from "@/contexts/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import type { Scenario, SimulationSession, User } from "@shared/schema";
 
 interface SessionWithUser extends SimulationSession {
@@ -51,22 +53,23 @@ interface ScenarioWithEnrollments extends Scenario {
   }>;
 }
 
-const STANDARD_INDICATORS = [
-  { id: "revenue", label: "Ingresos / Presupuesto" },
-  { id: "morale", label: "Moral del Equipo" },
-  { id: "reputation", label: "Reputación de Marca" },
-  { id: "efficiency", label: "Eficiencia Operacional" },
-  { id: "trust", label: "Confianza de Stakeholders" },
-];
-
 export default function SimulationManagement() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
   const [, navigate] = useLocation();
   const { toast } = useToast();
+  const { t, language } = useTranslation();
   const [activeTab, setActiveTab] = useState("overview");
   const [emailInput, setEmailInput] = useState("");
   const [bulkEmails, setBulkEmails] = useState("");
   const [joinCodeCopied, setJoinCodeCopied] = useState(false);
+
+  const STANDARD_INDICATORS = [
+    { id: "revenue", label: t("simulationManagement.revenueBudget") },
+    { id: "morale", label: t("simulationManagement.teamMorale") },
+    { id: "reputation", label: t("simulationManagement.brandReputation") },
+    { id: "efficiency", label: t("simulationManagement.operationalEfficiency") },
+    { id: "trust", label: t("simulationManagement.stakeholderTrust") },
+  ];
 
   const { data: scenario, isLoading, error } = useQuery<ScenarioWithEnrollments>({
     queryKey: ["/api/scenarios", scenarioId],
@@ -85,10 +88,10 @@ export default function SimulationManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId] });
-      toast({ title: "Código generado", description: "El código de acceso ha sido generado." });
+      toast({ title: t("simulationManagement.codeGenerated"), description: t("simulationManagement.codeGeneratedDesc") });
     },
     onError: () => {
-      toast({ title: "Error", description: "No se pudo generar el código.", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("simulationManagement.couldNotGenerateCode"), variant: "destructive" });
     },
   });
 
@@ -100,14 +103,14 @@ export default function SimulationManagement() {
     onSuccess: (_, started) => {
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId] });
       toast({ 
-        title: started ? "Simulación iniciada" : "Simulación pausada",
+        title: started ? t("simulationManagement.simulationStarted") : t("simulationManagement.simulationPaused"),
         description: started 
-          ? "Los estudiantes ya pueden acceder a la simulación."
-          : "Los estudiantes no pueden acceder hasta que la inicies.",
+          ? t("simulationManagement.studentsCanAccess")
+          : t("simulationManagement.studentsCannotAccess"),
       });
     },
     onError: () => {
-      toast({ title: "Error", description: "No se pudo cambiar el estado.", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("simulationManagement.couldNotChangeStatus"), variant: "destructive" });
     },
   });
 
@@ -119,12 +122,12 @@ export default function SimulationManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId] });
       setEmailInput("");
-      toast({ title: "Estudiante agregado", description: "Se ha enviado un correo de invitación." });
+      toast({ title: t("simulationManagement.studentAdded"), description: t("simulationManagement.invitationSent") });
     },
     onError: (error: any) => {
       toast({ 
-        title: "Error", 
-        description: error.message || "No se pudo agregar al estudiante.", 
+        title: t("common.error"), 
+        description: error.message || t("simulationManagement.couldNotAddStudent"), 
         variant: "destructive" 
       });
     },
@@ -139,12 +142,12 @@ export default function SimulationManagement() {
       queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId] });
       setBulkEmails("");
       toast({ 
-        title: "Estudiantes agregados", 
-        description: `Se han agregado ${data.added || 0} estudiantes y enviado invitaciones.` 
+        title: t("simulationManagement.studentsAdded"), 
+        description: t("simulationManagement.studentsAddedDesc", { count: data.added || 0 })
       });
     },
     onError: () => {
-      toast({ title: "Error", description: "No se pudieron agregar los estudiantes.", variant: "destructive" });
+      toast({ title: t("common.error"), description: t("simulationManagement.couldNotAddStudents"), variant: "destructive" });
     },
   });
 
@@ -154,10 +157,10 @@ export default function SimulationManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/professor/scenarios", scenarioId, "sessions"] });
-      toast({ title: "Estudiante eliminado", description: "La sesión del estudiante ha sido eliminada." });
+      toast({ title: t("simulationManagement.studentRemoved"), description: t("simulationManagement.studentRemovedDesc") });
     },
     onError: (error: Error) => {
-      toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
+      toast({ title: t("simulationManagement.errorDeleting"), description: error.message, variant: "destructive" });
     },
   });
 
@@ -209,7 +212,7 @@ export default function SimulationManagement() {
             <Button variant="ghost" size="icon" onClick={() => navigate("/professor")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <span className="font-semibold">Error</span>
+            <span className="font-semibold">{t("common.error")}</span>
           </div>
         </header>
         <main className="max-w-5xl mx-auto px-6 py-8">
@@ -217,7 +220,7 @@ export default function SimulationManagement() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 text-destructive">
                 <AlertTriangle className="w-5 h-5" />
-                <p>No se encontró la simulación o no tienes acceso.</p>
+                <p>{t("simulationManagement.notFound")}</p>
               </div>
             </CardContent>
           </Card>
@@ -249,18 +252,19 @@ export default function SimulationManagement() {
               </h1>
               <div className="flex items-center gap-2">
                 <Badge variant={scenario.isPublished ? "default" : "secondary"}>
-                  {scenario.isPublished ? "Publicado" : "Borrador"}
+                  {scenario.isPublished ? t("simulationManagement.published") : t("simulationManagement.draft")}
                 </Badge>
                 {scenario.isStarted && (
                   <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
                     <PlayCircle className="w-3 h-3 mr-1" />
-                    En curso
+                    {t("simulationManagement.inProgress")}
                   </Badge>
                 )}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <LanguageToggle />
             <Button 
               variant="outline" 
               size="sm"
@@ -268,7 +272,7 @@ export default function SimulationManagement() {
               data-testid="button-analytics"
             >
               <BarChart3 className="w-4 h-4 mr-2" />
-              Analíticas
+              {t("simulationManagement.analytics")}
             </Button>
             <Button 
               variant="outline" 
@@ -277,7 +281,7 @@ export default function SimulationManagement() {
               data-testid="button-edit"
             >
               <Edit className="w-4 h-4 mr-2" />
-              Editar
+              {t("simulationManagement.edit")}
             </Button>
           </div>
         </div>
@@ -288,19 +292,19 @@ export default function SimulationManagement() {
           <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="overview" data-testid="tab-overview">
               <Eye className="w-4 h-4 mr-2" />
-              Resumen
+              {t("simulationManagement.summary")}
             </TabsTrigger>
             <TabsTrigger value="students" data-testid="tab-students">
               <Users className="w-4 h-4 mr-2" />
-              Estudiantes
+              {t("simulationManagement.students")}
             </TabsTrigger>
             <TabsTrigger value="test" data-testid="tab-test">
               <Play className="w-4 h-4 mr-2" />
-              Probar
+              {t("simulationManagement.test")}
             </TabsTrigger>
             <TabsTrigger value="settings" data-testid="tab-settings">
               <Settings className="w-4 h-4 mr-2" />
-              Control
+              {t("simulationManagement.control")}
             </TabsTrigger>
           </TabsList>
 
@@ -314,7 +318,7 @@ export default function SimulationManagement() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">{enrolledCount}</p>
-                      <p className="text-sm text-muted-foreground">Inscritos</p>
+                      <p className="text-sm text-muted-foreground">{t("simulationManagement.enrolled")}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -327,7 +331,7 @@ export default function SimulationManagement() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">{startedCount}</p>
-                      <p className="text-sm text-muted-foreground">En progreso</p>
+                      <p className="text-sm text-muted-foreground">{t("simulationManagement.inProgressCount")}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -340,7 +344,7 @@ export default function SimulationManagement() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">{completedCount}</p>
-                      <p className="text-sm text-muted-foreground">Completados</p>
+                      <p className="text-sm text-muted-foreground">{t("simulationManagement.completedCount")}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -349,16 +353,16 @@ export default function SimulationManagement() {
 
             <Card className="mb-6">
               <CardHeader>
-                <CardTitle>Detalles del Escenario</CardTitle>
+                <CardTitle>{t("simulationManagement.scenarioDetails")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label className="text-muted-foreground">Descripción</Label>
-                  <p className="mt-1">{scenario.description || "Sin descripción"}</p>
+                  <Label className="text-muted-foreground">{t("simulationManagement.description")}</Label>
+                  <p className="mt-1">{scenario.description || t("simulationManagement.noDescription")}</p>
                 </div>
                 <Separator />
                 <div>
-                  <Label className="text-muted-foreground">Indicadores</Label>
+                  <Label className="text-muted-foreground">{t("simulationManagement.indicatorsLabel")}</Label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {STANDARD_INDICATORS.map(ind => (
                       <Badge key={ind.id} variant="outline">{ind.label}</Badge>
@@ -375,15 +379,15 @@ export default function SimulationManagement() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <UserPlus className="w-5 h-5" />
-                    Agregar Estudiantes
+                    {t("simulationManagement.addStudents")}
                   </CardTitle>
                   <CardDescription>
-                    Agrega estudiantes por correo electrónico o genera un código de acceso
+                    {t("simulationManagement.addStudentsDesc")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-3">
-                    <Label>Agregar por correo individual</Label>
+                    <Label>{t("simulationManagement.addByEmail")}</Label>
                     <div className="flex gap-2">
                       <Input
                         placeholder="estudiante@universidad.edu"
@@ -402,7 +406,7 @@ export default function SimulationManagement() {
                         ) : (
                           <>
                             <Mail className="w-4 h-4 mr-2" />
-                            Enviar Invitación
+                            {t("simulationManagement.sendInvitation")}
                           </>
                         )}
                       </Button>
@@ -412,9 +416,9 @@ export default function SimulationManagement() {
                   <Separator />
 
                   <div className="space-y-3">
-                    <Label>Agregar varios estudiantes</Label>
+                    <Label>{t("simulationManagement.addMultipleStudents")}</Label>
                     <Textarea
-                      placeholder="Pega múltiples correos separados por comas, líneas o punto y coma..."
+                      placeholder={t("simulationManagement.bulkEmailPlaceholder")}
                       value={bulkEmails}
                       onChange={(e) => setBulkEmails(e.target.value)}
                       rows={4}
@@ -432,16 +436,16 @@ export default function SimulationManagement() {
                       ) : (
                         <Plus className="w-4 h-4 mr-2" />
                       )}
-                      Agregar Todos
+                      {t("simulationManagement.addAll")}
                     </Button>
                   </div>
 
                   <Separator />
 
                   <div className="space-y-3">
-                    <Label>Código de Acceso (estilo Kahoot)</Label>
+                    <Label>{t("simulationManagement.accessCode")}</Label>
                     <p className="text-sm text-muted-foreground">
-                      Los estudiantes pueden unirse ingresando este código en su panel
+                      {t("simulationManagement.accessCodeDesc")}
                     </p>
                     {scenario.joinCode ? (
                       <div className="flex items-center gap-3">
@@ -470,7 +474,7 @@ export default function SimulationManagement() {
                         ) : (
                           <Plus className="w-4 h-4 mr-2" />
                         )}
-                        Generar Código de Acceso
+                        {t("simulationManagement.generateCode")}
                       </Button>
                     )}
                   </div>
@@ -481,7 +485,7 @@ export default function SimulationManagement() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Users className="w-5 h-5" />
-                    Estudiantes Inscritos ({enrolledCount})
+                    {t("simulationManagement.enrolledStudents")} ({enrolledCount})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -514,14 +518,14 @@ export default function SimulationManagement() {
                                 session.status === "completed" ? "default" :
                                 session.status === "active" ? "secondary" : "outline"
                               }>
-                                {session.status === "completed" ? "Completado" :
-                                 session.status === "active" ? "En progreso" : "Inscrito"}
+                                {session.status === "completed" ? t("simulationManagement.completed") :
+                                 session.status === "active" ? t("simulationManagement.inProgressStatus") : t("simulationManagement.enrolledStatus")}
                               </Badge>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => {
-                                  if (confirm("¿Eliminar este estudiante de la simulación?")) {
+                                  if (confirm(t("simulationManagement.deleteStudentConfirm"))) {
                                     deleteSessionMutation.mutate(session.id);
                                   }
                                 }}
@@ -538,7 +542,7 @@ export default function SimulationManagement() {
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                      <p>Aún no hay estudiantes inscritos</p>
+                      <p>{t("simulationManagement.noStudents")}</p>
                     </div>
                   )}
                 </CardContent>
@@ -551,10 +555,10 @@ export default function SimulationManagement() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Play className="w-5 h-5" />
-                  Probar Simulación
+                  {t("simulationManagement.testSimulation")}
                 </CardTitle>
                 <CardDescription>
-                  Experimenta la simulación como lo haría un estudiante. No se guardan datos.
+                  {t("simulationManagement.testSimulationDesc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -562,9 +566,9 @@ export default function SimulationManagement() {
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-medium text-amber-800 dark:text-amber-200">Modo de Prueba</p>
+                      <p className="font-medium text-amber-800 dark:text-amber-200">{t("simulationManagement.testMode")}</p>
                       <p className="text-sm text-amber-700 dark:text-amber-300">
-                        Esta es una vista previa. Las decisiones que tomes no afectarán a los estudiantes ni se guardarán.
+                        {t("simulationManagement.testModeDesc")}
                       </p>
                     </div>
                   </div>
@@ -576,7 +580,7 @@ export default function SimulationManagement() {
                   data-testid="button-start-test"
                 >
                   <Play className="w-5 h-5 mr-2" />
-                  Iniciar Prueba
+                  {t("simulationManagement.startTest")}
                 </Button>
               </CardContent>
             </Card>
@@ -587,7 +591,7 @@ export default function SimulationManagement() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Settings className="w-5 h-5" />
-                  Control de Simulación
+                  {t("simulationManagement.simulationControl")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -599,12 +603,12 @@ export default function SimulationManagement() {
                       ) : (
                         <StopCircle className="w-5 h-5 text-muted-foreground" />
                       )}
-                      <span className="font-medium">Estado de la Simulación</span>
+                      <span className="font-medium">{t("simulationManagement.simulationStatus")}</span>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {scenario.isStarted 
-                        ? "Los estudiantes pueden acceder y participar en la simulación."
-                        : "Los estudiantes ven un mensaje de espera hasta que inicies la simulación."}
+                        ? t("simulationManagement.simulationActiveDesc")
+                        : t("simulationManagement.simulationInactiveDesc")}
                     </p>
                   </div>
                   <Switch
@@ -618,7 +622,7 @@ export default function SimulationManagement() {
                 {!scenario.isStarted && (
                   <div className="p-4 rounded-lg bg-muted">
                     <p className="text-sm text-center text-muted-foreground">
-                      Los estudiantes verán: <strong>"El profesor aún no ha iniciado la simulación"</strong>
+                      {t("simulationManagement.studentsWillSee")} <strong>"{t("simulationManagement.professorNotStarted")}"</strong>
                     </p>
                   </div>
                 )}
