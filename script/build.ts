@@ -87,6 +87,7 @@ async function buildAll() {
   // Write CJS shim for npm start compatibility
   console.log("writing CJS shim...");
   await writeFile("dist/index.cjs", CJS_SHIM);
+
 }
 
 buildAll().catch((err) => {
