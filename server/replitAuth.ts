@@ -181,20 +181,15 @@ export async function setupAuth(app: Express) {
   app.get("/api/callback", (req, res, next) => {
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, async (err: any, user: any, info: any) => {
-      const pendingRoleForError = encodeURIComponent(req.cookies?.pendingRole || "");
       if (err || !user) {
-        console.error("[Auth] /api/callback - auth failed:", err?.message || "no user returned", info);
-        res.clearCookie("pendingRole");
-        res.clearCookie("adminVerifyToken");
-        return res.redirect(`/select-role?auth_error=true&role=${pendingRoleForError}`);
+        console.log("[Auth] /api/callback - auth failed, redirecting to login");
+        return res.redirect("/api/login");
       }
       
       req.logIn(user, async (loginErr) => {
         if (loginErr) {
-          console.error("[Auth] /api/callback - session login failed:", loginErr.message);
-          res.clearCookie("pendingRole");
-          res.clearCookie("adminVerifyToken");
-          return res.redirect(`/select-role?auth_error=true&role=${pendingRoleForError}`);
+          console.log("[Auth] /api/callback - login failed, redirecting to login");
+          return res.redirect("/api/login");
         }
         
         // Get the pending role from cookie (set in /api/login - survives OIDC redirect)
@@ -204,43 +199,37 @@ export async function setupAuth(app: Express) {
         
         console.log(`[Auth] /api/callback - pendingRole from cookie: ${pendingRole}, isVerifiedAdmin: ${isVerifiedAdmin}`);
         
-        try {
-          if (user.claims?.sub) {
-            const claims = user.claims;
-            let effectiveRole: "student" | "professor" | "admin" = "student";
-            let isSuperAdmin = false;
-            
-            if (pendingRole === "admin" && isVerifiedAdmin) {
-              effectiveRole = "admin";
-              isSuperAdmin = true;
-            } else if (pendingRole === "professor") {
-              effectiveRole = "professor";
-            } else if (pendingRole === "student") {
-              effectiveRole = "student";
-            }
-            
-            console.log(`[Auth] Creating/updating user ${claims.email} with role: ${effectiveRole}, isSuperAdmin: ${isSuperAdmin}`);
-            
-            await upsertUser(claims, effectiveRole, isSuperAdmin);
-            
-            if (pendingRole) {
-              await storage.upsertUserWithRole(claims["sub"], effectiveRole, isSuperAdmin);
-              console.log(`[Auth] Explicitly applied role ${effectiveRole} for user ${claims.email}`);
-            }
-            
-            console.log(`[Auth] User ${claims.email} created/updated successfully`);
-            
-            res.clearCookie("pendingRole");
-            res.clearCookie("adminVerifyToken");
+        // Create/update user with the correct role
+        if (user.claims?.sub) {
+          const claims = user.claims;
+          let effectiveRole: "student" | "professor" | "admin" = "student";
+          let isSuperAdmin = false;
+          
+          if (pendingRole === "admin" && isVerifiedAdmin) {
+            effectiveRole = "admin";
+            isSuperAdmin = true;
+          } else if (pendingRole === "professor") {
+            effectiveRole = "professor";
+          } else if (pendingRole === "student") {
+            effectiveRole = "student";
           }
           
-          return res.redirect("/");
-        } catch (dbErr: any) {
-          console.error("[Auth] /api/callback - user upsert failed:", dbErr.message);
+          console.log(`[Auth] Creating/updating user ${claims.email} with role: ${effectiveRole}, isSuperAdmin: ${isSuperAdmin}`);
+          
+          await upsertUser(claims, effectiveRole, isSuperAdmin);
+          
+          if (pendingRole) {
+            await storage.upsertUserWithRole(claims["sub"], effectiveRole, isSuperAdmin);
+            console.log(`[Auth] Explicitly applied role ${effectiveRole} for user ${claims.email}`);
+          }
+          
+          console.log(`[Auth] User ${claims.email} created/updated successfully`);
+          
           res.clearCookie("pendingRole");
           res.clearCookie("adminVerifyToken");
-          return res.redirect(`/select-role?auth_error=true&role=${encodeURIComponent(pendingRole || "")}`);
         }
+        
+        return res.redirect("/");
       });
     })(req, res, next);
   });
@@ -269,32 +258,18 @@ export async function setupAuth(app: Express) {
   app.get("/api/fresh-login", (req, res) => {
     const role = req.query.role as string | undefined;
     
+    // Store the role in a cookie so we can use it after the logout redirect
     if (role && ["student", "professor", "admin"].includes(role)) {
       res.cookie("pendingRole", role, {
         httpOnly: true,
         secure: true,
-        maxAge: 5 * 60 * 1000,
+        maxAge: 5 * 60 * 1000, // 5 minutes
         sameSite: "lax",
       });
     }
-    
-    const adminCodeVerified = (req.session as any)?.adminCodeVerified === true;
-    const verifiedAt = (req.session as any)?.adminCodeVerifiedAt || 0;
-    const isRecentVerification = Date.now() - verifiedAt < 5 * 60 * 1000;
     
     res.clearCookie("connect.sid");
-    
-    if (role === "admin" && adminCodeVerified && isRecentVerification) {
-      const signedToken = signAdminVerification(Date.now());
-      res.cookie("adminVerifyToken", signedToken, {
-        httpOnly: true,
-        secure: true,
-        maxAge: 5 * 60 * 1000,
-        sameSite: "lax",
-      });
-    } else {
-      res.clearCookie("adminVerifyToken");
-    }
+    res.clearCookie("adminVerifyToken");
     
     // Build the URL to return to after Replit logout
     const returnUrl = `${req.protocol}://${req.hostname}/api/login${role ? `?role=${role}` : ''}`;

@@ -1,7 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile, writeFile, chmod } from "fs/promises";
-import { dirname } from "path";
+import { rm, readFile, writeFile } from "fs/promises";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -85,30 +84,9 @@ async function buildAll() {
     },
   });
 
+  // Write CJS shim for npm start compatibility
   console.log("writing CJS shim...");
   await writeFile("dist/index.cjs", CJS_SHIM);
-
-  const nodeDir = dirname(process.execPath);
-  const startScript = `#!/bin/sh
-# Try node from PATH first, then fall back to build-time node path
-if command -v node >/dev/null 2>&1; then
-  exec node dist/index.cjs "$@"
-elif [ -x "${nodeDir}/node" ]; then
-  exec "${nodeDir}/node" dist/index.cjs "$@"
-else
-  # Search nix store for any node binary
-  for f in /nix/store/*/bin/node; do
-    if [ -x "$f" ]; then
-      exec "$f" dist/index.cjs "$@"
-    fi
-  done
-  echo "ERROR: Could not find node binary"
-  exit 1
-fi
-`;
-  console.log("writing startup script (node at build time: " + process.execPath + ")...");
-  await writeFile("dist/start.sh", startScript);
-  await chmod("dist/start.sh", 0o755);
 }
 
 buildAll().catch((err) => {

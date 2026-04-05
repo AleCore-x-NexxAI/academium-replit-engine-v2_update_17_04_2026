@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Brain,
@@ -8,9 +8,6 @@ import {
   ArrowRight,
   KeyRound,
   ArrowLeft,
-  Loader2,
-  AlertTriangle,
-  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,93 +27,13 @@ import { useTranslation } from "@/contexts/LanguageContext";
 
 type Role = "student" | "professor" | "admin";
 
-function LoginFailedView({ role, onRetry, onGoBack }: { role: Role | null; onRetry: () => void; onGoBack: () => void }) {
-  const { t } = useTranslation();
-
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6" data-testid="screen-login-failed">
-      <Card className="max-w-md w-full p-8 text-center">
-        <div className="w-14 h-14 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-5">
-          <AlertTriangle className="w-7 h-7" />
-        </div>
-        <h1 className="text-lg font-bold mb-2">{t("auth.loginFailed")}</h1>
-        <p className="text-sm text-muted-foreground mb-4">
-          {t("auth.loginFailedDesc")}
-        </p>
-        <div className="text-left mb-6 bg-muted/50 rounded-md p-4">
-          <p className="text-xs font-medium mb-2">{t("auth.loginTips")}</p>
-          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-            <li>{t("auth.loginTip1")}</li>
-            <li>{t("auth.loginTip2")}</li>
-            <li>{t("auth.loginTip3")}</li>
-          </ul>
-        </div>
-        <div className="flex flex-col gap-3">
-          <Button onClick={onRetry} data-testid="button-login-retry">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            {t("auth.loginTryAgain")}
-          </Button>
-          <Button variant="outline" onClick={onGoBack} data-testid="button-login-go-back">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {t("auth.loginGoBack")}
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function RedirectingView({ role }: { role: Role }) {
-  const { t } = useTranslation();
-
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6" data-testid="screen-redirecting">
-      <div className="text-center max-w-sm">
-        <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center mx-auto mb-4">
-          <Brain className="w-6 h-6 text-primary-foreground" />
-        </div>
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-          <span className="text-sm font-medium">{t("auth.redirecting")}</span>
-        </div>
-        <p className="text-xs text-muted-foreground mb-6">{t("auth.redirectingDesc")}</p>
-        <Button variant="outline" size="sm" asChild data-testid="button-login-manual">
-          <a href={`/api/fresh-login?role=${role}`}>
-            {t("auth.loginManually")}
-          </a>
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export default function RoleSelection() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [showCodeDialog, setShowCodeDialog] = useState(false);
   const [adminCode, setAdminCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  const [loginFailed, setLoginFailed] = useState(false);
   const { toast } = useToast();
   const { t } = useTranslation();
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("auth_error") === "true" || params.get("error") === "true") {
-      setLoginFailed(true);
-      setSelectedRole((params.get("role") as Role) || null);
-      window.history.replaceState({}, "", "/select-role");
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isRedirecting) return;
-    const timeout = setTimeout(() => {
-      setIsRedirecting(false);
-      setLoginFailed(true);
-    }, 15000);
-    return () => clearTimeout(timeout);
-  }, [isRedirecting]);
 
   const primaryRoleOptions = [
     {
@@ -146,19 +63,12 @@ export default function RoleSelection() {
     requiresCode: true,
   };
 
-  const initiateLogin = (role: Role) => {
-    setIsRedirecting(true);
-    setLoginFailed(false);
-    setSelectedRole(role);
-    window.location.href = `/api/fresh-login?role=${role}`;
-  };
-
   const handleRoleSelect = (role: Role) => {
     setSelectedRole(role);
     if (role === "admin") {
       setShowCodeDialog(true);
     } else {
-      initiateLogin(role);
+      window.location.href = `/api/fresh-login?role=${role}`;
     }
   };
 
@@ -183,8 +93,7 @@ export default function RoleSelection() {
       const data = await response.json();
 
       if (data.valid) {
-        setShowCodeDialog(false);
-        initiateLogin("admin");
+        window.location.href = `/api/fresh-login?role=admin&verified=true`;
       } else {
         toast({
           title: t("roleSelection.invalidCode"),
@@ -203,30 +112,6 @@ export default function RoleSelection() {
       setIsVerifying(false);
     }
   };
-
-  if (loginFailed) {
-    return (
-      <LoginFailedView
-        role={selectedRole}
-        onRetry={() => {
-          if (selectedRole) {
-            initiateLogin(selectedRole);
-          } else {
-            setLoginFailed(false);
-          }
-        }}
-        onGoBack={() => {
-          setLoginFailed(false);
-          setSelectedRole(null);
-          window.location.href = "/";
-        }}
-      />
-    );
-  }
-
-  if (isRedirecting && selectedRole) {
-    return <RedirectingView role={selectedRole} />;
-  }
 
   return (
     <div className="min-h-screen bg-background">
