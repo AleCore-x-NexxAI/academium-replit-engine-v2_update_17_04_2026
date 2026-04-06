@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile, writeFile } from "fs/promises";
+import { rm, readFile, writeFile, chmod, stat } from "fs/promises";
+import { execSync } from "child_process";
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -88,6 +89,26 @@ async function buildAll() {
   console.log("writing CJS shim...");
   await writeFile("dist/index.cjs", CJS_SHIM);
 
+  // Bundle a standalone Node.js binary for the deployment container
+  // The deployment container has NO node/npm in PATH
+  console.log("bundling Node.js binary for deployment...");
+  const NODE_VERSION = "20.18.1";
+  const tarball = `node-v${NODE_VERSION}-linux-x64.tar.xz`;
+  const url = `https://nodejs.org/dist/v${NODE_VERSION}/${tarball}`;
+  try {
+    const nodeBinCheck = await stat("dist/node").catch(() => null);
+    if (!nodeBinCheck) {
+      execSync(`curl -sL "${url}" | tar -xJ --strip-components=2 -C dist "node-v${NODE_VERSION}-linux-x64/bin/node"`, {
+        stdio: "inherit",
+      });
+      await chmod("dist/node", 0o755);
+    }
+    const ver = execSync("./dist/node --version", { encoding: "utf-8" }).trim();
+    console.log(`bundled node ${ver}`);
+  } catch (e: any) {
+    console.error("failed to bundle node binary:", e.message);
+    process.exit(1);
+  }
 }
 
 buildAll().catch((err) => {
