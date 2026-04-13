@@ -1005,21 +1005,6 @@ export async function processStudentTurn(
     };
   }
 
-  const newHistory: HistoryEntry[] = [
-    ...context.history as HistoryEntry[],
-    {
-      role: "user",
-      content: context.studentInput,
-      timestamp: new Date().toISOString(),
-    },
-    {
-      role: narrative.speaker ? "npc" : "system",
-      content: narrative.text,
-      speaker: narrative.speaker,
-      timestamp: new Date().toISOString(),
-    },
-  ];
-
   const nextDecision = currentDecisionNum + 1;
   const decisionsComplete = totalDecisions > 0 && nextDecision > totalDecisions;
 
@@ -1092,25 +1077,6 @@ export async function processStudentTurn(
     }
   }
 
-  const updatedState: SimulationState = {
-    turnCount: context.turnCount + 1,
-    kpis: newKpis,
-    indicators: updatedIndicators,
-    history: newHistory,
-    flags: [...evaluation.flags],
-    rubricScores: evaluation.competencyScores,
-    currentDecision: decisionsComplete ? totalDecisions : nextDecision,
-    isComplete: isGameOver,
-    isReflectionStep: decisionsComplete && !isGameOver,
-    reflectionCompleted: false,
-    pendingRevision: false,
-    revisionAttempts: 0,
-    decisionEvidenceLogs: [...existingEvidenceLogs, evidenceEntry],
-    nudgeCounters: nudgeCounters,
-    integrityFlags: context.integrityFlags,
-    indicatorAccumulation: Object.keys(accumulationEntries).length > 0 ? accumulationEntries : undefined,
-  };
-
   const assemblyPath = decisionsComplete ? "PASS_FINAL" : "PASS_INTERMEDIATE";
 
   let assembledNarrative = narrative.text;
@@ -1131,9 +1097,46 @@ export async function processStudentTurn(
     assembledNarrative += reflectionPrompt;
   }
 
-  if (degradation.fallbackKPI && !kpiFailed) {
+  if (degradation.fallbackKPI && kpiFailed) {
     assembledNarrative += "\n\n" + degradation.fallbackKPI;
   }
+  if (degradation.fallbackExplanation && explanationsFailed) {
+    assembledNarrative += "\n\n" + degradation.fallbackExplanation;
+  }
+
+  const newHistory: HistoryEntry[] = [
+    ...context.history as HistoryEntry[],
+    {
+      role: "user",
+      content: context.studentInput,
+      timestamp: new Date().toISOString(),
+    },
+    {
+      role: narrative.speaker ? "npc" : "system",
+      content: assembledNarrative,
+      speaker: narrative.speaker,
+      timestamp: new Date().toISOString(),
+    },
+  ];
+
+  const updatedState: SimulationState = {
+    turnCount: context.turnCount + 1,
+    kpis: newKpis,
+    indicators: updatedIndicators,
+    history: newHistory,
+    flags: [...evaluation.flags],
+    rubricScores: evaluation.competencyScores,
+    currentDecision: decisionsComplete ? totalDecisions : nextDecision,
+    isComplete: isGameOver,
+    isReflectionStep: decisionsComplete && !isGameOver,
+    reflectionCompleted: false,
+    pendingRevision: false,
+    revisionAttempts: 0,
+    decisionEvidenceLogs: [...existingEvidenceLogs, evidenceEntry],
+    nudgeCounters: nudgeCounters,
+    integrityFlags: context.integrityFlags,
+    indicatorAccumulation: Object.keys(accumulationEntries).length > 0 ? accumulationEntries : undefined,
+  };
 
   storage.createTurnEvent({
     sessionId: context.sessionId,

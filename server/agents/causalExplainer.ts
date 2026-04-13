@@ -58,10 +58,31 @@ export async function generateCausalExplanations(
   const currentDecisionNum = context.currentDecision || (context.turnCount + 1);
   const currentDP = context.decisionPoints?.find(dp => dp.number === currentDecisionNum);
   const isMcq = currentDP?.format === "multiple_choice";
-  const tradeoffSignature = currentDP?.tradeoffSignature ||
-    (isMcq && currentDP?.optionSignatures
-      ? Object.values(currentDP.optionSignatures)[0]
-      : undefined);
+  let tradeoffSignature = currentDP?.tradeoffSignature;
+  if (isMcq && currentDP?.optionSignatures) {
+    const inputLower = context.studentInput.trim().toLowerCase();
+    for (const [optionKey, sig] of Object.entries(currentDP.optionSignatures)) {
+      if (inputLower === optionKey.toLowerCase() || inputLower.includes(optionKey.toLowerCase())) {
+        tradeoffSignature = sig;
+        break;
+      }
+    }
+    if (!tradeoffSignature) {
+      const options = currentDP.options || [];
+      for (let i = 0; i < options.length; i++) {
+        const optText = options[i].toLowerCase();
+        if (inputLower === optText || inputLower.includes(optText) || optText.includes(inputLower)) {
+          const sig = currentDP.optionSignatures[options[i]] ||
+            currentDP.optionSignatures[String(i)] ||
+            currentDP.optionSignatures[String(i + 1)];
+          if (sig) {
+            tradeoffSignature = sig;
+            break;
+          }
+        }
+      }
+    }
+  }
 
   const tradeoffContext = tradeoffSignature
     ? `\nTRADEOFF DEL CASO: Dimensión="${tradeoffSignature.dimension}", Beneficio="${tradeoffSignature.benefit}", Costo="${tradeoffSignature.cost}". Las explicaciones deben reflejar esta dinámica de tradeoff en los mecanismos causales.`
