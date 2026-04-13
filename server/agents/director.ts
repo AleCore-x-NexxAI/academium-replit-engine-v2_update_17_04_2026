@@ -418,7 +418,7 @@ export async function processStudentTurn(
         pendingRevision: false,
         revisionAttempts: 0,
         nudgeCounters: nudgeCounters,
-        integrityFlags: updatedIntegrityFlags.length > 0 ? updatedIntegrityFlags : undefined,
+        integrityFlags: updatedIntegrityFlags,
         decisionEvidenceLogs: context.decisionEvidenceLogs,
       },
     };
