@@ -7,7 +7,6 @@ import { processStudentTurn, processReflection, DEFAULT_DIRECTOR_PROMPT } from "
 import { DEFAULT_EVALUATOR_PROMPT } from "./agents/evaluator";
 import { DEFAULT_NARRATOR_PROMPT } from "./agents/narrator";
 import { DEFAULT_DOMAIN_EXPERT_PROMPT } from "./agents/domainExpert";
-import { validateSimulationInput } from "./agents/inputValidator";
 import { SUPPORTED_MODELS } from "./openai";
 import { getCapacityStatus, getJobStatus as getLLMJobStatus } from "./llm";
 import { turnQueue, type TurnJob } from "./llm/turnQueue";
@@ -547,34 +546,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const scenarioLlmModel = session.scenario?.llmModel as import("./openai").SupportedModel | undefined;
       const scenarioAgentPrompts = session.scenario?.agentPrompts as import("@shared/schema").AgentPrompts | undefined;
       
-      // Determine if the current decision point is MCQ without justification required
       currentDecisionNum = session.currentState.currentDecision || 1;
-      const decisionPoints = initialState?.decisionPoints as Array<{ format?: string; requiresJustification?: boolean }> | undefined;
-      const currentDP = decisionPoints?.[currentDecisionNum - 1];
-      const isMcqNoJustification = currentDP?.format === "multiple_choice" && !currentDP?.requiresJustification;
 
-      const context: AgentContext = {
+      const context: AgentContext & { nudgeCounters?: Record<number, number>; decisionEvidenceLogs?: any[]; integrityFlags?: boolean[] } = {
         sessionId,
         turnCount: session.currentState.turnCount,
         currentKpis: session.currentState.kpis,
         history: session.currentState.history,
         studentInput: input,
         rubric: session.scenario?.rubric || undefined,
-        // POC: Decision tracking
         indicators: session.currentState.indicators || initialState?.indicators,
         totalDecisions: initialState?.totalDecisions || initialState?.decisionPoints?.length || DEFAULT_DECISIONS,
         currentDecision: session.currentState.currentDecision || 1,
         decisionPoints: initialState?.decisionPoints,
-        // Per-scenario LLM configuration
         llmModel: scenarioLlmModel,
         agentPrompts: scenarioAgentPrompts,
         language: (session.scenario?.language as "es" | "en") || "es",
+        nudgeCounters: (session.currentState as any).nudgeCounters || {},
+        decisionEvidenceLogs: (session.currentState as any).decisionEvidenceLogs || [],
+        integrityFlags: (session.currentState as any).integrityFlags || [],
         scenario: {
           title: session.scenario?.title || "Business Simulation",
           domain: session.scenario?.domain || "General",
           role: initialState?.role || "Business Leader",
           objective: initialState?.objective || "Navigate the challenge",
-          // Enhanced context for AI tailoring
           companyName: initialState?.companyName,
           industry: initialState?.industry,
           companySize: initialState?.companySize,
@@ -597,7 +592,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // S9.1: Check if we're in the reflection step (Step 4)
       const isReflectionStep = session.currentState.isReflectionStep === true;
 
-      // Helper: process the turn and save results
       const processTurnAndSave = async () => {
         let turnResult;
         if (isReflectionStep) {
@@ -606,7 +600,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           turnResult = await processStudentTurn(context, revisionAttempts);
         }
 
-        if (turnResult.requiresRevision) {
+        if (turnResult.turnStatus === "block") {
+          await storage.updateSimulationSession(sessionId, {
+            currentState: turnResult.updatedState,
+          });
+          return turnResult;
+        }
+
+        if (turnResult.requiresRevision || turnResult.turnStatus === "nudge") {
           await storage.updateSimulationSession(sessionId, {
             currentState: turnResult.updatedState,
           });
@@ -648,78 +649,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return turnResult;
       };
 
-      // Run input validation in parallel with turn processing for latency reduction
-      // Validation uses gpt-4o-mini and is fast; if it fails we discard the processing result
-      const validationPromise = (async () => {
-        if (isMcqNoJustification) {
-          storage.createTurnEvent({
-            sessionId,
-            userId,
-            eventType: "input_accepted",
-            turnNumber: currentDecisionNum,
-            rawStudentInput: input,
-            eventData: {
-              decisionPointNumber: currentDecisionNum,
-              validatedBy: "mcq_bypass",
-            },
-          }).catch(err => console.error("[TurnEvent] Failed to log mcq input_accepted:", err));
-          return { isValid: true } as { isValid: boolean; rejectionReason?: string; userMessage?: string };
-        }
-        const recentHistory = (session.currentState.history as HistoryEntry[])
-          .slice(-4)
-          .map(h => `${h.role}: ${h.content}`)
-          .join("\n");
-        const scenarioLanguage = (session.scenario?.language as "es" | "en") || "es";
-        const result = await validateSimulationInput(
-          input,
-          {
-            title: session.scenario?.title || "Business Simulation",
-            objective: initialState?.objective || "Navigate the challenge",
-            recentHistory,
-          },
-          { model: "gpt-4o-mini", language: scenarioLanguage }
-        );
-        if (result.isValid) {
-          storage.createTurnEvent({
-            sessionId,
-            userId,
-            eventType: "input_accepted",
-            turnNumber: currentDecisionNum,
-            rawStudentInput: input,
-            eventData: {
-              decisionPointNumber: currentDecisionNum,
-              validatedBy: "llm",
-            },
-          }).catch(err => console.error("[TurnEvent] Failed to log input_accepted:", err));
-        }
-        return result;
-      })();
-
-      // Check if AI providers are saturated — if so, queue the turn
       if (turnQueue.shouldQueue()) {
-        const validationResult = await validationPromise;
-        if (!validationResult.isValid) {
-          console.log(`[Turn] Input validation failed for session ${sessionId}: ${validationResult.rejectionReason}`);
-          storage.createTurnEvent({
-            sessionId,
-            userId,
-            eventType: "input_rejected",
-            turnNumber: currentDecisionNum,
-            rawStudentInput: input,
-            eventData: {
-              reason: validationResult.rejectionReason,
-              userMessage: validationResult.userMessage,
-              decisionPointNumber: currentDecisionNum,
-            },
-          }).catch(err => console.error("[TurnEvent] Failed to log input_rejected:", err));
-          return res.status(400).json({
-            message: "validation_failed",
-            validationError: true,
-            turnStatus: "block",
-            requiresRevision: false,
-            userMessage: validationResult.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada y relacionada con el caso.",
-          });
-        }
         const job = turnQueue.enqueue(sessionId, processTurnAndSave);
         return res.status(202).json({
           queued: true,
@@ -730,83 +660,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         });
       }
 
-      // Phase 1: Run validation and LLM processing in parallel (no DB side effects)
-      // Start turn LLM processing alongside validation for latency reduction
       const turnStartTime = Date.now();
-      const turnProcessingPromise = (async () => {
-        if (isReflectionStep) {
-          return processReflection(context);
-        }
-        return processStudentTurn(context, revisionAttempts);
-      })();
+      const turnResult = await processTurnAndSave();
 
-      // Await validation first — short-circuit if invalid (don't wait for turn LLM)
-      const validationResult = await validationPromise;
-      if (!validationResult.isValid) {
-        console.log(`[Turn] Input validation failed for session ${sessionId}: ${validationResult.rejectionReason}`);
-        turnProcessingPromise.catch(() => {});
-        storage.createTurnEvent({
-          sessionId,
-          userId,
-          eventType: "input_rejected",
-          turnNumber: currentDecisionNum,
-          rawStudentInput: input,
-          eventData: {
-            reason: validationResult.rejectionReason,
-            userMessage: validationResult.userMessage,
-            decisionPointNumber: currentDecisionNum,
-          },
-        }).catch(err => console.error("[TurnEvent] Failed to log input_rejected:", err));
+      if (turnResult.turnStatus === "block") {
         return res.status(400).json({
           message: "validation_failed",
           validationError: true,
           turnStatus: "block",
           requiresRevision: false,
-          userMessage: validationResult.userMessage || "Tu respuesta no cumple con las normas de la simulación. Por favor, proporciona una respuesta apropiada y relacionada con el caso.",
+          userMessage: turnResult.narrative?.text || "Tu respuesta no cumple con las normas de la simulación.",
         });
-      }
-
-      // Validation passed — await turn processing result
-      const turnResult = await turnProcessingPromise;
-
-      // Phase 2: Commit to DB only after validation passes
-      if (turnResult.requiresRevision) {
-        await storage.updateSimulationSession(sessionId, {
-          currentState: turnResult.updatedState,
-        });
-      } else {
-        await storage.createTurn({
-          sessionId,
-          turnNumber: session.currentState.turnCount + 1,
-          studentInput: input,
-          agentResponse: turnResult,
-        });
-
-        let sessionUpdate: any = {
-          currentState: turnResult.updatedState,
-          status: turnResult.isGameOver ? "completed" : "active",
-        };
-
-        if (turnResult.isGameOver) {
-          const competencies = turnResult.competencyScores || {
-            strategicThinking: 3,
-            ethicalReasoning: 3,
-            decisionDecisiveness: 3,
-            stakeholderEmpathy: 3,
-          };
-          const competencyValues = Object.values(competencies) as number[];
-          const avgCompetency = competencyValues.reduce((a, b) => a + b, 0) / competencyValues.length;
-          const overallScore = Math.round((avgCompetency / 5) * 100);
-
-          sessionUpdate.scoreSummary = {
-            finalKpis: turnResult.updatedState.kpis,
-            competencies,
-            overallScore,
-            feedback: turnResult.feedback.message,
-          };
-        }
-
-        await storage.updateSimulationSession(sessionId, sessionUpdate);
       }
 
       const result = turnResult;

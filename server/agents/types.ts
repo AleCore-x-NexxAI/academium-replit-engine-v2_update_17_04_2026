@@ -1,29 +1,121 @@
 import type { KPIs, TurnResponse, SimulationState, Rubric, RubricCriterion, AgentPrompts, LLMModel, Indicator, DecisionPoint } from "@shared/schema";
 import type { SupportedModel } from "../openai";
 
+export enum SignalQuality {
+  STRONG = 3,
+  PRESENT = 2,
+  WEAK = 1,
+  ABSENT = 0,
+}
+
+export enum RDSBand {
+  SURFACE = "SURFACE",
+  ENGAGED = "ENGAGED",
+  INTEGRATED = "INTEGRATED",
+}
+
+export interface SignalScore {
+  quality: SignalQuality;
+  extracted_text: string;
+}
+
+export interface SignalExtractionResult {
+  intent: SignalScore;
+  justification: SignalScore;
+  tradeoffAwareness: SignalScore;
+  stakeholderAwareness: SignalScore;
+  ethicalAwareness: SignalScore;
+}
+
+export type EvidenceLevel = "demonstrated" | "emerging" | "not_evidenced";
+
+export interface CompetencyEvidence {
+  C1: EvidenceLevel; // Analytical Reasoning
+  C2: EvidenceLevel; // Strategic Decision-Making
+  C3: EvidenceLevel; // Stakeholder Consideration
+  C4: EvidenceLevel; // Ethical Reasoning
+  C5: EvidenceLevel; // Systems Awareness
+}
+
+export interface DecisionEvidenceLog {
+  signals_detected: SignalExtractionResult;
+  rds_score: number;
+  rds_band: RDSBand;
+  competency_evidence: CompetencyEvidence;
+  raw_signal_scores: {
+    intent: number;
+    justification: number;
+    tradeoffAwareness: number;
+    stakeholderAwareness: number;
+    ethicalAwareness: number;
+  };
+}
+
+export type InputClassificationType = "PASS" | "NUDGE" | "BLOCK";
+export type BlockReason = "empty" | "safety" | "integrity" | "off_topic" | "insufficient_engagement";
+
+export interface InputClassificationResult {
+  classification: InputClassificationType;
+  block_reason?: BlockReason;
+  classification_rationale: string;
+  nudge_questions?: string[];
+  redirect_message?: string;
+  integrity_flag?: boolean;
+}
+
+export function computeRDS(signals: SignalExtractionResult): number {
+  return (
+    signals.intent.quality +
+    signals.justification.quality +
+    signals.tradeoffAwareness.quality +
+    signals.stakeholderAwareness.quality +
+    signals.ethicalAwareness.quality
+  );
+}
+
+export function classifyRDSBand(rds: number): RDSBand {
+  if (rds >= 10) return RDSBand.INTEGRATED;
+  if (rds >= 5) return RDSBand.ENGAGED;
+  return RDSBand.SURFACE;
+}
+
+export function signalToEvidence(quality: SignalQuality): EvidenceLevel {
+  if (quality >= SignalQuality.PRESENT) return "demonstrated";
+  if (quality === SignalQuality.WEAK) return "emerging";
+  return "not_evidenced";
+}
+
+export function mapCompetencyEvidence(signals: SignalExtractionResult): CompetencyEvidence {
+  return {
+    C1: signalToEvidence(signals.justification.quality),
+    C2: signalToEvidence(Math.max(signals.intent.quality, signals.justification.quality) as SignalQuality),
+    C3: signalToEvidence(Math.max(signals.stakeholderAwareness.quality, signals.ethicalAwareness.quality) as SignalQuality),
+    C4: signalToEvidence(signals.ethicalAwareness.quality),
+    C5: signalToEvidence(Math.max(signals.tradeoffAwareness.quality, signals.stakeholderAwareness.quality) as SignalQuality),
+  };
+}
+
 export interface AgentContext {
   sessionId: string;
   turnCount: number;
   currentKpis: KPIs;
-  indicators?: Indicator[]; // POC-style indicators
+  indicators?: Indicator[];
   history: { role: string; content: string; speaker?: string }[];
   studentInput: string;
   rubric?: Rubric;
-  // Per-scenario LLM configuration
   llmModel?: SupportedModel;
   agentPrompts?: AgentPrompts;
-  // Per-scenario language setting
   language?: "es" | "en";
-  // Decision structure
   totalDecisions?: number;
   currentDecision?: number;
   decisionPoints?: DecisionPoint[];
+  rdsBand?: RDSBand;
+  signalExtractionResult?: SignalExtractionResult;
   scenario: {
     title: string;
     domain: string;
     role: string;
     objective: string;
-    // Enhanced context for better AI tailoring
     companyName?: string;
     industry?: string;
     companySize?: string;
@@ -39,7 +131,7 @@ export interface AgentContext {
     resourceConstraints?: string;
     culturalContext?: string;
     regulatoryEnvironment?: string;
-    subjectMatterContext?: string; // Expert knowledge context
+    subjectMatterContext?: string;
   };
 }
 

@@ -337,19 +337,20 @@ export interface HistoryEntry {
 export interface SimulationState {
   turnCount: number;
   kpis: KPIs;
-  indicators?: Indicator[]; // POC-style indicators
+  indicators?: Indicator[];
   history: HistoryEntry[];
   flags: string[];
   rubricScores: Record<string, number>;
-  currentDecision?: number; // Which decision point we're on (1, 2, 3, etc.)
-  isComplete?: boolean; // Whether all decisions have been made
-  // S9.1: Reflection as separate Step 4 (post-case)
-  isReflectionStep?: boolean; // True when all 3 decisions are done, waiting for reflection
-  reflectionCompleted?: boolean; // True after student submits reflection
-  // Weak answer revision tracking
-  pendingRevision?: boolean; // Whether we're waiting for a revision
-  revisionAttempts?: number; // How many times student has revised current decision
-  lastStudentInput?: string; // Original input before revision
+  currentDecision?: number;
+  isComplete?: boolean;
+  isReflectionStep?: boolean;
+  reflectionCompleted?: boolean;
+  pendingRevision?: boolean;
+  revisionAttempts?: number;
+  lastStudentInput?: string;
+  decisionEvidenceLogs?: any[];
+  nudgeCounters?: Record<number, number>;
+  integrityFlags?: boolean[];
 }
 
 export interface NarrativeResponse {

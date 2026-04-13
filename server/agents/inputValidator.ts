@@ -1,32 +1,7 @@
-/**
- * Input Validation Agent
- * 
- * VERY LENIENT VALIDATION - Only block on truly problematic input
- * 
- * This agent validates student/user input BEFORE any main simulation processing.
- * 
- * BLOCKING RULES (only these block the student):
- * 1. Profanity/unsafe content
- * 2. Empty input
- * 3. Clear nonsense/spam (random characters, keyboard mashing)
- * 4. Completely off-topic responses with zero case connection
- * 
- * ACCEPTANCE RULES:
- * - Any response with ANY connection to the case: ACCEPT
- * - Short but relevant responses: ACCEPT
- * - Brief justifications: ACCEPT
- * - When in doubt: ALWAYS ACCEPT
- * 
- * No "needsElaboration" category — either accept or reject, nothing in between.
- */
-
 import { generateChatCompletion, SupportedModel } from "../openai";
+import type { InputClassificationResult, InputClassificationType, BlockReason } from "./types";
 
-export interface InputValidationResult {
-  isValid: boolean;
-  rejectionReason?: string;
-  userMessage?: string;
-}
+type Language = "es" | "en";
 
 const OFFENSIVE_PATTERNS = [
   /\b(mierda|puta|puto|cabrón|cabron|hijo\s*de\s*puta|verga|chingar|pinche|culero|joto|marica|maricón|maricon|zorra)\b/i,
@@ -36,210 +11,367 @@ const OFFENSIVE_PATTERNS = [
 
 const NONSENSE_PATTERNS = [
   /^[a-z]{1,2}$/i,
-  /^(asdf|qwer|zxcv|hjkl)+$/i,
-  /^[^a-záéíóúñü\s]{10,}$/i,
-  /^(.)\1{6,}$/i,
-  /^[0-9\s\W]+$/i,
+  /^(asdf|qwer|zxcv|hjkl|wasd)+$/i,
+  /^[^a-záéíóúñüA-ZÁÉÍÓÚÑÜ\s]{8,}$/i,
+  /^(.)\1{5,}$/i,
+  /^[0-9\s\W]+$/,
 ];
 
-const MIN_INPUT_LENGTH = 3;
+const INJECTION_PATTERNS = [
+  /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions|prompts|rules)/i,
+  /you\s+are\s+now\s+a/i,
+  /system\s*:\s*/i,
+  /\bprompt\s*injection\b/i,
+  /act\s+as\s+(if\s+you\s+are|a)\s/i,
+  /forget\s+(everything|all|your)\s/i,
+  /new\s+instructions?\s*:/i,
+  /override\s+(your|the)\s+(rules|instructions|system)/i,
+  /pretend\s+(you\s+are|to\s+be)/i,
+  /jailbreak/i,
+  /\bDAN\b.*mode/i,
+  /\[\s*SYSTEM\s*\]/i,
+];
 
-type Language = "es" | "en";
-
-const REJECTION_MESSAGES: Record<Language, Record<string, string>> = {
+const BLOCK_MESSAGES: Record<Language, Record<BlockReason, string>> = {
   es: {
-    REJECTION_EMPTY: "Tu respuesta está vacía.",
-    REJECTION_PROFANITY: "Tu respuesta contiene lenguaje que no podemos procesar.",
-    REJECTION_NONSENSE: "Tu respuesta no parece relacionada con el caso.",
-    DEFAULT: "Para continuar, necesito que conectes tu respuesta con el caso y expliques tu prioridad.",
+    empty: "Tu respuesta parece estar vacía. Comparte tu decisión sobre la situación actual.",
+    safety: "No pudimos procesar tu respuesta. Por favor, comparte tu perspectiva sobre la decisión que enfrentas.",
+    integrity: "No pudimos procesar tu respuesta. Por favor, comparte tu perspectiva sobre la decisión que enfrentas.",
+    off_topic: "Tu respuesta no parece relacionada con la situación del caso. Enfócate en la decisión que tienes frente a ti.",
+    insufficient_engagement: "Tu respuesta no parece relacionada con la situación del caso. Enfócate en la decisión que tienes frente a ti.",
   },
   en: {
-    REJECTION_EMPTY: "Your response is empty.",
-    REJECTION_PROFANITY: "Your response contains language we cannot process.",
-    REJECTION_NONSENSE: "Your response does not seem related to the case.",
-    DEFAULT: "To continue, please connect your response to the case and explain your priority.",
+    empty: "Your response appears to be empty. Share your decision about the current situation.",
+    safety: "We couldn't process your response. Please share your perspective on the decision you're facing.",
+    integrity: "We couldn't process your response. Please share your perspective on the decision you're facing.",
+    off_topic: "Your response doesn't seem related to the case situation. Focus on the decision in front of you.",
+    insufficient_engagement: "Your response doesn't seem related to the case situation. Focus on the decision in front of you.",
   },
 };
 
-function quickValidation(input: string): string | null {
+const NUDGE_QUESTION_POOL: Record<Language, string[]> = {
+  es: [
+    "¿Qué aspecto del caso te parece más relevante para esta decisión?",
+    "¿Puedes conectar tu respuesta con algún elemento específico de la situación?",
+    "¿Qué factor consideras más importante al tomar esta decisión?",
+    "¿Cómo se relaciona tu respuesta con la situación que enfrentas?",
+  ],
+  en: [
+    "What aspect of the case seems most relevant to this decision?",
+    "Can you connect your response to a specific element of the situation?",
+    "What factor do you consider most important when making this decision?",
+    "How does your response relate to the situation you're facing?",
+  ],
+};
+
+export interface InputValidationResult {
+  isValid: boolean;
+  rejectionReason?: string;
+  userMessage?: string;
+}
+
+export interface ClassificationContext {
+  title: string;
+  objective: string;
+  recentHistory?: string;
+  decisionPrompt?: string;
+  nudgeCount: number;
+  currentDecision: number;
+  isMcq: boolean;
+}
+
+function gate1Empty(input: string): boolean {
+  return input.trim().length === 0 || /^\s+$/.test(input);
+}
+
+function gate2Profanity(input: string): boolean {
   const trimmed = input.trim();
-  
-  if (trimmed.length < MIN_INPUT_LENGTH) {
-    return "REJECTION_EMPTY";
-  }
-  
   for (const pattern of OFFENSIVE_PATTERNS) {
-    if (pattern.test(trimmed)) {
-      return "REJECTION_PROFANITY";
-    }
+    if (pattern.test(trimmed)) return true;
   }
-  
+  return false;
+}
+
+function gate3Injection(input: string): boolean {
+  const trimmed = input.trim();
+  for (const pattern of INJECTION_PATTERNS) {
+    if (pattern.test(trimmed)) return true;
+  }
+  return false;
+}
+
+function gate4OffTopicOrSpam(input: string): boolean {
+  const trimmed = input.trim();
   for (const pattern of NONSENSE_PATTERNS) {
-    if (pattern.test(trimmed)) {
-      return "REJECTION_NONSENSE";
-    }
+    if (pattern.test(trimmed)) return true;
   }
-  
-  return null;
+  return false;
 }
 
-function getSystemPrompt(language: Language): string {
-  if (language === "en") {
-    return `You are a VERY PERMISSIVE validator for an educational business simulation.
+async function gate5PassCriteria(
+  input: string,
+  caseContext: { title: string; objective: string; recentHistory?: string; decisionPrompt?: string },
+  language: Language,
+  model?: SupportedModel
+): Promise<boolean> {
+  const trimmed = input.trim();
 
-Your goal: verify that the student is responding about the case — you do NOT judge quality, depth, or structure.
+  const PRIORITY_PATTERNS = [
+    /\b(priorit|prioriz|lo más importante|mi prioridad|primero|enfoc|optimi)/i,
+    /\b(elijo|escojo|decido|opto por|prefiero|propongo|sugiero|recomiendo)\b/i,
+    /\b(i\s+choose|i\s+decide|i\s+prefer|i\s+suggest|i\s+recommend|my\s+priority|i\s+focus)/i,
+  ];
+  const TRADEOFF_PATTERNS = [
+    /\b(aunque|a pesar|sin embargo|pero|el riesgo|acepto que|sacrific|compromis|trade-?off|costo|desventaja)/i,
+    /\b(although|despite|however|but|risk|accept that|sacrifice|compromise|trade-?off|cost|downside)/i,
+  ];
+  const CASE_REFERENCE_PATTERNS = [
+    /\b(equipo|cliente|presupuesto|tiempo|proyecto|empresa|empleado|stakeholder|proveedor|mercado|producto|servicio)/i,
+    /\b(team|client|budget|time|project|company|employee|stakeholder|supplier|market|product|service)/i,
+  ];
+  const REASONING_PATTERNS = [
+    /\b(porque|ya que|dado que|considerando|debido a|por eso|para|con el fin de)\b/i,
+    /\b(because|since|given that|considering|due to|therefore|in order to|so that)\b/i,
+  ];
 
-ACCEPT if the response has ANY connection to the case:
-- Mentions something related to the topic, company, characters, or situation of the case
-- Proposes some action, decision, or direction (even if brief)
-- Expresses an opinion or stance on the problem
-- Short but relevant responses: "I prioritize quality", "Reduce costs", "I focus on the team" → ACCEPT
-- Long responses that touch on the topic even if they ramble → ACCEPT
+  const hasPriority = PRIORITY_PATTERNS.some(p => p.test(trimmed));
+  const hasTradeoff = TRADEOFF_PATTERNS.some(p => p.test(trimmed));
+  const hasCaseRef = CASE_REFERENCE_PATTERNS.some(p => p.test(trimmed));
+  const hasReasoning = REASONING_PATTERNS.some(p => p.test(trimmed));
 
-REJECT ONLY if the response has NO relation to the case:
-- Meaningless text, random characters, or spam
-- Offensive or inappropriate content
-- Empty or 1-2 generic word responses: "yes", "no", "ok", "I don't know"
-- Completely off-topic responses about something totally different from the case
-- Generic responses that mention NOTHING about the case: "We need to make good decisions", "It's important to analyze"
-
-WHEN IN DOUBT: ALWAYS ACCEPT. Prefer to accept 10 mediocre responses rather than reject 1 valid one.
-
-Respond in JSON:
-{
-  "isValid": true/false,
-  "reason": "brief explanation"
-}`;
+  if (hasPriority || hasTradeoff || hasCaseRef || hasReasoning) {
+    return true;
   }
 
-  return `Eres un validador MUY PERMISIVO para una simulación educativa de negocios.
+  try {
+    const systemPrompt = language === "en"
+      ? `You are a PASS/FAIL classifier for a business simulation. Return JSON only.
+Your job: determine if ANY ONE of these criteria is met:
+(a) States a clear priority or direction
+(b) References a specific case element (person, resource, situation)
+(c) Mentions a trade-off or cost
+(d) Identifies a stakeholder impact
+(e) Articulates a reasoning chain ("X because Y")
 
-Tu objetivo: verificar que el estudiante está respondiendo sobre el caso — NO juzgas calidad, profundidad ni estructura.
+CRITICAL: Word count is NEVER a disqualifier. Grammar/spelling are NEVER criteria. Language mismatch is NEVER a criterion.
+"I'd prioritize clients." = PASS. The threshold is intentionally LOW.
+If ANY one criterion is met → {"pass": true}
+If NONE are met → {"pass": false}
+Return ONLY JSON: {"pass": true/false}`
+      : `Eres un clasificador PASA/NO-PASA para una simulación de negocios. Devuelve solo JSON.
+Tu trabajo: determinar si se cumple AL MENOS UNO de estos criterios:
+(a) Establece una prioridad o dirección clara
+(b) Referencia un elemento específico del caso (persona, recurso, situación)
+(c) Menciona un trade-off o costo
+(d) Identifica un impacto en stakeholders
+(e) Articula una cadena de razonamiento ("X porque Y")
 
-ACEPTA si la respuesta tiene CUALQUIER conexión con el caso:
-- Menciona algo relacionado con el tema, la empresa, los personajes o la situación del caso
-- Propone alguna acción, decisión o dirección (aunque sea breve)
-- Expresa una opinión o postura sobre el problema
-- Respuestas cortas pero relevantes: "Priorizo la calidad", "Reducir costos", "Me enfoco en el equipo" → ACEPTA
-- Respuestas largas que tocan el tema aunque divaguen → ACEPTA
+CRÍTICO: La cantidad de palabras NUNCA es un descalificador. La gramática/ortografía NUNCA son criterios. "Priorizaría clientes." = PASA.
+Si se cumple CUALQUIER criterio → {"pass": true}
+Si NO se cumple NINGUNO → {"pass": false}
+Devuelve SOLO JSON: {"pass": true/false}`;
 
-RECHAZA SOLO si la respuesta NO tiene NINGUNA relación con el caso:
-- Texto sin sentido, caracteres aleatorios o spam
-- Contenido ofensivo o inapropiado
-- Respuestas vacías o de 1-2 palabras genéricas: "sí", "no", "ok", "no sé"
-- Respuestas completamente fuera de tema que hablan de algo totalmente diferente al caso (ej: si el caso es sobre marketing y el estudiante habla de lanzar cohetes al espacio)
-- Respuestas genéricas que NO mencionan nada del caso: "Hay que tomar buenas decisiones", "Es importante analizar"
-
-EN CASO DE DUDA: SIEMPRE ACEPTA. Prefiere aceptar 10 respuestas mediocres antes que rechazar 1 respuesta válida.
-
-Responde en JSON:
-{
-  "isValid": true/false,
-  "reason": "breve explicación"
-}`;
-}
-
-function getUserPrompt(input: string, caseContext: { title: string; objective: string; recentHistory?: string }, language: Language): string {
-  if (language === "en") {
-    return `CASE: ${caseContext.title}
+    const userPrompt = `CASE: ${caseContext.title}
 OBJECTIVE: ${caseContext.objective}
+${caseContext.decisionPrompt ? `CURRENT DECISION: ${caseContext.decisionPrompt}` : ""}
 ${caseContext.recentHistory ? `RECENT CONTEXT:\n${caseContext.recentHistory}` : ""}
 
-STUDENT RESPONSE:
-"${input}"
+STUDENT INPUT: "${trimmed}"
 
-Does the response show reasoning connected to the case? Respond in JSON.`;
+Does it meet ANY one criterion? JSON only.`;
+
+    const response = await generateChatCompletion(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      { responseFormat: "json", maxTokens: 64, model: model || "gpt-4o-mini", agentName: "inputClassifier" }
+    );
+    const parsed = JSON.parse(response);
+    return parsed.pass === true;
+  } catch (error) {
+    console.error("[InputClassifier] Gate 5 LLM error, defaulting to PASS:", error);
+    return true;
   }
-
-  return `CASO: ${caseContext.title}
-OBJETIVO: ${caseContext.objective}
-${caseContext.recentHistory ? `CONTEXTO RECIENTE:\n${caseContext.recentHistory}` : ""}
-
-RESPUESTA DEL ESTUDIANTE:
-"${input}"
-
-¿La respuesta muestra razonamiento conectado al caso? Responde en JSON.`;
 }
 
-async function llmValidation(
+async function gate6Engagement(
   input: string,
   caseContext: { title: string; objective: string; recentHistory?: string },
   language: Language,
   model?: SupportedModel
-): Promise<InputValidationResult> {
-  const messages = REJECTION_MESSAGES[language];
-
+): Promise<boolean> {
   try {
+    const systemPrompt = language === "en"
+      ? `You are checking if a student shows ANY case engagement despite not meeting formal criteria.
+Does the response show they are TRYING to engage with a business case (even poorly)?
+{"engaged": true} if there's any sign of case engagement.
+{"engaged": false} if the response is completely unrelated, random, or meaningless.
+Return ONLY JSON.`
+      : `Estás verificando si un estudiante muestra CUALQUIER engagement con el caso aunque no cumpla criterios formales.
+¿La respuesta muestra que INTENTA participar en un caso de negocios (incluso pobremente)?
+{"engaged": true} si hay cualquier señal de engagement con el caso.
+{"engaged": false} si la respuesta es completamente irrelevante, aleatoria o sin sentido.
+Devuelve SOLO JSON.`;
+
+    const userPrompt = `CASE: ${caseContext.title}
+OBJECTIVE: ${caseContext.objective}
+${caseContext.recentHistory ? `CONTEXT:\n${caseContext.recentHistory}` : ""}
+
+STUDENT INPUT: "${input.trim()}"
+
+JSON only.`;
+
     const response = await generateChatCompletion(
       [
-        { role: "system", content: getSystemPrompt(language) },
-        { role: "user", content: getUserPrompt(input, caseContext, language) }
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
-      { 
-        responseFormat: "json",
-        model: model || "gpt-4o-mini",
-        agentName: "inputValidator"
-      }
+      { responseFormat: "json", maxTokens: 64, model: model || "gpt-4o-mini", agentName: "inputClassifier" }
     );
-
-    const result = JSON.parse(response);
-    
-    if (!result.isValid) {
-      return {
-        isValid: false,
-        rejectionReason: result.reason,
-        userMessage: messages.DEFAULT
-      };
-    }
-    
-    return { isValid: true };
-    
+    const parsed = JSON.parse(response);
+    return parsed.engaged === true;
   } catch (error) {
-    console.error("[InputValidator] LLM validation error:", error);
-    return { isValid: true };
+    console.error("[InputClassifier] Gate 6 LLM error, defaulting to engaged:", error);
+    return true;
   }
 }
 
-function getS6BRejectionReason(type: string, language: Language): string {
-  const messages = REJECTION_MESSAGES[language];
-  return messages[type] || messages.DEFAULT;
+function pickNudgeQuestions(language: Language): string[] {
+  const pool = NUDGE_QUESTION_POOL[language];
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 2);
+}
+
+export async function classifyInput(
+  input: string,
+  context: ClassificationContext,
+  options?: { model?: SupportedModel; language?: Language }
+): Promise<InputClassificationResult> {
+  const language: Language = options?.language || "es";
+
+  if (context.isMcq) {
+    return {
+      classification: "PASS",
+      classification_rationale: "MCQ input — always PASS, no classification gates applied.",
+    };
+  }
+
+  if (context.nudgeCount >= 2) {
+    return {
+      classification: "PASS",
+      classification_rationale: `Nudge counter reached ${context.nudgeCount} for decision point ${context.currentDecision}. Force PASS applied.`,
+    };
+  }
+
+  if (gate1Empty(input)) {
+    return {
+      classification: "BLOCK",
+      block_reason: "empty",
+      classification_rationale: "Gate 1: Input is empty or whitespace only.",
+      redirect_message: BLOCK_MESSAGES[language].empty,
+    };
+  }
+
+  if (gate2Profanity(input)) {
+    return {
+      classification: "BLOCK",
+      block_reason: "safety",
+      classification_rationale: "Gate 2: Input contains profane or hostile language.",
+      redirect_message: BLOCK_MESSAGES[language].safety,
+    };
+  }
+
+  if (gate3Injection(input)) {
+    return {
+      classification: "BLOCK",
+      block_reason: "integrity",
+      classification_rationale: "Gate 3: Prompt injection pattern detected.",
+      redirect_message: BLOCK_MESSAGES[language].integrity,
+      integrity_flag: true,
+    };
+  }
+
+  if (gate4OffTopicOrSpam(input)) {
+    return {
+      classification: "BLOCK",
+      block_reason: "off_topic",
+      classification_rationale: "Gate 4: Input is random characters, spam, or nonsense pattern.",
+      redirect_message: BLOCK_MESSAGES[language].off_topic,
+    };
+  }
+
+  const passResult = await gate5PassCriteria(
+    input,
+    {
+      title: context.title,
+      objective: context.objective,
+      recentHistory: context.recentHistory,
+      decisionPrompt: context.decisionPrompt,
+    },
+    language,
+    options?.model
+  );
+
+  if (passResult) {
+    return {
+      classification: "PASS",
+      classification_rationale: "Gate 5: Input meets at least one PASS criterion.",
+    };
+  }
+
+  const engagementResult = await gate6Engagement(
+    input,
+    { title: context.title, objective: context.objective, recentHistory: context.recentHistory },
+    language,
+    options?.model
+  );
+
+  if (engagementResult) {
+    return {
+      classification: "NUDGE",
+      classification_rationale: "Gate 6: Shows case engagement but no formal PASS criterion met.",
+      nudge_questions: pickNudgeQuestions(language),
+    };
+  }
+
+  return {
+    classification: "BLOCK",
+    block_reason: "insufficient_engagement",
+    classification_rationale: "Gate 6: No case engagement detected.",
+    redirect_message: BLOCK_MESSAGES[language].insufficient_engagement,
+  };
 }
 
 export async function validateSimulationInput(
   input: string,
-  caseContext: { 
-    title: string; 
-    objective: string; 
+  caseContext: {
+    title: string;
+    objective: string;
     recentHistory?: string;
   },
-  options?: { 
-    skipLlmValidation?: boolean; 
+  options?: {
+    skipLlmValidation?: boolean;
     model?: SupportedModel;
     language?: Language;
   }
 ): Promise<InputValidationResult> {
   const language: Language = options?.language || "es";
-  
-  const quickResult = quickValidation(input);
-  if (quickResult) {
-    console.log("[InputValidator] Quick validation failed:", quickResult);
-    return {
-      isValid: false,
-      rejectionReason: quickResult,
-      userMessage: getS6BRejectionReason(quickResult, language)
-    };
+  const result = await classifyInput(input, {
+    title: caseContext.title,
+    objective: caseContext.objective,
+    recentHistory: caseContext.recentHistory,
+    nudgeCount: 0,
+    currentDecision: 1,
+    isMcq: false,
+  }, { model: options?.model, language });
+
+  if (result.classification === "PASS") {
+    return { isValid: true };
   }
-  
-  if (!options?.skipLlmValidation) {
-    const llmResult = await llmValidation(input, caseContext, language, options?.model);
-    if (!llmResult.isValid) {
-      console.log("[InputValidator] LLM validation failed:", llmResult.rejectionReason);
-      return {
-        ...llmResult,
-        userMessage: REJECTION_MESSAGES[language].DEFAULT
-      };
-    }
-  }
-  
-  return { isValid: true };
+  return {
+    isValid: false,
+    rejectionReason: result.classification_rationale,
+    userMessage: result.redirect_message || BLOCK_MESSAGES[language].off_topic,
+  };
 }

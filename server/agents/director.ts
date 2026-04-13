@@ -1,9 +1,11 @@
-import type { AgentContext, DirectorOutput } from "./types";
+import type { AgentContext, DirectorOutput, InputClassificationResult, DecisionEvidenceLog } from "./types";
+import { RDSBand } from "./types";
 import type { KPIs, SimulationState, TurnResponse, HistoryEntry } from "@shared/schema";
 import { evaluateDecision } from "./evaluator";
 import { calculateKPIImpact } from "./domainExpert";
 import { generateNarrative } from "./narrator";
-import { evaluateDepth } from "./depthEvaluator";
+import { classifyInput, type ClassificationContext } from "./inputValidator";
+import { extractSignals } from "./signalExtractor";
 import { generateChatCompletion, SupportedModel } from "../openai";
 import { HARD_PROHIBITIONS, MENTOR_TONE, MISUSE_HANDLING, getLanguageDirective } from "./guardrails";
 import { storage } from "../storage";
@@ -26,26 +28,6 @@ PRINCIPIOS FUNDAMENTALES:
 3. INTERPRETA CREATIVAMENTE - Encuentra la decisión empresarial oculta en cualquier declaración
 4. NUNCA RECHACES - Transforma entradas poco claras en interpretaciones accionables
 
-EJEMPLOS DE INTERPRETACIONES VÁLIDAS:
-- "empjuar a los desarrolladores" → VÁLIDO: "Presionar a los desarrolladores para terminar a tiempo" (error obvio)
-- "darles café todos los días" → VÁLIDO: Mejorar amenidades del lugar de trabajo/moral
-- "no sé quizás retrasarlo" → VÁLIDO: Considerar retrasar el proyecto/fecha límite
-- "despedir a todos jaja" → VÁLIDO: Reducción dramática de costos/reestructuración (explorar consecuencias)
-- "qué tal si mentimos" → VÁLIDO: Enfoque ético cuestionable (explorar consecuencias)
-- "seguir adelante sin importar qué" → VÁLIDO: Estrategia agresiva de cumplimiento de fechas
-- "lo de arriba es mi decisión" → VÁLIDO: Referenciando su declaración anterior como su decisión
-- "ya respondí la pregunta" → VÁLIDO: Su mensaje anterior era su acción pretendida
-- Respuestas aleatorias/tontas → VÁLIDO: Interpretar como un enfoque empresarial no convencional y mostrar consecuencias
-
-ENTRADAS PARA MARCAR PARA ACLARACIÓN (aún raras):
-- Galimatías completo sin significado interpretable: "asdfghjkl"
-- Contenido que promueve violencia, actividades ilegales o acoso que no puede reformularse como decisión empresarial
-- Contenido completamente no relacionado con cualquier contexto profesional/empresarial
-
-Nota: Las decisiones empresariales arriesgadas o éticamente cuestionables SON VÁLIDAS (ej., "despedir a todos", "mentirle a los clientes") - deja que las consecuencias enseñen. Solo marca contenido verdaderamente dañino/fuera de tema.
-
-IMPORTANTE: Si la entrada no es válida, el helpfulPrompt debe estar en ESPAÑOL.
-
 FORMATO DE SALIDA (solo JSON):
 {
   "isValid": true,
@@ -56,10 +38,8 @@ FORMATO DE SALIDA (solo JSON):
 Para el caso extremadamente raro de inválido:
 {
   "isValid": false,
-  "helpfulPrompt": "<pregunta atractiva en español para regresarlos al camino>"
-}
-
-Recuerda: Una simulación empresarial creativa debe poder manejar CUALQUIER decisión y mostrar consecuencias interesantes. Tu trabajo es habilitar el juego, no bloquearlo.`;
+  "helpfulPrompt": "<pregunta atractiva para regresarlos al camino>"
+}`;
 
 async function interpretIntent(
   input: string,
@@ -127,7 +107,6 @@ function applyKPIDeltas(currentKpis: KPIs, deltas: Record<string, number>): KPIs
 }
 
 function checkGameOver(kpis: KPIs, context?: AgentContext): boolean {
-  // Check for KPI-based game over
   const kpiGameOver = (
     kpis.morale < 20 ||
     kpis.reputation < 20 ||
@@ -135,17 +114,9 @@ function checkGameOver(kpis: KPIs, context?: AgentContext): boolean {
     kpis.trust < 20 ||
     kpis.revenue < 10000
   );
-  
-  // S9.1: Decision limit check now handled separately from reflection step
-  // Game over from KPIs only - decision completion leads to reflection step instead
   return kpiGameOver;
 }
 
-/**
- * S9.1: Loose reflection validation
- * Only reject: profanity, empty, or completely unrelated spam
- * Accept everything else - we want authentic reflection, not quota-writing
- */
 function validateReflection(input: string, language?: "es" | "en"): { isValid: boolean; message?: string } {
   const trimmed = input.trim();
   const isEn = language === "en";
@@ -191,11 +162,6 @@ function validateReflection(input: string, language?: "es" | "en"): { isValid: b
   return { isValid: true };
 }
 
-/**
- * S9.1: Process reflection (Step 4)
- * Loose validation - only reject profanity/empty/spam
- * Non-blocking nudge for depth if desired
- */
 export async function processReflection(
   context: AgentContext
 ): Promise<DirectorOutput> {
@@ -238,7 +204,7 @@ export async function processReflection(
         rubricScores: {},
         currentDecision: context.currentDecision,
         isComplete: false,
-        isReflectionStep: true, // Still in reflection step
+        isReflectionStep: true,
         reflectionCompleted: false,
         pendingRevision: false,
         revisionAttempts: 0,
@@ -278,7 +244,7 @@ export async function processReflection(
       score: 100,
       message: isEn ? "Reflection completed" : "Reflexión completada",
     },
-    isGameOver: true, // Simulation is now truly complete
+    isGameOver: true,
     turnStatus: "pass",
     updatedState: {
       turnCount: context.turnCount + 1,
@@ -288,9 +254,9 @@ export async function processReflection(
       flags: [],
       rubricScores: {},
       currentDecision: context.currentDecision,
-      isComplete: true, // Now complete
-      isReflectionStep: false, // No longer in reflection step
-      reflectionCompleted: true, // Reflection done
+      isComplete: true,
+      isReflectionStep: false,
+      reflectionCompleted: true,
       pendingRevision: false,
       revisionAttempts: 0,
     },
@@ -301,6 +267,175 @@ export async function processStudentTurn(
   context: AgentContext,
   revisionAttempts: number = 0
 ): Promise<DirectorOutput> {
+  const isEn = context.language === "en";
+  const currentDecisionNum = context.currentDecision || context.turnCount + 1;
+  const totalDecisions = context.totalDecisions || 0;
+  const decisionPoint = context.decisionPoints?.find(dp => dp.number === currentDecisionNum);
+  const isMcq = decisionPoint?.format === "multiple_choice";
+
+  const recentHistory = (context.history as HistoryEntry[])
+    .slice(-4)
+    .map(h => `${h.role}: ${h.content}`)
+    .join("\n");
+
+  const nudgeCounters = (context as any).nudgeCounters || {};
+  const currentNudgeCount = nudgeCounters[currentDecisionNum] || 0;
+
+  const classificationStart = Date.now();
+  const classificationResult = await classifyInput(
+    context.studentInput,
+    {
+      title: context.scenario.title,
+      objective: context.scenario.objective,
+      recentHistory,
+      decisionPrompt: decisionPoint?.prompt,
+      nudgeCount: currentNudgeCount,
+      currentDecision: currentDecisionNum,
+      isMcq,
+    },
+    { model: context.llmModel, language: context.language }
+  );
+
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: currentDecisionNum,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      agentName: "inputClassifier",
+      durationMs: Date.now() - classificationStart,
+      classification: classificationResult.classification,
+      block_reason: classificationResult.block_reason,
+      rationale: classificationResult.classification_rationale,
+      integrity_flag: classificationResult.integrity_flag,
+      nudgeCount: currentNudgeCount,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log inputClassifier agent_call:", err));
+
+  if (classificationResult.classification === "BLOCK") {
+    const redirectMsg = classificationResult.redirect_message ||
+      (isEn ? "Please share your perspective on the decision you're facing." : "Por favor, comparte tu perspectiva sobre la decisión que enfrentas.");
+
+    const updatedHistory: HistoryEntry[] = [
+      ...context.history as HistoryEntry[],
+      {
+        role: "user",
+        content: context.studentInput,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        role: "system",
+        content: redirectMsg,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    const updatedIntegrityFlags = [...(context as any).integrityFlags || []];
+    if (classificationResult.integrity_flag) {
+      updatedIntegrityFlags.push(true);
+    }
+
+    storage.createTurnEvent({
+      sessionId: context.sessionId,
+      eventType: "input_rejected",
+      turnNumber: currentDecisionNum,
+      rawStudentInput: context.studentInput,
+      eventData: {
+        classification: "BLOCK",
+        block_reason: classificationResult.block_reason,
+        redirect_message: redirectMsg,
+        integrity_flag: classificationResult.integrity_flag,
+      },
+    }).catch(err => console.error("[TurnEvent] Failed to log input_rejected:", err));
+
+    return {
+      narrative: {
+        text: redirectMsg,
+        mood: "neutral",
+      },
+      kpiUpdates: {},
+      feedback: {
+        score: 0,
+        message: "",
+      },
+      isGameOver: false,
+      turnStatus: "block",
+      updatedState: {
+        turnCount: context.turnCount,
+        kpis: context.currentKpis,
+        indicators: context.indicators,
+        history: updatedHistory,
+        flags: [],
+        rubricScores: {},
+        currentDecision: context.currentDecision,
+        pendingRevision: false,
+        revisionAttempts: 0,
+        nudgeCounters: nudgeCounters,
+        integrityFlags: updatedIntegrityFlags.length > 0 ? updatedIntegrityFlags : undefined,
+      },
+    };
+  }
+
+  if (classificationResult.classification === "NUDGE") {
+    const questions = classificationResult.nudge_questions || [];
+    const nudgeText = questions.join("\n");
+
+    const updatedNudgeCounters = { ...nudgeCounters, [currentDecisionNum]: currentNudgeCount + 1 };
+
+    const nudgeHistory: HistoryEntry[] = [
+      ...context.history as HistoryEntry[],
+      {
+        role: "user",
+        content: context.studentInput,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    storage.createTurnEvent({
+      sessionId: context.sessionId,
+      eventType: "agent_call",
+      turnNumber: currentDecisionNum,
+      rawStudentInput: context.studentInput,
+      eventData: {
+        agentName: "nudge",
+        classification: "NUDGE",
+        nudge_questions: questions,
+        nudge_count: currentNudgeCount + 1,
+      },
+    }).catch(err => console.error("[TurnEvent] Failed to log nudge:", err));
+
+    return {
+      narrative: {
+        text: nudgeText,
+        mood: "neutral",
+      },
+      kpiUpdates: {},
+      feedback: {
+        score: 0,
+        message: "",
+      },
+      isGameOver: false,
+      turnStatus: "nudge",
+      requiresRevision: true,
+      revisionPrompt: nudgeText,
+      revisionAttempt: currentNudgeCount + 1,
+      maxRevisions: MAX_REVISIONS,
+      updatedState: {
+        turnCount: context.turnCount,
+        kpis: context.currentKpis,
+        indicators: context.indicators,
+        history: nudgeHistory,
+        flags: [],
+        rubricScores: {},
+        currentDecision: context.currentDecision,
+        pendingRevision: true,
+        revisionAttempts: currentNudgeCount + 1,
+        lastStudentInput: context.studentInput,
+        nudgeCounters: updatedNudgeCounters,
+      },
+    };
+  }
+
   const intentStart = Date.now();
   const intentResult = await interpretIntent(
     context.studentInput,
@@ -311,7 +446,7 @@ export async function processStudentTurn(
   storage.createTurnEvent({
     sessionId: context.sessionId,
     eventType: "agent_call",
-    turnNumber: context.currentDecision || context.turnCount + 1,
+    turnNumber: currentDecisionNum,
     rawStudentInput: context.studentInput,
     eventData: {
       agentName: "director",
@@ -323,29 +458,22 @@ export async function processStudentTurn(
   }).catch(err => console.error("[TurnEvent] Failed to log director agent_call:", err));
 
   if (!intentResult.isValid) {
-    const defaultHelp = context.language === "en"
-      ? "I want to help you navigate this situation! What action would you like to take? You can try anything - negotiate, investigate, make bold decisions, or even unconventional approaches."
-      : "¡Quiero ayudarte a navegar esta situación! ¿Qué acción te gustaría tomar? Puedes intentar cualquier cosa - negociar, investigar, tomar decisiones audaces, o incluso enfoques no convencionales.";
+    const defaultHelp = isEn
+      ? "I want to help you navigate this situation! What action would you like to take?"
+      : "¡Quiero ayudarte a navegar esta situación! ¿Qué acción te gustaría tomar?";
     const helpPrompt = intentResult.helpfulPrompt || defaultHelp;
-    
-    const updatedHistory: HistoryEntry[] = [
+
+    const updatedNudgeCounters = { ...nudgeCounters, [currentDecisionNum]: currentNudgeCount + 1 };
+
+    const nudgeHistory: HistoryEntry[] = [
       ...context.history as HistoryEntry[],
       {
         role: "user",
         content: context.studentInput,
         timestamp: new Date().toISOString(),
       },
-      {
-        role: "system",
-        content: helpPrompt,
-        timestamp: new Date().toISOString(),
-      },
     ];
-    
-    const feedbackMsg = context.language === "en"
-      ? "Tell me what you want to do and I'll make it happen in the simulation!"
-      : "¡Cuéntame qué quieres hacer y lo haré realidad en la simulación!";
-    
+
     return {
       narrative: {
         text: helpPrompt,
@@ -354,106 +482,69 @@ export async function processStudentTurn(
       kpiUpdates: {},
       feedback: {
         score: 0,
-        message: feedbackMsg,
-      },
-      isGameOver: false,
-      turnStatus: "block",
-      updatedState: {
-        turnCount: context.turnCount,
-        kpis: context.currentKpis,
-        history: updatedHistory,
-        flags: [],
-        rubricScores: {},
-        pendingRevision: false,
-        revisionAttempts: 0,
-      },
-    };
-  }
-
-  const interpretedContext = {
-    ...context,
-    studentInput: intentResult.interpretedAction || context.studentInput,
-  };
-
-  const depthStart = Date.now();
-  const depthResult = await evaluateDepth(
-    interpretedContext,
-    revisionAttempts,
-    { model: context.llmModel }
-  );
-  storage.createTurnEvent({
-    sessionId: context.sessionId,
-    eventType: "agent_call",
-    turnNumber: context.currentDecision || context.turnCount + 1,
-    rawStudentInput: context.studentInput,
-    eventData: {
-      agentName: "depthEvaluator",
-      durationMs: Date.now() - depthStart,
-      isDeepEnough: depthResult.isDeepEnough,
-      strengthsAcknowledged: depthResult.strengthsAcknowledged,
-      revisionPrompt: depthResult.revisionPrompt,
-      revisionAttempts,
-    },
-  }).catch(err => console.error("[TurnEvent] Failed to log depthEvaluator agent_call:", err));
-
-  if (!depthResult.isDeepEnough && depthResult.revisionPrompt) {
-    // Answer is weak - ask for revision without showing consequences
-    const revisionHistory: HistoryEntry[] = [
-      ...context.history as HistoryEntry[],
-      {
-        role: "user",
-        content: context.studentInput,
-        timestamp: new Date().toISOString(),
-      },
-      {
-        role: "system",
-        content: depthResult.revisionPrompt,
-        timestamp: new Date().toISOString(),
-      },
-    ];
-
-    return {
-      narrative: {
-        text: depthResult.revisionPrompt,
-        mood: "neutral",
-      },
-      kpiUpdates: {},
-      feedback: {
-        score: 0,
-        message: depthResult.strengthsAcknowledged || "",
+        message: "",
       },
       isGameOver: false,
       turnStatus: "nudge",
       requiresRevision: true,
-      revisionPrompt: depthResult.revisionPrompt,
-      revisionAttempt: revisionAttempts + 1,
+      revisionPrompt: helpPrompt,
+      revisionAttempt: currentNudgeCount + 1,
       maxRevisions: MAX_REVISIONS,
       updatedState: {
         turnCount: context.turnCount,
         kpis: context.currentKpis,
         indicators: context.indicators,
-        history: revisionHistory,
+        history: nudgeHistory,
         flags: [],
         rubricScores: {},
         currentDecision: context.currentDecision,
         pendingRevision: true,
-        revisionAttempts: revisionAttempts + 1,
+        revisionAttempts: currentNudgeCount + 1,
         lastStudentInput: context.studentInput,
+        nudgeCounters: updatedNudgeCounters,
       },
     };
   }
 
+  const interpretedContext: AgentContext = {
+    ...context,
+    studentInput: intentResult.interpretedAction || context.studentInput,
+  };
+
+  const signalStart = Date.now();
+  const evidenceLog = await extractSignals(interpretedContext);
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: currentDecisionNum,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      agentName: "signalExtractor",
+      durationMs: Date.now() - signalStart,
+      rds_score: evidenceLog.rds_score,
+      rds_band: evidenceLog.rds_band,
+      signals: evidenceLog.raw_signal_scores,
+      competency_evidence: evidenceLog.competency_evidence,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log signalExtractor agent_call:", err));
+
+  const contextWithRDS: AgentContext = {
+    ...interpretedContext,
+    rdsBand: evidenceLog.rds_band,
+    signalExtractionResult: evidenceLog.signals_detected,
+  };
+
   const agentsStart = Date.now();
   const [evaluation, kpiImpact] = await Promise.all([
-    evaluateDecision(interpretedContext),
-    calculateKPIImpact(interpretedContext),
+    evaluateDecision(contextWithRDS),
+    calculateKPIImpact(contextWithRDS),
   ]);
   const agentsDuration = Date.now() - agentsStart;
 
   storage.createTurnEvent({
     sessionId: context.sessionId,
     eventType: "agent_call",
-    turnNumber: context.currentDecision || context.turnCount + 1,
+    turnNumber: currentDecisionNum,
     rawStudentInput: context.studentInput,
     eventData: {
       agentName: "evaluator",
@@ -469,7 +560,7 @@ export async function processStudentTurn(
   storage.createTurnEvent({
     sessionId: context.sessionId,
     eventType: "agent_call",
-    turnNumber: context.currentDecision || context.turnCount + 1,
+    turnNumber: currentDecisionNum,
     rawStudentInput: context.studentInput,
     eventData: {
       agentName: "domainExpert",
@@ -482,8 +573,8 @@ export async function processStudentTurn(
 
   const newKpis = applyKPIDeltas(context.currentKpis, kpiImpact.kpiDeltas);
 
-  const narrativeContext = {
-    ...interpretedContext,
+  const narrativeContext: AgentContext = {
+    ...contextWithRDS,
     currentKpis: newKpis,
   };
   const narrativeStart = Date.now();
@@ -491,7 +582,7 @@ export async function processStudentTurn(
   storage.createTurnEvent({
     sessionId: context.sessionId,
     eventType: "agent_call",
-    turnNumber: context.currentDecision || context.turnCount + 1,
+    turnNumber: currentDecisionNum,
     rawStudentInput: context.studentInput,
     eventData: {
       agentName: "narrator",
@@ -503,7 +594,7 @@ export async function processStudentTurn(
     },
   }).catch(err => console.error("[TurnEvent] Failed to log narrator agent_call:", err));
 
-  const isGameOver = checkGameOver(newKpis, interpretedContext);
+  const isGameOver = checkGameOver(newKpis, contextWithRDS);
 
   const kpiUpdates: Record<string, { value: number; delta: number }> = {};
   const kpiKeys: (keyof KPIs)[] = ["revenue", "morale", "reputation", "efficiency", "trust"];
@@ -531,9 +622,7 @@ export async function processStudentTurn(
     },
   ];
 
-  const currentDecisionNum = context.currentDecision || context.turnCount + 1;
   const nextDecision = currentDecisionNum + 1;
-  const totalDecisions = context.totalDecisions || 0;
   const decisionsComplete = totalDecisions > 0 && nextDecision > totalDecisions;
   
   const updatedIndicators = (context.indicators || []).map((indicator: any) => {
@@ -544,6 +633,20 @@ export async function processStudentTurn(
     };
   });
 
+  const existingEvidenceLogs = (context as any).decisionEvidenceLogs || [];
+
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "input_accepted",
+    turnNumber: currentDecisionNum,
+    rawStudentInput: context.studentInput,
+    eventData: {
+      classification: "PASS",
+      rds_score: evidenceLog.rds_score,
+      rds_band: evidenceLog.rds_band,
+    },
+  }).catch(err => console.error("[TurnEvent] Failed to log input_accepted:", err));
+
   const updatedState: SimulationState = {
     turnCount: context.turnCount + 1,
     kpis: newKpis,
@@ -552,12 +655,13 @@ export async function processStudentTurn(
     flags: [...(context.history as any).flags || [], ...evaluation.flags],
     rubricScores: evaluation.competencyScores,
     currentDecision: decisionsComplete ? totalDecisions : nextDecision,
-    // S9.1: If decisions are done but no game over, move to reflection step
-    isComplete: isGameOver, // Only complete on game over
-    isReflectionStep: decisionsComplete && !isGameOver, // Start reflection step
+    isComplete: isGameOver,
+    isReflectionStep: decisionsComplete && !isGameOver,
     reflectionCompleted: false,
     pendingRevision: false,
     revisionAttempts: 0,
+    decisionEvidenceLogs: [...existingEvidenceLogs, evidenceLog],
+    nudgeCounters: nudgeCounters,
   };
 
   return {
@@ -574,7 +678,6 @@ export async function processStudentTurn(
     turnStatus: "pass",
     competencyScores: evaluation.competencyScores,
     requiresRevision: false,
-    // POC "Why?" Explainability
     metricExplanations: kpiImpact.metricExplanations,
     updatedState,
   };
