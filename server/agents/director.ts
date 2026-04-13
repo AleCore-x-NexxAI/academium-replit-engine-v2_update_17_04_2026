@@ -263,8 +263,35 @@ export async function processReflection(
   };
 }
 
-function buildMcqSignals(decisionPoint?: DecisionPoint): SignalExtractionResult {
-  const tradeoffSignature = decisionPoint?.tradeoffSignature;
+function resolveOptionSignature(
+  studentInput: string,
+  decisionPoint?: DecisionPoint,
+): import("@shared/schema").TradeoffSignature | undefined {
+  if (!decisionPoint) return undefined;
+
+  const optionSignatures = decisionPoint.optionSignatures;
+  if (optionSignatures) {
+    const trimmed = studentInput.trim().toLowerCase();
+    for (const [optionKey, signature] of Object.entries(optionSignatures)) {
+      if (trimmed === optionKey.toLowerCase() || trimmed.includes(optionKey.toLowerCase())) {
+        return signature;
+      }
+    }
+    const options = decisionPoint.options || [];
+    for (let i = 0; i < options.length; i++) {
+      const optText = options[i].toLowerCase();
+      if (trimmed === optText || trimmed.includes(optText) || optText.includes(trimmed)) {
+        const sig = optionSignatures[options[i]] || optionSignatures[String(i)] || optionSignatures[String(i + 1)];
+        if (sig) return sig;
+      }
+    }
+  }
+
+  return decisionPoint.tradeoffSignature;
+}
+
+function buildMcqSignals(studentInput: string, decisionPoint?: DecisionPoint): SignalExtractionResult {
+  const tradeoffSignature = resolveOptionSignature(studentInput, decisionPoint);
   const hasTradeoff = tradeoffSignature &&
     tradeoffSignature.dimension && tradeoffSignature.cost && tradeoffSignature.benefit;
   const absent = { quality: SignalQuality.ABSENT, extracted_text: "" };
@@ -479,7 +506,7 @@ export async function processStudentTurn(
   let evidenceLog: DecisionEvidenceLog;
 
   if (isMcq) {
-    const mcqSignals = buildMcqSignals(decisionPoint);
+    const mcqSignals = buildMcqSignals(context.studentInput, decisionPoint);
     evidenceLog = {
       signals_detected: mcqSignals,
       rds_score: null,

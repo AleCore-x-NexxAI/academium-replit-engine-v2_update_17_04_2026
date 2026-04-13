@@ -245,6 +245,7 @@ export interface DecisionPoint {
   thinkingScaffold?: string[];
   depthStrictness?: "lenient" | "standard" | "strict";
   tradeoffSignature?: TradeoffSignature;
+  optionSignatures?: Record<string, TradeoffSignature>;
 }
 
 // POC Indicator - Constitution Section 9: each indicator has name, definition, directionality, and tooltip
