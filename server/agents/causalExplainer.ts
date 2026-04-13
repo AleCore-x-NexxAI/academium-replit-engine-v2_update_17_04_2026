@@ -109,8 +109,15 @@ Genera una explicación causal para CADA indicador mostrado. Devuelve JSON:
       { responseFormat: "json", maxTokens: 768, model: "gpt-4o-mini", agentName: "causalExplainer", sessionId: parseInt(context.sessionId) || undefined }
     );
 
-    const parsed = JSON.parse(response);
-    const explanations: CausalExplanation[] = (parsed.explanations || []).map((e: any) => ({
+    const parsed = JSON.parse(response) as {
+      explanations?: Array<{
+        indicatorId?: string;
+        decisionReference?: string;
+        causalMechanism?: string;
+        directionalConnection?: string;
+      }>;
+    };
+    const explanations: CausalExplanation[] = (parsed.explanations || []).map(e => ({
       indicatorId: e.indicatorId || "",
       decisionReference: e.decisionReference || "",
       causalMechanism: e.causalMechanism || "",

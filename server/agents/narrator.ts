@@ -154,7 +154,7 @@ export async function generateNarrative(
 
   const stakeholderNames = context.scenario.stakeholders?.map(s => `${s.name} (${s.role})`).join(", ") || "";
 
-  const previousDecisions = (context.history as any[])
+  const previousDecisions = context.history
     .filter(h => h.role === "user")
     .map((h, i) => `Decisión ${i + 1}: "${h.content}"`)
     .join("\n");
@@ -210,17 +210,55 @@ Genera una narrativa de consecuencias con los 4 elementos. Devuelve SOLO JSON v�
   );
 
   try {
-    const parsed = JSON.parse(response);
+    type NarratorMood = "neutral" | "positive" | "negative" | "crisis";
+    const validMoods: NarratorMood[] = ["neutral", "positive", "negative", "crisis"];
+
+    const parsed = JSON.parse(response) as {
+      text?: string;
+      mood?: string;
+    };
     let text = parsed.text || "La decisión ha sido registrada. La situación continúa evolucionando.";
+    const mood: NarratorMood = validMoods.includes(parsed.mood as NarratorMood) ? parsed.mood as NarratorMood : "neutral";
+
+    text = text.replace(/!/g, ".");
 
     const violations = scanProhibitedLanguage(text);
     if (violations.length > 0) {
-      text = text.replace(/!/g, ".");
+      for (const pattern of PROHIBITED_PATTERNS) {
+        if (pattern.source === "!") continue;
+        text = text.replace(pattern, "");
+      }
+      text = text.replace(/\s{2,}/g, " ").trim();
+
+      const postRepairViolations = scanProhibitedLanguage(text);
+      if (postRepairViolations.length > 0) {
+        console.warn(`[Narrator] ${postRepairViolations.length} violations remain after repair, regenerating`);
+        try {
+          const retryResponse = await generateChatCompletion(
+            [
+              { role: "system", content: systemPrompt + "\n\nCRITICAL: Your previous response was rejected for prohibited language. Do NOT use evaluative, value-laden, or prescriptive words. No exclamation marks. No 'correcto', 'incorrecto', 'ideal', 'buena/mala decisión', 'bien hecho', 'deberías haber', 'desafortunadamente', 'afortunadamente'. Be purely observational." },
+              { role: "user", content: userPrompt },
+            ],
+            { responseFormat: "json", maxTokens: 768, model: context.llmModel, agentName: "narrator", sessionId: parseInt(context.sessionId) || undefined }
+          );
+          const retryParsed = JSON.parse(retryResponse) as { text?: string; mood?: string };
+          if (retryParsed.text) {
+            let retryText = retryParsed.text.replace(/!/g, ".");
+            for (const pattern of PROHIBITED_PATTERNS) {
+              if (pattern.source === "!") continue;
+              retryText = retryText.replace(pattern, "");
+            }
+            text = retryText.replace(/\s{2,}/g, " ").trim();
+          }
+        } catch (retryErr) {
+          console.error("[Narrator] Regeneration failed:", retryErr);
+        }
+      }
     }
 
     return {
       text,
-      mood: parsed.mood || "neutral",
+      mood,
       suggestedOptions: [],
     };
   } catch {

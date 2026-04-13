@@ -342,13 +342,19 @@ function buildDecisionAcknowledgment(
     : `Dirección tomada: ${intentText}`;
 }
 
+interface GracefulDegradationResult {
+  fallbackNarrative?: string;
+  fallbackKPI?: string;
+  fallbackExplanation?: string;
+}
+
 function buildGracefulDegradation(
   narrativeFailed: boolean,
   kpiFailed: boolean,
   explanationsFailed: boolean,
   isEn: boolean,
-): { fallbackNarrative?: string; fallbackKPI?: string; fallbackExplanation?: string } {
-  const result: any = {};
+): GracefulDegradationResult {
+  const result: GracefulDegradationResult = {};
   if (narrativeFailed && kpiFailed) {
     result.fallbackNarrative = isEn
       ? "There was a problem processing your response. Your decision and progress have been saved."
@@ -369,6 +375,60 @@ function buildGracefulDegradation(
       : "Esta explicación no está disponible en este momento.";
   }
   return result;
+}
+
+function ensureExplanationCompleteness(
+  explanations: CausalExplanation[],
+  displayKPIs: DisplayKPI[],
+  isEn: boolean,
+): CausalExplanation[] {
+  const explanationMap = new Map(explanations.map(e => [e.indicatorId, e]));
+  return displayKPIs.map(d => {
+    const existing = explanationMap.get(d.indicatorId);
+    if (existing && existing.decisionReference && existing.directionalConnection) {
+      return existing;
+    }
+    return {
+      indicatorId: d.indicatorId,
+      decisionReference: isEn
+        ? "The decision has been registered."
+        : "La decisión ha sido registrada.",
+      causalMechanism: "",
+      directionalConnection: d.shortReason || (isEn
+        ? "The impact reflects the organizational dynamics of this domain."
+        : "El impacto refleja la dinámica organizacional de este dominio."),
+    };
+  });
+}
+
+function checkNarrativeKPIAlignment(
+  narrativeText: string,
+  displayKPIs: DisplayKPI[],
+): string[] {
+  const misaligned: string[] = [];
+  for (const kpi of displayKPIs) {
+    const labelLower = kpi.label.toLowerCase();
+    const idLower = kpi.indicatorId.toLowerCase();
+    const textLower = narrativeText.toLowerCase();
+    const hasReference = textLower.includes(labelLower) ||
+      textLower.includes(idLower) ||
+      (kpi.shortReason && textLower.includes(kpi.shortReason.substring(0, 20).toLowerCase()));
+    if (!hasReference) {
+      misaligned.push(kpi.indicatorId);
+    }
+  }
+  return misaligned;
+}
+
+function checkExplanationKPIAlignment(
+  explanations: CausalExplanation[],
+  displayKPIs: DisplayKPI[],
+): boolean {
+  for (const kpi of displayKPIs) {
+    const explanation = explanations.find(e => e.indicatorId === kpi.indicatorId);
+    if (!explanation) return false;
+  }
+  return true;
 }
 
 export async function processStudentTurn(
@@ -627,31 +687,43 @@ export async function processStudentTurn(
 
   const turnPosition = determineTurnPosition(context);
 
-  let evaluation: import("./types").EvaluatorOutput;
-  let kpiImpact: import("./types").DomainExpertOutput;
   let narrativeFailed = false;
   let kpiFailed = false;
+  let evaluatorFailed = false;
+
+  const defaultEvaluation: import("./types").EvaluatorOutput = { competencyScores: {}, feedback: { score: 0, message: "" }, flags: [] };
+  const defaultKPI: import("./types").DomainExpertOutput = {
+    kpiDeltas: { revenue: 0, morale: 0, reputation: 0, efficiency: 0, trust: 0 },
+    indicatorDeltas: {},
+    reasoning: "",
+    displayKPIs: [],
+    indicatorAccumulation: {},
+  };
 
   const agentsStart = Date.now();
-  try {
-    const [evalResult, kpiResult] = await Promise.all([
-      evaluateDecision(contextWithRDS),
-      calculateKPIImpact(contextWithRDS),
-    ]);
-    evaluation = evalResult;
-    kpiImpact = kpiResult;
-  } catch (err) {
-    console.error("[Director] Parallel agents failed:", err);
-    evaluation = { competencyScores: {}, feedback: { score: 0, message: "" }, flags: [] };
-    kpiImpact = {
-      kpiDeltas: { revenue: 0, morale: 0, reputation: 0, efficiency: 0, trust: 0 },
-      indicatorDeltas: {},
-      reasoning: "",
-      displayKPIs: [],
-      indicatorAccumulation: {},
-    };
+  const [evalSettled, kpiSettled] = await Promise.allSettled([
+    evaluateDecision(contextWithRDS),
+    calculateKPIImpact(contextWithRDS),
+  ]);
+
+  let evaluation: import("./types").EvaluatorOutput;
+  if (evalSettled.status === "fulfilled") {
+    evaluation = evalSettled.value;
+  } else {
+    console.error("[Director] Evaluator failed:", evalSettled.reason);
+    evaluation = defaultEvaluation;
+    evaluatorFailed = true;
+  }
+
+  let kpiImpact: import("./types").DomainExpertOutput;
+  if (kpiSettled.status === "fulfilled") {
+    kpiImpact = kpiSettled.value;
+  } else {
+    console.error("[Director] Domain expert failed:", kpiSettled.reason);
+    kpiImpact = defaultKPI;
     kpiFailed = true;
   }
+
   const agentsDuration = Date.now() - agentsStart;
 
   storage.createTurnEvent({
@@ -723,15 +795,22 @@ export async function processStudentTurn(
 
   let causalExplanations: CausalExplanation[] = [];
   let explanationsFailed = false;
-  if (!kpiFailed && (kpiImpact.displayKPIs?.length || 0) > 0) {
+  const hasDisplayKPIs = !kpiFailed && (kpiImpact.displayKPIs?.length || 0) > 0;
+  if (hasDisplayKPIs) {
     const explainStart = Date.now();
     try {
       causalExplanations = await generateCausalExplanations(
         contextWithRDS, kpiImpact, narrative.text
       );
+      causalExplanations = ensureExplanationCompleteness(
+        causalExplanations, kpiImpact.displayKPIs || [], isEn
+      );
     } catch (err) {
       console.error("[Director] Causal explanations failed:", err);
       explanationsFailed = true;
+      causalExplanations = ensureExplanationCompleteness(
+        [], kpiImpact.displayKPIs || [], isEn
+      );
     }
     storage.createTurnEvent({
       sessionId: context.sessionId,
@@ -747,9 +826,45 @@ export async function processStudentTurn(
     }).catch(err => console.error("[TurnEvent] Failed to log causalExplainer:", err));
   }
 
+  if (hasDisplayKPIs && !narrativeFailed) {
+    const misaligned = checkNarrativeKPIAlignment(narrative.text, kpiImpact.displayKPIs || []);
+    if (misaligned.length > 0) {
+      storage.createTurnEvent({
+        sessionId: context.sessionId,
+        eventType: "agent_call",
+        turnNumber: currentDecisionNum,
+        eventData: {
+          agentName: "assembly_check",
+          check: "narrative_kpi_alignment",
+          misalignedKPIs: misaligned,
+        },
+      }).catch(() => {});
+    }
+  }
+
+  if (hasDisplayKPIs && causalExplanations.length > 0) {
+    const explanationsAligned = checkExplanationKPIAlignment(
+      causalExplanations, kpiImpact.displayKPIs || []
+    );
+    if (!explanationsAligned) {
+      storage.createTurnEvent({
+        sessionId: context.sessionId,
+        eventType: "agent_call",
+        turnNumber: currentDecisionNum,
+        eventData: {
+          agentName: "assembly_check",
+          check: "explanation_kpi_alignment",
+          aligned: false,
+        },
+      }).catch(() => {});
+    }
+  }
+
   const decisionAcknowledgment = buildDecisionAcknowledgment(
     context, isMcq, evidenceLog.signals_detected
   );
+
+  const degradation = buildGracefulDegradation(narrativeFailed, kpiFailed, explanationsFailed, isEn);
 
   const isGameOver = checkGameOver(newKpis, contextWithRDS);
 
@@ -782,7 +897,7 @@ export async function processStudentTurn(
   const nextDecision = currentDecisionNum + 1;
   const decisionsComplete = totalDecisions > 0 && nextDecision > totalDecisions;
 
-  const updatedIndicators = (context.indicators || []).map((indicator: any) => {
+  const updatedIndicators = (context.indicators || []).map((indicator) => {
     const delta = kpiImpact.indicatorDeltas?.[indicator.id] || 0;
     return {
       ...indicator,
@@ -870,9 +985,37 @@ export async function processStudentTurn(
     indicatorAccumulation: Object.keys(accumulationEntries).length > 0 ? accumulationEntries : undefined,
   };
 
+  let assembledNarrative = narrative.text;
+  if (degradation.fallbackNarrative) {
+    assembledNarrative = degradation.fallbackNarrative;
+  }
+  if (degradation.fallbackExplanation && causalExplanationEntries.length === 0) {
+    storage.createTurnEvent({
+      sessionId: context.sessionId,
+      eventType: "agent_call",
+      turnNumber: currentDecisionNum,
+      eventData: {
+        agentName: "assembly",
+        assemblyPath: decisionsComplete ? "PASS_FINAL" : "PASS_INTERMEDIATE",
+        degradationApplied: degradation,
+        evaluatorFailed,
+        narrativeFailed,
+        kpiFailed,
+        explanationsFailed,
+      },
+    }).catch(() => {});
+  }
+
+  if (decisionsComplete && !isGameOver) {
+    const reflectionPrompt = isEn
+      ? "\n\nYou have completed all decisions. Take a moment to reflect on the journey and the choices you made."
+      : "\n\nHas completado todas las decisiones. Tómate un momento para reflexionar sobre el recorrido y las elecciones que hiciste.";
+    assembledNarrative += reflectionPrompt;
+  }
+
   return {
     narrative: {
-      text: narrative.text,
+      text: assembledNarrative,
       speaker: narrative.speaker,
       mood: narrative.mood,
     },

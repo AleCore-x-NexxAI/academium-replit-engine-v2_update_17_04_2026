@@ -1,10 +1,23 @@
 import { generateChatCompletion, SupportedModel } from "../openai";
 import type { AgentContext, DomainExpertOutput, DisplayKPI, IndicatorAccumulation, MetricTier, TurnPosition } from "./types";
 import { RDSBand, SignalQuality } from "./types";
-import type { Indicator, IndicatorAccumulationEntry } from "@shared/schema";
+import type { Indicator, IndicatorAccumulationEntry, TradeoffSignature } from "@shared/schema";
 import { getLanguageDirective } from "./guardrails";
 
 const MAX_DISPLAY_KPIS = 3;
+
+function resolveOptionSignature(
+  studentInput: string,
+  optionSignatures: Record<string, TradeoffSignature>,
+): TradeoffSignature | undefined {
+  const trimmed = studentInput.trim().toLowerCase();
+  for (const [optionKey, signature] of Object.entries(optionSignatures)) {
+    if (trimmed === optionKey.toLowerCase() || trimmed.includes(optionKey.toLowerCase())) {
+      return signature;
+    }
+  }
+  return undefined;
+}
 
 function determineTurnPosition(context: AgentContext): TurnPosition {
   const current = context.currentDecision || context.turnCount + 1;
@@ -115,7 +128,7 @@ function selectDisplayKPIs(
   indicators: Indicator[],
   deltas: Record<string, number>,
   tiers: Record<string, MetricTier>,
-  explanations: Record<string, any>,
+  explanations: Record<string, import("./types").MetricExplanation>,
   accumulations: Record<string, IndicatorAccumulation>,
   signalScores: Record<string, number>,
   language: "es" | "en",
@@ -311,7 +324,7 @@ export async function calculateKPIImpact(context: AgentContext): Promise<DomainE
     .map(i => `- ${i.label} (${i.id}): ${i.value}`)
     .join("\n");
 
-  const previousDecisions = (context.history as any[])
+  const previousDecisions = context.history
     .filter(h => h.role === "user")
     .map((h, i) => `  Decisión ${i + 1}: "${h.content}"`)
     .join("\n");
@@ -326,6 +339,22 @@ export async function calculateKPIImpact(context: AgentContext): Promise<DomainE
 RDS Band: ${rdsBand || "N/A"}`
     : "";
 
+  const currentDecisionNum = context.currentDecision || (context.turnCount + 1);
+  const currentDP = context.decisionPoints?.find(dp => dp.number === currentDecisionNum);
+  const isMcq = currentDP?.format === "multiple_choice";
+  const resolvedSignature = isMcq && currentDP?.optionSignatures
+    ? resolveOptionSignature(context.studentInput, currentDP.optionSignatures)
+    : currentDP?.tradeoffSignature;
+
+  let tradeoffDirective = "";
+  if (resolvedSignature) {
+    tradeoffDirective = `\nTRADEOFF SIGNATURE (pre-authored, must be respected):
+- Dimension: ${resolvedSignature.dimension}
+- Benefit: ${resolvedSignature.benefit}
+- Cost: ${resolvedSignature.cost}
+${isMcq ? "This is an MCQ decision — KPI directions MUST align with the tradeoff signature. The benefit dimension should move positive, the cost dimension should move negative." : "Use as guidance for KPI direction."}`;
+  }
+
   const userPrompt = `
 CONTEXTO:
 Escenario: "${context.scenario.title}"
@@ -338,6 +367,7 @@ Posición: ${turnPosition} (Decisión ${context.turnCount + 1}${context.totalDec
 ${environmentInfo.length > 0 ? `ENTORNO:\n${environmentInfo.join("\n")}\n` : ""}
 ${constraintsInfo}
 ${subjectMatterInfo}
+${tradeoffDirective}
 
 INDICADORES ACTUALES:
 ${currentIndicatorValues}
@@ -373,10 +403,15 @@ Calcula impactos específicos a esta decisión. Devuelve SOLO JSON válido.`;
     }
 
     const rawExplanations = parsed.metricExplanations || {};
-    const filteredExplanations: Record<string, any> = {};
+    const filteredExplanations: Record<string, import("./types").MetricExplanation> = {};
     for (const [key, val] of Object.entries(rawExplanations)) {
       if (validIds.has(key)) {
-        filteredExplanations[key] = val;
+        const raw = val as { shortReason?: string; causalChain?: string[]; tier?: number };
+        filteredExplanations[key] = {
+          shortReason: raw.shortReason || "",
+          causalChain: raw.causalChain || [],
+          tier: (raw.tier === 1 || raw.tier === 2 || raw.tier === 3 ? raw.tier : 1) as import("./types").MetricTier,
+        };
       }
     }
 
