@@ -661,6 +661,20 @@ export async function processStudentTurn(
   });
 
   const existingEvidenceLogs = context.decisionEvidenceLogs || [];
+  const evidenceEntry: import("@shared/schema").DecisionEvidenceLogEntry = {
+    signals_detected: {
+      intent: { quality: evidenceLog.signals_detected.intent.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.intent.extracted_text },
+      justification: { quality: evidenceLog.signals_detected.justification.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.justification.extracted_text },
+      tradeoffAwareness: { quality: evidenceLog.signals_detected.tradeoffAwareness.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.tradeoffAwareness.extracted_text },
+      stakeholderAwareness: { quality: evidenceLog.signals_detected.stakeholderAwareness.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.stakeholderAwareness.extracted_text },
+      ethicalAwareness: { quality: evidenceLog.signals_detected.ethicalAwareness.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.ethicalAwareness.extracted_text },
+    },
+    rds_score: evidenceLog.rds_score,
+    rds_band: evidenceLog.rds_band as "SURFACE" | "ENGAGED" | "INTEGRATED" | null,
+    competency_evidence: evidenceLog.competency_evidence,
+    raw_signal_scores: evidenceLog.raw_signal_scores,
+    isMcq: evidenceLog.isMcq,
+  };
 
   storage.createTurnEvent({
     sessionId: context.sessionId,
@@ -687,7 +701,7 @@ export async function processStudentTurn(
     reflectionCompleted: false,
     pendingRevision: false,
     revisionAttempts: 0,
-    decisionEvidenceLogs: [...existingEvidenceLogs, evidenceLog],
+    decisionEvidenceLogs: [...existingEvidenceLogs, evidenceEntry],
     nudgeCounters: nudgeCounters,
   };
 

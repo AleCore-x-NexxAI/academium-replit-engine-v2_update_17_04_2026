@@ -1,4 +1,4 @@
-import type { KPIs, TurnResponse, SimulationState, Rubric, RubricCriterion, AgentPrompts, LLMModel, Indicator, DecisionPoint } from "@shared/schema";
+import type { KPIs, TurnResponse, SimulationState, Rubric, RubricCriterion, AgentPrompts, LLMModel, Indicator, DecisionPoint, DecisionEvidenceLogEntry } from "@shared/schema";
 import type { SupportedModel } from "../openai";
 
 export enum SignalQuality {
@@ -113,7 +113,7 @@ export interface AgentContext {
   rdsBand?: RDSBand;
   signalExtractionResult?: SignalExtractionResult;
   nudgeCounters?: Record<number, number>;
-  decisionEvidenceLogs?: DecisionEvidenceLog[];
+  decisionEvidenceLogs?: DecisionEvidenceLogEntry[];
   integrityFlags?: boolean[];
   scenario: {
     title: string;
