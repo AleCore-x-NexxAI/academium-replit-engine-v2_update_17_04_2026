@@ -441,6 +441,64 @@ function checkExplanationKPIAlignment(
   return true;
 }
 
+function buildFinalTrajectoryPanel(
+  originalIndicators: import("@shared/schema").Indicator[],
+  lastTurnDeltas: Record<string, number>,
+  updatedIndicators: import("@shared/schema").Indicator[],
+  isEn: boolean,
+): string {
+  if (originalIndicators.length === 0) return "";
+
+  const lines: string[] = [];
+  const header = isEn ? "Cumulative trajectory:" : "Trayectoria acumulada:";
+  lines.push(header);
+
+  for (const updated of updatedIndicators) {
+    const original = originalIndicators.find(o => o.id === updated.id);
+    if (!original) continue;
+    const totalDelta = updated.value - original.value;
+    const arrow = totalDelta > 0 ? "↑" : totalDelta < 0 ? "↓" : "→";
+    lines.push(`${arrow} ${updated.label}: ${original.value} → ${updated.value} (${totalDelta >= 0 ? "+" : ""}${totalDelta})`);
+  }
+  return lines.join("\n");
+}
+
+function checkNarrativeExplanationContradiction(
+  narrativeText: string,
+  explanations: CausalExplanation[],
+  displayKPIs: DisplayKPI[],
+): string[] {
+  const contradictions: string[] = [];
+  const textLower = narrativeText.toLowerCase();
+  const positiveWords = ["mejoró", "creció", "aumentó", "improved", "grew", "increased", "positiv"];
+  const negativeWords = ["empeoró", "cayó", "disminuyó", "declined", "dropped", "decreased", "negativ", "deterioró"];
+
+  for (const kpi of displayKPIs) {
+    const labelLower = kpi.label.toLowerCase();
+    const hasLabelRef = textLower.includes(labelLower) || textLower.includes(kpi.indicatorId.toLowerCase());
+    if (!hasLabelRef) continue;
+
+    const narrativeImpliesPositive = positiveWords.some(w => {
+      const idx = textLower.indexOf(labelLower);
+      if (idx === -1) return false;
+      const vicinity = textLower.substring(Math.max(0, idx - 60), idx + labelLower.length + 60);
+      return vicinity.includes(w);
+    });
+    const narrativeImpliesNegative = negativeWords.some(w => {
+      const idx = textLower.indexOf(labelLower);
+      if (idx === -1) return false;
+      const vicinity = textLower.substring(Math.max(0, idx - 60), idx + labelLower.length + 60);
+      return vicinity.includes(w);
+    });
+
+    if ((kpi.direction === "up" && narrativeImpliesNegative && !narrativeImpliesPositive) ||
+        (kpi.direction === "down" && narrativeImpliesPositive && !narrativeImpliesNegative)) {
+      contradictions.push(kpi.indicatorId);
+    }
+  }
+  return contradictions;
+}
+
 export async function processStudentTurn(
   context: AgentContext,
   revisionAttempts: number = 0
@@ -710,10 +768,17 @@ export async function processStudentTurn(
     indicatorAccumulation: {},
   };
 
+  const defaultNarrative: import("./types").NarratorOutput = {
+    text: isEn ? "The decision has been registered." : "La decisión ha sido registrada.",
+    mood: "neutral",
+    suggestedOptions: [],
+  };
+
   const agentsStart = Date.now();
-  const [evalSettled, kpiSettled] = await Promise.allSettled([
+  const [evalSettled, kpiSettled, narrativeSettled] = await Promise.allSettled([
     evaluateDecision(contextWithRDS),
     calculateKPIImpact(contextWithRDS),
+    generateNarrative(contextWithRDS, defaultKPI, defaultEvaluation),
   ]);
 
   let evaluation: import("./types").EvaluatorOutput;
@@ -732,6 +797,15 @@ export async function processStudentTurn(
     console.error("[Director] Domain expert failed:", kpiSettled.reason);
     kpiImpact = defaultKPI;
     kpiFailed = true;
+  }
+
+  let narrative: import("./types").NarratorOutput;
+  if (narrativeSettled.status === "fulfilled") {
+    narrative = narrativeSettled.value;
+  } else {
+    console.error("[Director] Narrative generation failed:", narrativeSettled.reason);
+    narrative = defaultNarrative;
+    narrativeFailed = true;
   }
 
   const agentsDuration = Date.now() - agentsStart;
@@ -766,29 +840,6 @@ export async function processStudentTurn(
     },
   }).catch(err => console.error("[TurnEvent] Failed to log domainExpert agent_call:", err));
 
-  const newKpis = applyKPIDeltas(context.currentKpis, kpiImpact.kpiDeltas);
-
-  const narrativeContext: AgentContext = {
-    ...contextWithRDS,
-    currentKpis: newKpis,
-  };
-
-  let narrative: import("./types").NarratorOutput;
-  const narrativeStart = Date.now();
-  try {
-    narrative = await generateNarrative(narrativeContext, kpiImpact, evaluation);
-  } catch (err) {
-    console.error("[Director] Narrative generation failed:", err);
-    narrativeFailed = true;
-    const degradation = buildGracefulDegradation(true, kpiFailed, false, isEn);
-    narrative = {
-      text: degradation.fallbackNarrative || (isEn
-        ? "The narrative summary is not available at this time."
-        : "El resumen narrativo no está disponible en este momento."),
-      mood: "neutral",
-      suggestedOptions: [],
-    };
-  }
   storage.createTurnEvent({
     sessionId: context.sessionId,
     eventType: "agent_call",
@@ -796,12 +847,14 @@ export async function processStudentTurn(
     rawStudentInput: context.studentInput,
     eventData: {
       agentName: "narrator",
-      durationMs: Date.now() - narrativeStart,
+      durationMs: agentsDuration,
       mood: narrative.mood,
       narrativeLength: narrative.text?.length,
       failed: narrativeFailed,
     },
   }).catch(err => console.error("[TurnEvent] Failed to log narrator agent_call:", err));
+
+  const newKpis = applyKPIDeltas(context.currentKpis, kpiImpact.kpiDeltas);
 
   let causalExplanations: CausalExplanation[] = [];
   let explanationsFailed = false;
@@ -899,6 +952,35 @@ export async function processStudentTurn(
           check: "hint_test",
           indicatorId: explanation.indicatorId,
           correctionApplied: "removed_prescriptive_language",
+        },
+      }).catch(() => {});
+    }
+  }
+
+  if (hasDisplayKPIs && !narrativeFailed && causalExplanations.length > 0) {
+    const contradictions = checkNarrativeExplanationContradiction(
+      narrative.text, causalExplanations, kpiImpact.displayKPIs || []
+    );
+    if (contradictions.length > 0) {
+      const kpiData = kpiImpact.displayKPIs || [];
+      for (const contradictedId of contradictions) {
+        const kpi = kpiData.find(d => d.indicatorId === contradictedId);
+        if (kpi) {
+          const correctionNote = isEn
+            ? `${kpi.label} moved ${kpi.direction === "up" ? "upward" : "downward"} (${kpi.magnitude}).`
+            : `${kpi.label} se movió ${kpi.direction === "up" ? "al alza" : "a la baja"} (${kpi.magnitude}).`;
+          narrative.text = narrative.text + " " + correctionNote;
+        }
+      }
+      storage.createTurnEvent({
+        sessionId: context.sessionId,
+        eventType: "agent_call",
+        turnNumber: currentDecisionNum,
+        eventData: {
+          agentName: "assembly_check",
+          check: "narrative_explanation_contradiction",
+          contradictedKPIs: contradictions,
+          correctionApplied: "appended_direction_correction",
         },
       }).catch(() => {});
     }
@@ -1029,33 +1111,44 @@ export async function processStudentTurn(
     indicatorAccumulation: Object.keys(accumulationEntries).length > 0 ? accumulationEntries : undefined,
   };
 
+  const assemblyPath = decisionsComplete ? "PASS_FINAL" : "PASS_INTERMEDIATE";
+
   let assembledNarrative = narrative.text;
   if (degradation.fallbackNarrative) {
     assembledNarrative = degradation.fallbackNarrative;
   }
-  if (degradation.fallbackExplanation && causalExplanationEntries.length === 0) {
-    storage.createTurnEvent({
-      sessionId: context.sessionId,
-      eventType: "agent_call",
-      turnNumber: currentDecisionNum,
-      eventData: {
-        agentName: "assembly",
-        assemblyPath: decisionsComplete ? "PASS_FINAL" : "PASS_INTERMEDIATE",
-        degradationApplied: degradation,
-        evaluatorFailed,
-        narrativeFailed,
-        kpiFailed,
-        explanationsFailed,
-      },
-    }).catch(() => {});
-  }
 
-  if (decisionsComplete && !isGameOver) {
+  if (assemblyPath === "PASS_FINAL" && !isGameOver) {
+    const trajectoryPanel = buildFinalTrajectoryPanel(
+      context.indicators || [], kpiImpact.indicatorDeltas || {}, updatedIndicators, isEn
+    );
+    if (trajectoryPanel) {
+      assembledNarrative += "\n\n" + trajectoryPanel;
+    }
     const reflectionPrompt = isEn
-      ? "\n\nYou have completed all decisions. Take a moment to reflect on the journey and the choices you made."
-      : "\n\nHas completado todas las decisiones. Tómate un momento para reflexionar sobre el recorrido y las elecciones que hiciste.";
+      ? "\n\nYou have completed all decisions. Take a moment to reflect on the journey and the choices you made throughout this simulation."
+      : "\n\nHas completado todas las decisiones. Tómate un momento para reflexionar sobre el recorrido y las elecciones que tomaste a lo largo de esta simulación.";
     assembledNarrative += reflectionPrompt;
   }
+
+  if (degradation.fallbackKPI && !kpiFailed) {
+    assembledNarrative += "\n\n" + degradation.fallbackKPI;
+  }
+
+  storage.createTurnEvent({
+    sessionId: context.sessionId,
+    eventType: "agent_call",
+    turnNumber: currentDecisionNum,
+    eventData: {
+      agentName: "assembly",
+      assemblyPath,
+      degradationApplied: Object.keys(degradation).length > 0 ? degradation : undefined,
+      evaluatorFailed,
+      narrativeFailed,
+      kpiFailed,
+      explanationsFailed,
+    },
+  }).catch(() => {});
 
   return {
     narrative: {

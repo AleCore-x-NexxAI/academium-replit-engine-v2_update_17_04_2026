@@ -138,7 +138,36 @@ Genera una explicación causal para CADA indicador mostrado. Devuelve JSON:
     }));
 
     const validIds = new Set(displayKPIs.map(d => d.indicatorId));
-    return explanations.filter(e => validIds.has(e.indicatorId));
+    const filtered = explanations.filter(e => validIds.has(e.indicatorId));
+
+    const prescriptivePatterns = [
+      /\b(deberías|should|must|need to|hay que|es necesario|conviene)\b/i,
+      /\b(te recomiendo|se recomienda|would be better|you should)\b/i,
+      /\b(la próxima vez|next time|en el futuro|going forward)\b/i,
+    ];
+    const secondPersonPatterns = [
+      /\b(tu |tus |usted |your |you )\b/i,
+    ];
+
+    for (const exp of filtered) {
+      const fullText = `${exp.decisionReference} ${exp.causalMechanism} ${exp.directionalConnection}`;
+
+      for (const pattern of prescriptivePatterns) {
+        exp.decisionReference = exp.decisionReference.replace(pattern, "").replace(/\s{2,}/g, " ").trim();
+        exp.causalMechanism = exp.causalMechanism.replace(pattern, "").replace(/\s{2,}/g, " ").trim();
+        exp.directionalConnection = exp.directionalConnection.replace(pattern, "").replace(/\s{2,}/g, " ").trim();
+      }
+
+      for (const pattern of secondPersonPatterns) {
+        exp.decisionReference = exp.decisionReference.replace(pattern, "la ").replace(/\s{2,}/g, " ").trim();
+      }
+
+      exp.decisionReference = exp.decisionReference.replace(/!/g, ".");
+      exp.causalMechanism = exp.causalMechanism.replace(/!/g, ".");
+      exp.directionalConnection = exp.directionalConnection.replace(/!/g, ".");
+    }
+
+    return filtered;
   } catch {
     return displayKPIs.map(d => ({
       indicatorId: d.indicatorId,
