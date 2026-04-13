@@ -419,6 +419,7 @@ export async function processStudentTurn(
         revisionAttempts: 0,
         nudgeCounters: nudgeCounters,
         integrityFlags: updatedIntegrityFlags.length > 0 ? updatedIntegrityFlags : undefined,
+        decisionEvidenceLogs: context.decisionEvidenceLogs,
       },
     };
   }
@@ -479,6 +480,8 @@ export async function processStudentTurn(
         revisionAttempts: currentNudgeCount + 1,
         lastStudentInput: context.studentInput,
         nudgeCounters: updatedNudgeCounters,
+        integrityFlags: context.integrityFlags,
+        decisionEvidenceLogs: context.decisionEvidenceLogs,
       },
     };
   }
@@ -703,6 +706,7 @@ export async function processStudentTurn(
     revisionAttempts: 0,
     decisionEvidenceLogs: [...existingEvidenceLogs, evidenceEntry],
     nudgeCounters: nudgeCounters,
+    integrityFlags: context.integrityFlags,
   };
 
   return {
