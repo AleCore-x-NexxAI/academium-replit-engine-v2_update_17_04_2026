@@ -1011,12 +1011,21 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         }
       }
 
+      if (lastTurn && lastTurn.id && existingResponse) {
+        const updatedAgentResponse = {
+          ...existingResponse,
+          narrative: { text: newNarrative.text, speaker: newNarrative.speaker, mood: newNarrative.mood },
+          causalExplanations: newExplanations.length > 0 ? newExplanations : existingResponse.causalExplanations,
+        };
+        await storage.updateTurn(lastTurn.id, { agentResponse: updatedAgentResponse });
+      }
+
       const updatedRegenerationUsed = { ...regenerationUsed, [prevDecision]: true };
       const updatedState = {
         ...session.currentState,
         history: updatedHistory,
         regenerationUsed: updatedRegenerationUsed,
-        lastTurnNarrative: session.currentState.lastTurnNarrative,
+        lastTurnNarrative: newNarrative.text,
       };
       await storage.updateSimulationSession(sessionId, { currentState: updatedState });
 

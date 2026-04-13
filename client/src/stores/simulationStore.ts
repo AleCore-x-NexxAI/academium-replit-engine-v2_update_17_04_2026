@@ -109,7 +109,9 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
         },
         {
           role: response.narrative.speaker ? "npc" : "system",
-          content: response.narrative.text,
+          content: response.decisionAcknowledgment
+            ? `${response.decisionAcknowledgment}\n\n${response.narrative.text}`
+            : response.narrative.text,
           speaker: response.narrative.speaker,
           timestamp: new Date().toISOString(),
         },

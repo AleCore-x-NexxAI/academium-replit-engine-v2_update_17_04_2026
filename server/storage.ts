@@ -327,6 +327,11 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
+  async updateTurn(turnId: string, updates: Partial<Pick<Turn, "agentResponse">>): Promise<Turn | undefined> {
+    const [updated] = await db.update(turns).set(updates).where(eq(turns.id, turnId)).returning();
+    return updated;
+  }
+
   async getAnalytics(): Promise<AnalyticsData> {
     const allSessions = await db
       .select()

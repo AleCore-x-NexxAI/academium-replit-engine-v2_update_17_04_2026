@@ -100,7 +100,7 @@ function MessageBubble({ entry, index }: { entry: HistoryEntry; index: number })
           </div>
         ) : (
           <p
-            className={`leading-relaxed ${
+            className={`leading-relaxed whitespace-pre-wrap ${
               isUser ? "text-sm" : isNpc ? "text-sm italic" : "text-sm"
             }`}
           >
