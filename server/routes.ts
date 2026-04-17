@@ -14,7 +14,20 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import type { AgentContext, DomainExpertOutput, CausalExplanation, DisplayKPI } from "./agents/types";
 import { DEFAULT_DECISIONS } from "./agents/constants";
-import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts } from "@shared/schema";
+import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts, TurnResponse, SimulationState } from "@shared/schema";
+
+function stripProfessorFields(turnResponse: TurnResponse): TurnResponse {
+  const { dashboard_debrief_question, framework_detections, ...rest } = turnResponse;
+  const stripped: TurnResponse = { ...rest };
+  if (stripped.displayKPIs) {
+    stripped.displayKPIs = stripped.displayKPIs.map(({ dashboard_reasoning_link, ...kpi }) => kpi);
+  }
+  if (stripped.updatedState) {
+    const { framework_detections: _fd, dashboard_summary: _ds, ...stateRest } = stripped.updatedState;
+    stripped.updatedState = stateRest as SimulationState;
+  }
+  return stripped;
+}
 import { llmUsageLogs } from "@shared/schema";
 import { db } from "./db";
 import { gte, desc } from "drizzle-orm";
@@ -700,7 +713,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         },
       }).catch(err => console.error("[TurnEvent] Failed to log turn_completed:", err));
       
-      res.json(result);
+      const requestingUser = await storage.getUser(userId);
+      const effectiveRole = requestingUser?.viewingAs || requestingUser?.role || "student";
+      const isStudentRequest = effectiveRole === "student";
+      res.json(isStudentRequest ? stripProfessorFields(result) : result);
     } catch (error: any) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       const isLLMError = errorMsg.toLowerCase().includes("rate limit") ||
@@ -959,6 +975,15 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       }
 
       const turns = await storage.getTurnsBySession(req.params.sessionId);
+      const requestingUser = await storage.getUser(userId);
+      const effectiveRole = requestingUser?.viewingAs || requestingUser?.role || "student";
+      if (effectiveRole === "student") {
+        const strippedTurns = turns.map((turn: any) => ({
+          ...turn,
+          agentResponse: turn.agentResponse ? stripProfessorFields(turn.agentResponse as TurnResponse) : turn.agentResponse,
+        }));
+        return res.json(strippedTurns);
+      }
       res.json(turns);
     } catch (error) {
       console.error("Error fetching history:", error);
@@ -2949,9 +2974,11 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
     try {
       const { jobId } = req.params;
 
-      // Check turn queue first, then LLM queue
       const turnJob = turnQueue.getJobStatus(jobId);
       if (turnJob) {
+        if (turnJob.result && turnJob.status === "completed") {
+          return res.json({ ...turnJob, result: stripProfessorFields(turnJob.result as TurnResponse) });
+        }
         return res.json(turnJob);
       }
 
