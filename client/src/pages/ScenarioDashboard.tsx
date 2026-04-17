@@ -199,6 +199,16 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
   absent: { bg: "bg-[#FCEBEB]", text: "text-[#791F1F]", border: "border-[#F7C1C1]" },
 };
 
+function smartTruncate(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const window = text.substring(0, limit + 20);
+  const sentenceMatch = window.match(/^[\s\S]*?[.!?¿¡](?:\s|$)/);
+  if (sentenceMatch && sentenceMatch[0].length <= limit + 20 && sentenceMatch[0].length >= limit / 2) {
+    return sentenceMatch[0].trim();
+  }
+  return text.substring(0, limit) + "...";
+}
+
 function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] || STATUS_STYLES.absent;
   const label = status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -499,7 +509,12 @@ function AnalyticsTab({
                     <XAxis dataKey="turn" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `T${v}`} />
                     <YAxis domain={[0, 3]} ticks={[1, 2, 3]} tick={{ fontSize: 10 }} tickFormatter={(v: number) => v === 1 ? "Surface" : v === 2 ? "Engaged" : "Integrated"} width={65} />
                     <RechartsTooltip formatter={(v: number) => [v.toFixed(1), isEn ? "Avg depth" : "Prof. prom."]} />
-                    <Line type="monotone" dataKey="avg" stroke="#378ADD" strokeWidth={2} dot={{ r: 4, fill: "#378ADD" }} />
+                    <Line type="monotone" dataKey="avg" stroke="#378ADD" strokeWidth={2} dot={(props: any) => {
+                      const { cx, cy, payload, index } = props;
+                      const colorMap: Record<string, string> = { green: "#1D9E75", blue: "#378ADD", amber: "#BA7517" };
+                      const fillColor = colorMap[payload?.color] || "#378ADD";
+                      return <circle key={`dot-${index}`} cx={cx} cy={cy} r={4} fill={fillColor} stroke={fillColor} />;
+                    }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -789,13 +804,8 @@ function ChatHistoryTab({ data, loading, isEn }: { data: { turns: ChatTurn[] } |
             )}
             <div>
               <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60 mb-1">{isEn ? "Student response" : "Respuesta del estudiante"}</div>
-              <div className="p-2 bg-muted/20 rounded-lg border border-dashed border-border/40 text-[11px] text-muted-foreground/80 leading-snug">
-                {turn.studentInput.length > 300 && !expanded[turn.number]
-                  ? <>
-                      {turn.studentInput.substring(0, 300)}...
-                      <button className="text-[10px] text-muted-foreground underline ml-1 bg-transparent border-none cursor-pointer p-0" onClick={() => setExpanded(e => ({ ...e, [turn.number]: true }))}>{isEn ? "Expand" : "Expandir"}</button>
-                    </>
-                  : turn.studentInput}
+              <div className="p-2 bg-muted/20 rounded-lg border border-dashed border-border/40 text-[11px] text-muted-foreground/80 leading-snug whitespace-pre-wrap">
+                {turn.studentInput}
               </div>
             </div>
           </div>
@@ -837,10 +847,10 @@ function DebriefPrepTab({ data, loading, isEn }: { data: { turns: DebriefTurn[] 
             <div className="mb-2.5">
               <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60 mb-1">{isEn ? "Student response" : "Respuesta del estudiante"}</div>
               <div className="p-2 bg-muted/20 rounded-lg border border-dashed border-border/40 text-[11px] text-muted-foreground/80 leading-snug">
-                {turn.studentInput.length > 200 && !expanded[turn.number]
+                {turn.studentInput.length > 100 && !expanded[turn.number]
                   ? <>
-                      {turn.studentInput.substring(0, 200)}...
-                      <button className="text-[10px] text-muted-foreground underline ml-1 bg-transparent border-none cursor-pointer p-0" onClick={() => setExpanded(e => ({ ...e, [turn.number]: true }))}>{isEn ? "Expand" : "Expandir"}</button>
+                      {smartTruncate(turn.studentInput, 100)}
+                      <button className="text-[10px] text-muted-foreground underline ml-1 bg-transparent border-none cursor-pointer p-0" onClick={() => setExpanded(e => ({ ...e, [turn.number]: true }))}>{isEn ? "Show full response" : "Ver respuesta completa"}</button>
                     </>
                   : turn.studentInput}
               </div>
@@ -983,11 +993,38 @@ function KpiFrameworksTab({ data, loading, isEn }: { data: KpiFrameworksData | u
               <div className="p-2 border-r border-dashed border-border text-[11px] font-medium text-muted-foreground">{label}</div>
               {turns.map((turn) => {
                 const movement = turn.kpiMovements?.find((k) => k.kpiId === kpiId);
+                let cellStyle: React.CSSProperties = {};
+                let borderClass = "";
+                if (movement) {
+                  if (movement.direction === "up") {
+                    cellStyle = { backgroundColor: "#EAF3DE" };
+                    borderClass = "border-l-2 border-l-[#1D9E75]";
+                  } else {
+                    cellStyle = { backgroundColor: "#FCEBEB" };
+                    borderClass = "border-l-2 border-l-[#D85A30]";
+                  }
+                }
+                const textColor = movement ? (movement.direction === "up" ? "#27500A" : "#791F1F") : undefined;
                 return (
-                  <div key={turn.number} className="p-2 border-r border-dashed border-border/50 last:border-r-0 text-[11px] text-muted-foreground/70 italic">
-                    {movement
-                      ? `${movement.direction === "up" ? "↑" : "↓"} ${movement.tier}${movement.reasoningLink ? ` — ${movement.reasoningLink}` : ""}`
-                      : <span className="text-muted-foreground/30">—</span>}
+                  <div
+                    key={turn.number}
+                    className={`p-2 border-r border-dashed border-border/50 last:border-r-0 text-[11px] ${borderClass}`}
+                    style={cellStyle}
+                  >
+                    {movement ? (
+                      <>
+                        <div className="font-medium" style={{ color: textColor }}>
+                          {movement.direction === "up" ? "↑" : "↓"} {movement.tier}
+                        </div>
+                        {movement.reasoningLink && (
+                          <div className="text-[10px] italic mt-0.5" style={{ color: textColor, opacity: 0.75 }}>
+                            {movement.reasoningLink}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground/30">—</span>
+                    )}
                   </div>
                 );
               })}

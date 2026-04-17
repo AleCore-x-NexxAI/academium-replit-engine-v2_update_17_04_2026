@@ -1,0 +1,748 @@
+# ACADEMIUM — Dashboard Remediation (Part D)
+
+**Context:** Parts A, B, and C are deployed. An audit against the Professor Dashboard Specification v1.0 found 6 deviations plus 3 minor issues. This build fixes all of them.
+
+**Governing document:** All rules are inlined below — no external spec required. Do not invent behavior beyond what's specified.
+
+**Commit after each sub-task.** Use `fix(D1)`, `fix(D2)`, etc.
+
+---
+
+## EXECUTION ORDER
+
+Quick frontend fixes first (D1–D4), then AI-generation backend fixes (D5–D9):
+
+1. **D1** — Depth chart point colors (frontend)
+2. **D2** — Debrief prep truncation fix (frontend)
+3. **D3** — Chat history truncation polish (frontend)
+4. **D4** — KPI trajectory colored cells (frontend)
+5. **D5** — Module health descriptions → AI-generated
+6. **D6** — Turn annotations → AI-generated
+7. **D7** — Class reasoning patterns descriptions → AI-generated
+8. **D8** — Class debrief opener → AI-generated
+9. **D9** — Framework detection evidence → AI-generated
+
+---
+
+# D1. Depth chart point colors (Spec 3.3)
+
+**Problem:** Backend at `server/routes.ts:3225` correctly computes `color: "green" | "blue" | "amber"` per point. Frontend at `client/src/pages/ScenarioDashboard.tsx:502` ignores the color field and uses a single hardcoded color for all dots.
+
+**Current code (ScenarioDashboard.tsx, line ~502):**
+```tsx
+<Line type="monotone" dataKey="avg" stroke="#378ADD" strokeWidth={2} dot={{ r: 4, fill: "#378ADD" }} />
+```
+
+**Fix:** Use a custom dot renderer that reads the `color` field from each point.
+
+```tsx
+const COLOR_MAP: Record<string, string> = {
+  green: "#1D9E75",
+  blue: "#378ADD",
+  amber: "#BA7517",
+};
+
+const CustomDot = (props: any) => {
+  const { cx, cy, payload } = props;
+  const fillColor = COLOR_MAP[payload.color] || "#378ADD";
+  return <circle cx={cx} cy={cy} r={4} fill={fillColor} stroke={fillColor} />;
+};
+
+// Then in the chart:
+<Line 
+  type="monotone" 
+  dataKey="avg" 
+  stroke="#378ADD" 
+  strokeWidth={2} 
+  dot={<CustomDot />}
+/>
+```
+
+**Rules:**
+- Green `#1D9E75` if avg ≥ 2.5 (Integrated)
+- Blue `#378ADD` if avg ≥ 1.5 and < 2.5 (Engaged)
+- Amber `#BA7517` if avg < 1.5 (Surface)
+- The line stroke stays `#378ADD`. Only dot fill varies.
+
+**Done:** Open a test dashboard with mixed depth turns. Verify dots are different colors based on avg value.
+
+---
+
+# D2. Debrief prep truncation (Spec 4.3)
+
+**Problem:** Spec says "truncated (first 100 characters) with an expand button." Current code truncates at 200 and doesn't preserve sentence boundaries.
+
+**Location:** `ScenarioDashboard.tsx:840` (inside `DebriefPrepTab`)
+
+**Fix:** Truncate at 100 chars, preferring sentence boundaries.
+
+```tsx
+function smartTruncate(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  // Look for sentence end within limit+20 to avoid cutting mid-sentence
+  const window = text.substring(0, limit + 20);
+  const sentenceMatch = window.match(/^[\s\S]*?[.!?¿¡](?:\s|$)/);
+  if (sentenceMatch && sentenceMatch[0].length <= limit + 20 && sentenceMatch[0].length >= limit / 2) {
+    return sentenceMatch[0].trim();
+  }
+  return text.substring(0, limit) + "...";
+}
+
+// Then in the JSX:
+{turn.studentInput.length > 100 && !expanded[turn.number]
+  ? <>
+      {smartTruncate(turn.studentInput, 100)}
+      <button className="text-[10px] text-muted-foreground underline ml-1 bg-transparent border-none cursor-pointer p-0" 
+              onClick={() => setExpanded(e => ({ ...e, [turn.number]: true }))}>
+        {isEn ? "Show full response" : "Ver respuesta completa"}
+      </button>
+    </>
+  : turn.studentInput}
+```
+
+**Rules:**
+- Truncate at 100 chars, not 200.
+- Try to end at a sentence boundary (`.`, `!`, `?`, `¿`, `¡`) when possible.
+- Button text: "Show full response" (EN) / "Ver respuesta completa" (ES) — the spec's wording.
+
+---
+
+# D3. Chat history truncation polish (Spec 4.2)
+
+**Problem:** Chat history uses 300 char naive truncation. Spec doesn't require truncation at all on this tab — it says "Student text is displayed exactly as written" and "The full conversation exactly as it happened."
+
+**Location:** `ScenarioDashboard.tsx:795` (inside `ChatHistoryTab`)
+
+**Fix:** Display full student input with no truncation on the chat history tab. Remove the expand/collapse logic here — this tab is for reading the full text.
+
+```tsx
+// Replace the conditional truncation block with:
+<div className="p-2 bg-muted/20 rounded-lg border border-dashed border-border/40 text-[11px] text-muted-foreground/80 leading-snug whitespace-pre-wrap">
+  {turn.studentInput}
+</div>
+```
+
+Remove the `expanded` state and the button for this tab only.
+
+**Rules:**
+- No truncation. No expand button.
+- Use `whitespace-pre-wrap` so line breaks in long responses render naturally.
+- Don't strip or modify the text.
+
+---
+
+# D4. KPI trajectory colored cell backgrounds (Spec 4.5)
+
+**Problem:** Spec 4.5 says "Cell color: Light green background for positive movement cells. Light red background for negative movement cells. No color for turns where this KPI did not move." Current implementation uses default cell background for everything.
+
+**Location:** `ScenarioDashboard.tsx:986` (inside `KpiFrameworksTab`, the cell rendering inside the grid)
+
+**Fix:** Apply background + border-left on each cell based on movement direction.
+
+```tsx
+{turns.map((turn) => {
+  const movement = turn.kpiMovements?.find((k) => k.kpiId === kpiId);
+  
+  let cellStyle: React.CSSProperties = {};
+  let borderStyle = "";
+  if (movement) {
+    if (movement.direction === "up") {
+      cellStyle = { backgroundColor: "#EAF3DE" };
+      borderStyle = "border-l-2 border-l-[#1D9E75]";
+    } else {
+      cellStyle = { backgroundColor: "#FCEBEB" };
+      borderStyle = "border-l-2 border-l-[#D85A30]";
+    }
+  }
+  
+  return (
+    <div 
+      key={turn.number} 
+      className={`p-2 border-r border-dashed border-border/50 last:border-r-0 text-[11px] ${borderStyle}`}
+      style={cellStyle}
+    >
+      {movement
+        ? <>
+            <div className="font-medium" style={{ color: movement.direction === "up" ? "#27500A" : "#791F1F" }}>
+              {movement.direction === "up" ? "↑" : "↓"} {movement.tier}
+            </div>
+            {movement.reasoningLink && (
+              <div className="text-[10px] italic mt-0.5" style={{ color: movement.direction === "up" ? "#27500A" : "#791F1F", opacity: 0.75 }}>
+                {movement.reasoningLink}
+              </div>
+            )}
+          </>
+        : <span className="text-muted-foreground/30">—</span>}
+    </div>
+  );
+})}
+```
+
+**Colors:**
+- Positive cell: bg `#EAF3DE`, left border `#1D9E75`, text `#27500A`
+- Negative cell: bg `#FCEBEB`, left border `#D85A30`, text `#791F1F`
+- No movement: default, show "—" in gray
+
+---
+
+# D5. Module health descriptions → AI-generated (Spec 3.1)
+
+**Problem:** Module health descriptions at `routes.ts:3161` are template strings like `"${appliedCount} of ${completed.length} students showed application of ${fw.name}. [truncated evidence]"`. Spec 3.1 requires AI-generated 2–3 sentence descriptions that describe "which sub-concepts appeared or didn't" across students.
+
+**Also:** `deeperDescription` is currently identical to `description`. Spec implies the deeper view should be more detailed.
+
+**Location:** `server/routes.ts`, inside the `POST /api/scenarios/:scenarioId/module-health` handler (around lines 3135–3175).
+
+**Fix:** Replace the template description with an LLM call. Add a separate LLM call for the deeper description.
+
+```typescript
+import { generateChatCompletion } from "./openai";
+
+// Replace the description template inside the framework map loop:
+const frameworkResults = await Promise.all(frameworks.map(async (fw: any) => {
+  let appliedCount = 0;
+  const evidenceTexts: string[] = [];
+  const perStudentEvidence: { applied: boolean; evidences: string[] }[] = [];
+  
+  for (const s of completed) {
+    const state = s.session.currentState as any;
+    const fwDetections: any[][] = state?.framework_detections || [];
+    let applied = false;
+    const studentEvs: string[] = [];
+    for (const turnDets of fwDetections) {
+      const det = turnDets?.find((d: any) => d.framework_id === fw.id);
+      if (det && (det.level === "explicit" || det.level === "implicit")) {
+        applied = true;
+        if (det.evidence) studentEvs.push(det.evidence);
+      }
+    }
+    if (applied) appliedCount++;
+    evidenceTexts.push(...studentEvs);
+    perStudentEvidence.push({ applied, evidences: studentEvs });
+  }
+
+  const rate = completed.length > 0 ? appliedCount / completed.length : 0;
+  let status: string;
+  if (rate >= 0.60) status = "transferring";
+  else if (rate >= 0.20) status = "developing";
+  else if (rate > 0) status = "not_yet_evidenced";
+  else status = "absent";
+
+  let description = "";
+  let deeperDescription = "";
+
+  if (completed.length === 0) {
+    description = isEn ? "No completed sessions yet." : "No hay sesiones completadas aún.";
+    deeperDescription = description;
+  } else {
+    // Generate 2-3 sentence description via LLM
+    const descPrompt = isEn
+      ? `Framework: "${fw.name}"
+Applied by ${appliedCount} of ${completed.length} students (${status}).
+Evidence samples from student responses:
+${evidenceTexts.slice(0, 5).map((e, i) => `${i+1}. ${e}`).join("\n") || "(No evidence collected)"}
+
+Write a 2-3 sentence professor-facing description describing how students engaged with this framework. Mention how many students applied it. Describe what sub-concepts appeared or didn't based on the evidence. Descriptive only. No recommendations. No "should", "consider", "need to", "weak student", "strong performer". No exclamation marks. No comparisons by name. Write in English.`
+      : `Marco: "${fw.name}"
+Aplicado por ${appliedCount} de ${completed.length} estudiantes (${status}).
+Ejemplos de evidencia:
+${evidenceTexts.slice(0, 5).map((e, i) => `${i+1}. ${e}`).join("\n") || "(Sin evidencia recopilada)"}
+
+Escribe una descripción de 2-3 oraciones para el profesor. Menciona cuántos estudiantes lo aplicaron. Describe qué sub-conceptos aparecieron o no aparecieron según la evidencia. Solo descriptivo. Sin recomendaciones. Sin "debería", "considera", "necesita", "estudiante débil", "estudiante fuerte". Sin signos de exclamación. Sin comparaciones por nombre. Escribe en español.`;
+
+    try {
+      description = (await generateChatCompletion(
+        [{ role: "user", content: descPrompt }],
+        { maxTokens: 200, model: "gpt-4o-mini", agentName: "moduleHealthDescription" }
+      )).trim().replace(/^["']|["']$/g, "");
+    } catch {
+      description = isEn
+        ? `${appliedCount} of ${completed.length} students showed application of ${fw.name}.`
+        : `${appliedCount} de ${completed.length} estudiantes mostraron aplicación de ${fw.name}.`;
+    }
+
+    // Generate deeper description (3-5 sentences) via LLM
+    const deepPrompt = isEn
+      ? `Framework: "${fw.name}" (status: ${status})
+${appliedCount} of ${completed.length} students applied it.
+Full evidence set:
+${evidenceTexts.map((e, i) => `${i+1}. ${e}`).join("\n") || "(No evidence)"}
+
+Write a 3-5 sentence detailed description of how students engaged with this framework across the class. Describe which sub-concepts appeared, which were absent, and how consistently the pattern held. Descriptive only. Same prohibitions as above. Write in English.`
+      : `Marco: "${fw.name}" (estado: ${status})
+${appliedCount} de ${completed.length} estudiantes lo aplicaron.
+Conjunto completo de evidencia:
+${evidenceTexts.map((e, i) => `${i+1}. ${e}`).join("\n") || "(Sin evidencia)"}
+
+Escribe una descripción detallada de 3-5 oraciones de cómo los estudiantes interactuaron con este marco en la clase. Describe qué sub-conceptos aparecieron, cuáles estuvieron ausentes, y cuán consistente fue el patrón. Solo descriptivo. Mismas prohibiciones. Escribe en español.`;
+
+    try {
+      deeperDescription = (await generateChatCompletion(
+        [{ role: "user", content: deepPrompt }],
+        { maxTokens: 400, model: "gpt-4o-mini", agentName: "moduleHealthDeeperDescription" }
+      )).trim().replace(/^["']|["']$/g, "");
+    } catch {
+      deeperDescription = description;
+    }
+  }
+
+  return { id: fw.id, name: fw.name, status, description, deeperDescription };
+}));
+```
+
+**Prohibited language filter** — after generation, scan for violations. If any found, retry once with violations listed in the prompt. If still failing, use the fallback template. Prohibited list:
+- EN: `correct`, `incorrect`, `good decision`, `bad decision`, `well done`, `optimal`, `ideal`, `best option`, `should have`, `you should`, `consider`, `need(s) to`, `would benefit from`, `weak student`, `strong performer`, `struggling`, `unfortunately`, `fortunately`, `sadly`, `surprisingly`, exclamation marks (`!`)
+- ES: `correcto`, `incorrecto`, `buena decisión`, `mala decisión`, `bien hecho`, `óptimo`, `ideal`, `mejor opción`, `debería haber`, `deberías`, `considera`, `necesita`, `estudiante débil`, `estudiante fuerte`, `lamentablemente`, `afortunadamente`, exclamation marks (`!`)
+
+**Done:** Each framework gets a 2–3 sentence AI description for the card + a 3–5 sentence deeper description for the expanded view. Both in scenario language. No prohibited terms.
+
+---
+
+# D6. Turn annotations → AI-generated (Spec 3.3)
+
+**Problem:** Turn annotations at `routes.ts:3238` are four hardcoded template sentences. Spec 3.3 requires "Generated by the AI layer using rds_band distribution data and classification event counts (NUDGE/BLOCK rates) for that turn."
+
+**Location:** `server/routes.ts`, inside the `POST /api/scenarios/:scenarioId/depth-trajectory` handler (around lines 3217–3257).
+
+**Fix:** For each turn, collect distribution data + classification event counts, then call LLM to describe what the data shows drove the depth.
+
+```typescript
+// Inside the for loop at each turn:
+for (let t = 0; t < maxTurns; t++) {
+  let sum = 0, count = 0;
+  let integratedCount = 0, engagedCount = 0, surfaceCount = 0;
+  let nudgeCount = 0, blockCount = 0, passCount = 0;
+  
+  for (const s of completed) {
+    const state = s.session.currentState as any;
+    const logs = state?.decisionEvidenceLogs || [];
+    if (logs[t]) {
+      const band = logs[t].rds_band;
+      const val = band === "INTEGRATED" ? 3 : band === "ENGAGED" ? 2 : 1;
+      sum += val;
+      count++;
+      if (band === "INTEGRATED") integratedCount++;
+      else if (band === "ENGAGED") engagedCount++;
+      else surfaceCount++;
+      
+      const classification = logs[t].classification;
+      if (classification === "NUDGE") nudgeCount++;
+      else if (classification === "BLOCK") blockCount++;
+      else passCount++;
+    }
+  }
+  
+  const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+  const color = avg >= 2.5 ? "green" : avg >= 1.5 ? "blue" : "amber";
+  points.push({ turn: t + 1, avg, color });
+
+  let label: string;
+  if (t === 0) {
+    label = avg >= 2.5 ? "Peaked" : avg >= 1.5 ? "Engaged" : "Surface";
+  } else {
+    const prev = points[t - 1].avg;
+    if (avg >= 2.5) label = "Peaked";
+    else if (avg >= 1.5) label = avg > prev ? "Engaged" : "Dropped";
+    else label = "Surface";
+  }
+
+  // AI-generated annotation
+  const priorAvg = t > 0 ? points[t - 1].avg : null;
+  const prompt = isEn
+    ? `Class reasoning depth at Turn ${t + 1}: avg ${avg} (${integratedCount} integrated, ${engagedCount} engaged, ${surfaceCount} surface out of ${count} students).
+Classification events this turn: ${passCount} PASS, ${nudgeCount} NUDGE, ${blockCount} BLOCK.
+${priorAvg !== null ? `Previous turn avg: ${priorAvg} (change: ${(avg - priorAvg).toFixed(1)}).` : "This is the first turn — no prior comparison."}
+
+Write 1-2 sentences describing what the data shows drove the depth at this turn. Describe only — no recommendations, no teaching advice. No "should", "consider", "need to", "unfortunately", "fortunately". No exclamation marks. Write in English.`
+    : `Profundidad de razonamiento de la clase en el Turno ${t + 1}: promedio ${avg} (${integratedCount} integrado, ${engagedCount} engaged, ${surfaceCount} superficial de ${count} estudiantes).
+Eventos de clasificación este turno: ${passCount} PASS, ${nudgeCount} NUDGE, ${blockCount} BLOCK.
+${priorAvg !== null ? `Promedio del turno anterior: ${priorAvg} (cambio: ${(avg - priorAvg).toFixed(1)}).` : "Este es el primer turno — no hay comparación previa."}
+
+Escribe 1-2 oraciones describiendo lo que los datos muestran que impulsó la profundidad en este turno. Solo descripción — sin recomendaciones, sin consejos pedagógicos. Sin "debería", "considera", "necesita", "lamentablemente", "afortunadamente". Sin signos de exclamación. Escribe en español.`;
+
+  let description: string;
+  try {
+    description = (await generateChatCompletion(
+      [{ role: "user", content: prompt }],
+      { maxTokens: 150, model: "gpt-4o-mini", agentName: "depthTurnAnnotation" }
+    )).trim().replace(/^["']|["']$/g, "");
+  } catch {
+    description = isEn
+      ? `Average depth ${avg} at Turn ${t + 1} with ${nudgeCount} nudge and ${blockCount} block events.`
+      : `Profundidad promedio ${avg} en Turno ${t + 1} con ${nudgeCount} eventos de nudge y ${blockCount} de block.`;
+  }
+
+  annotations.push({ turn: t + 1, label, description });
+}
+```
+
+**Rules (enforce post-generation):**
+- Max 2 sentences.
+- Describes what the data shows.
+- Never prescriptive.
+- Same prohibited language list as D5.
+- Uses scenario language.
+
+**Done:** Each turn has an AI-generated annotation referencing the actual distribution + classification data.
+
+---
+
+# D7. Class reasoning patterns descriptions → AI-generated (Spec 3.2)
+
+**Problem:** Class pattern descriptions at `routes.ts:3314` are templates like `"Observed in ${count} of ${total} turn-level assessments across the class."` Spec 3.2 requires AI-generated observational sentences describing what was actually seen.
+
+**Location:** `server/routes.ts`, inside the `POST /api/scenarios/:scenarioId/class-patterns` handler (around lines 3301–3320).
+
+**Fix:** For each competency, gather a sample of the actual `competency_evidence` data + sample student inputs where that competency was demonstrated or absent, then generate a 1-sentence observation.
+
+```typescript
+// Inside the pattern map:
+const patterns = await Promise.all(Object.entries(competencyMap).map(async ([id, info]) => {
+  const rate = info.total > 0 ? info.count / info.total : 0;
+  let status: string;
+  if (rate >= 0.60) status = "transferring";
+  else if (rate >= 0.20) status = "developing";
+  else status = "not_yet_evidenced";
+
+  // Collect up to 5 sample evidence snippets for this competency
+  const snippets: string[] = [];
+  for (const s of completed) {
+    if (snippets.length >= 5) break;
+    const state = s.session.currentState as any;
+    const logs = state?.decisionEvidenceLogs || [];
+    for (const log of logs) {
+      if (snippets.length >= 5) break;
+      const level = log.competency_evidence?.[id];
+      if (level) {
+        const shortInput = (log.student_input || "").substring(0, 80);
+        snippets.push(`[${level}] "${shortInput}"`);
+      }
+    }
+  }
+
+  let description = "";
+  if (info.total > 0) {
+    const prompt = isEn
+      ? `Competency: "${info.name}"
+Demonstration rate: ${info.count} of ${info.total} turn-level assessments (${status}).
+Sample evidence snippets (level + short excerpt of student input):
+${snippets.join("\n") || "(No snippets)"}
+
+Write ONE sentence describing what was observed about this competency across the class. Descriptive observation only. No recommendations, no evaluations of students as people, no comparisons by name. No "should", "consider", "need to", "weak", "strong", "unfortunately". No exclamation marks. Write in English.`
+      : `Competencia: "${info.nameEs}"
+Tasa de demostración: ${info.count} de ${info.total} evaluaciones a nivel de turno (${status}).
+Fragmentos de evidencia (nivel + extracto corto de respuesta):
+${snippets.join("\n") || "(Sin fragmentos)"}
+
+Escribe UNA oración describiendo lo observado sobre esta competencia en la clase. Solo observación descriptiva. Sin recomendaciones, sin evaluaciones de estudiantes como personas, sin comparaciones por nombre. Sin "debería", "considera", "necesita", "débil", "fuerte", "lamentablemente". Sin signos de exclamación. Escribe en español.`;
+
+    try {
+      description = (await generateChatCompletion(
+        [{ role: "user", content: prompt }],
+        { maxTokens: 100, model: "gpt-4o-mini", agentName: "classPatternDescription" }
+      )).trim().replace(/^["']|["']$/g, "");
+    } catch {
+      description = isEn
+        ? `Observed in ${info.count} of ${info.total} turn-level assessments.`
+        : `Observado en ${info.count} de ${info.total} evaluaciones a nivel de turno.`;
+    }
+  } else {
+    description = isEn ? "No data yet." : "Sin datos aún.";
+  }
+
+  return {
+    id,
+    name: isEn ? info.name : info.nameEs,
+    rate: Math.round(rate * 100) / 100,
+    status,
+    description,
+  };
+}));
+```
+
+**Done:** Each of 5 competencies (C1–C5) gets a 1-sentence AI-generated observation based on actual session data. Language respected. No prohibited terms.
+
+---
+
+# D8. Class debrief opener → AI-generated (Spec 3.4)
+
+**Problem:** Class debrief opener at `routes.ts:3176` is hardcoded. Spec 3.4 requires:
+1. Identify the competency with the lowest class demonstration rate
+2. Cross-reference with the framework with the lowest module health status
+3. Generate a question that connects both AND references a specific decision point (turn where the gap was most pronounced)
+
+**Location:** `server/routes.ts`, inside `POST /api/scenarios/:scenarioId/module-health` (around lines 3176–3179).
+
+**Fix:** Compute the lowest competency, lowest framework, and the turn where each was most absent, then generate the opener via LLM.
+
+```typescript
+// After computing frameworkResults (from D5), and before the final result:
+
+// Step 1: Compute per-competency rates (same as class-patterns endpoint)
+const compMap: Record<string, { name: string; nameEs: string; rate: number; worstTurn: number | null }> = {
+  C1: { name: "Analytical reasoning", nameEs: "Razonamiento analítico", rate: 0, worstTurn: null },
+  C2: { name: "Strategic decision-making", nameEs: "Toma de decisiones estratégicas", rate: 0, worstTurn: null },
+  C3: { name: "Stakeholder consideration", nameEs: "Consideración de stakeholders", rate: 0, worstTurn: null },
+  C4: { name: "Ethical reasoning", nameEs: "Razonamiento ético", rate: 0, worstTurn: null },
+  C5: { name: "Tradeoff awareness", nameEs: "Conciencia de tradeoffs", rate: 0, worstTurn: null },
+};
+
+// Compute rates and find the turn where each competency was most absent
+for (const [key, info] of Object.entries(compMap)) {
+  let count = 0, total = 0;
+  const turnAbsence: Record<number, { absent: number; total: number }> = {};
+  for (const s of completed) {
+    const state = s.session.currentState as any;
+    const logs = state?.decisionEvidenceLogs || [];
+    logs.forEach((log: any, i: number) => {
+      total++;
+      const turnNum = i + 1;
+      if (!turnAbsence[turnNum]) turnAbsence[turnNum] = { absent: 0, total: 0 };
+      turnAbsence[turnNum].total++;
+      const ev = log.competency_evidence?.[key];
+      if (ev === "demonstrated" || ev === "emerging") count++;
+      else turnAbsence[turnNum].absent++;
+    });
+  }
+  info.rate = total > 0 ? count / total : 0;
+  
+  // Find turn with highest absence rate
+  let maxAbsRate = 0;
+  for (const [turnStr, data] of Object.entries(turnAbsence)) {
+    const absRate = data.total > 0 ? data.absent / data.total : 0;
+    if (absRate > maxAbsRate) {
+      maxAbsRate = absRate;
+      info.worstTurn = Number(turnStr);
+    }
+  }
+}
+
+// Step 2: Pick lowest competency + lowest framework
+const lowestComp = Object.entries(compMap).sort(([,a], [,b]) => a.rate - b.rate)[0];
+const lowestFw = frameworkResults
+  .filter(f => f.status !== "transferring")
+  .sort((a, b) => {
+    const order = { "absent": 0, "not_yet_evidenced": 1, "developing": 2, "transferring": 3 };
+    return (order[a.status as keyof typeof order] ?? 4) - (order[b.status as keyof typeof order] ?? 4);
+  })[0];
+
+const targetTurn = lowestComp[1].worstTurn || 1;
+
+// Step 3: Generate the opener via LLM
+let classDebriefOpener: string;
+
+if (completed.length === 0 || !lowestFw) {
+  classDebriefOpener = null;
+} else {
+  const compName = isEn ? lowestComp[1].name : lowestComp[1].nameEs;
+  const openerPrompt = isEn
+    ? `You are generating a class debrief opener question for a professor.
+Lowest competency: "${compName}" (demonstrated in only ${Math.round(lowestComp[1].rate * 100)}% of assessments)
+Lowest-transferring framework: "${lowestFw.name}" (status: ${lowestFw.status})
+Most pronounced gap turn: Turn ${targetTurn}
+
+Write ONE question (max 2 sentences) that:
+- References Turn ${targetTurn} specifically
+- Connects the framework and the competency
+- Is a genuine open question (ends with "?")
+- Asks students to name the framework they used AND consider a dimension they missed
+- Must not imply any student was wrong
+- No "should have", "what was the right answer", "correct", "incorrect"
+- No exclamation marks
+- Write in English`
+    : `Vas a generar una pregunta de apertura de debrief para el profesor.
+Competencia más baja: "${compName}" (demostrada en solo ${Math.round(lowestComp[1].rate * 100)}% de las evaluaciones)
+Marco con menor transferencia: "${lowestFw.name}" (estado: ${lowestFw.status})
+Turno con mayor brecha: Turno ${targetTurn}
+
+Escribe UNA pregunta (máx 2 oraciones) que:
+- Haga referencia específica al Turno ${targetTurn}
+- Conecte el marco y la competencia
+- Sea una pregunta abierta genuina (termine con "?")
+- Pida a los estudiantes nombrar el marco que usaron Y considerar una dimensión que omitieron
+- No debe implicar que algún estudiante estaba equivocado
+- Sin "deberías haber", "cuál era la respuesta correcta", "correcto", "incorrecto"
+- Sin signos de exclamación
+- Escribe en español`;
+
+  try {
+    classDebriefOpener = (await generateChatCompletion(
+      [{ role: "user", content: openerPrompt }],
+      { maxTokens: 200, model: "gpt-4o-mini", agentName: "classDebriefOpener" }
+    )).trim().replace(/^["']|["']$/g, "");
+    
+    // Quality gate — retry once if prohibited language found
+    const prohibited = /(should have|debería haber|correct|incorrect|correcto|incorrecto|!|weak student|strong performer|estudiante débil|estudiante fuerte)/i;
+    if (prohibited.test(classDebriefOpener)) {
+      // Retry with explicit violation note (one retry only)
+      const retryPrompt = openerPrompt + (isEn 
+        ? `\n\nPrevious attempt contained prohibited language. Generate again, strictly avoiding: "should have", "correct", "incorrect", exclamation marks, "weak/strong student".`
+        : `\n\nEl intento anterior contenía lenguaje prohibido. Genera de nuevo, evitando estrictamente: "debería haber", "correcto", "incorrecto", signos de exclamación, "estudiante débil/fuerte".`);
+      classDebriefOpener = (await generateChatCompletion(
+        [{ role: "user", content: retryPrompt }],
+        { maxTokens: 200, model: "gpt-4o-mini", agentName: "classDebriefOpenerRetry" }
+      )).trim().replace(/^["']|["']$/g, "");
+      
+      if (prohibited.test(classDebriefOpener)) {
+        // Fallback template
+        classDebriefOpener = isEn
+          ? `In Turn ${targetTurn}, you made a decision — what framework were you working from, and what would it have looked like if you had named it explicitly?`
+          : `En el Turno ${targetTurn}, tomaste una decisión — ¿desde qué marco estabas trabajando, y cómo se vería si lo nombraras explícitamente?`;
+      }
+    }
+  } catch {
+    classDebriefOpener = isEn
+      ? `In Turn ${targetTurn}, you made a decision — what framework were you working from, and what would it have looked like if you had named it explicitly?`
+      : `En el Turno ${targetTurn}, tomaste una decisión — ¿desde qué marco estabas trabajando, y cómo se vería si lo nombraras explícitamente?`;
+  }
+}
+
+const result = { frameworks: frameworkResults, classDebriefOpener };
+```
+
+**Done:** The class debrief opener references a specific turn + connects the lowest competency + lowest framework. Max 2 sentences. Genuine question. Scenario language. Prohibited-language-clean.
+
+---
+
+# D9. Framework detection evidence → richer generation (Spec 4.5 + 5.1)
+
+**Problem:** `frameworkDetector.ts` currently generates templated evidence strings like `'The response directly references "X", a key term from the Y framework.'` Spec 5.1 and 4.5 require the evidence to describe "what in the student's input produced this classification" and "reference the student's specific reasoning where applicable" — max 1 sentence.
+
+The spec doesn't strictly require LLM generation here (the signal-pattern detection is rule-based), but the evidence sentence needs to be more grounded in the student's actual words, not just "matched a keyword."
+
+**Location:** `server/agents/frameworkDetector.ts`
+
+**Fix:** Make the evidence sentence richer by (a) quoting a relevant fragment from the student's input, (b) naming the specific concept/keyword matched, and (c) explaining the connection to the framework.
+
+```typescript
+// Replace the evidence generation with:
+
+// EXPLICIT case:
+if (nameMatch || keywordMatch) {
+  const matchedTerm = nameMatch ? fw.name : fw.domainKeywords.find((kw) =>
+    new RegExp(`\\b${escapeRegex(kw)}\\b`, "i").test(studentInput)
+  ) || fw.name;
+  
+  // Extract a short fragment (up to 60 chars) containing the matched term
+  const termIdx = studentInput.toLowerCase().indexOf(matchedTerm.toLowerCase());
+  const start = Math.max(0, termIdx - 20);
+  const end = Math.min(studentInput.length, termIdx + matchedTerm.length + 20);
+  const fragment = studentInput.substring(start, end).trim().replace(/^\W+|\W+$/g, "");
+  
+  return {
+    framework_id: fw.id,
+    framework_name: fw.name,
+    level: "explicit" as const,
+    evidence: language === "en"
+      ? `Student referenced "${matchedTerm}" directly in the context "…${fragment}…", a core term of the ${fw.name} framework.`
+      : `El estudiante mencionó "${matchedTerm}" directamente en el contexto "…${fragment}…", un término central del marco ${fw.name}.`,
+  };
+}
+
+// IMPLICIT case:
+if (allSignalsMet && (hasAdditionalKeyword || fw.domainKeywords.some(...))) {
+  // Find which domain concept the student engaged with
+  const matchedKw = fw.domainKeywords.find((kw) => inputLower.includes(kw.toLowerCase())) || 
+                    additionalKws.find((kw) => inputLower.includes(kw.toLowerCase()));
+  
+  const sigLabels = fw.signalPattern.requiredSignals.map(s => {
+    const labels: Record<string, { en: string; es: string }> = {
+      intent: { en: "strategic decision-making", es: "toma de decisiones estratégicas" },
+      justification: { en: "analytical reasoning", es: "razonamiento analítico" },
+      tradeoffAwareness: { en: "tradeoff awareness", es: "conciencia de tradeoffs" },
+      stakeholderAwareness: { en: "stakeholder consideration", es: "consideración de stakeholders" },
+      ethicalAwareness: { en: "ethical reasoning", es: "razonamiento ético" },
+    };
+    return labels[s]?.[language === "en" ? "en" : "es"] || s;
+  }).join(language === "en" ? " and " : " y ");
+  
+  return {
+    framework_id: fw.id,
+    framework_name: fw.name,
+    level: "implicit" as const,
+    evidence: language === "en"
+      ? `Response applied ${fw.name} logic through ${sigLabels}${matchedKw ? ` around "${matchedKw}"` : ""} without naming the framework.`
+      : `La respuesta aplicó la lógica de ${fw.name} mediante ${sigLabels}${matchedKw ? ` alrededor de "${matchedKw}"` : ""} sin nombrar el marco.`,
+  };
+}
+
+// NOT_EVIDENCED case:
+return {
+  framework_id: fw.id,
+  framework_name: fw.name,
+  level: "not_evidenced" as const,
+  evidence: language === "en"
+    ? `No language, reasoning pattern, or domain terms connecting to ${fw.name} appeared in the response.`
+    : `No aparecieron términos, patrones de razonamiento ni conceptos del dominio conectados con ${fw.name} en la respuesta.`,
+};
+```
+
+**Rules:**
+- Max 1 sentence.
+- Quote a short fragment from the student's input when explicit match (using the `"…fragment…"` format).
+- Name the signals that triggered implicit detection.
+- Never evaluative. No "good", "bad", "correct", "weak".
+- Scenario language.
+
+**Done:** Evidence strings now reference specific words from the student input (explicit) or name the signal pattern + matched domain concept (implicit). Not-evidenced uses a descriptive null observation.
+
+---
+
+# POST-REMEDIATION QA
+
+After D1–D9 are merged, run this test:
+
+1. **Create a scenario** with 3 frameworks configured + 3 active KPIs, in English.
+2. **Enroll 3 test students** and have them complete sessions with varying signal qualities (one strong analytical, one strong stakeholder-aware, one weak everywhere).
+3. **Open the dashboard** and verify:
+
+**Class overview:**
+- Depth chart dots vary in color by turn average (green/blue/amber) — **DEV-1 fixed**
+- Turn annotations are varied, referencing distribution data, not identical for every dashboard — **DEV-2 fixed**
+- Module health framework descriptions are 2–3 sentences, describe specific sub-concepts, not just counts — **DEV-3 fixed**
+- Module health "Show full framework breakdown" expands to 3–5 sentence detailed views — **DEV-3 fixed**
+- Class debrief opener references a specific turn number and connects competency + framework — **DEV-4 fixed**
+- Class reasoning patterns have varied 1-sentence descriptions — **DEV-5 fixed**
+
+**Student modal:**
+- Debrief prep student response truncates at 100 chars (not 200) — **MIN-1 fixed**
+- Chat history shows full student response with no truncation — **MIN-2 fixed**
+- KPI trajectory cells have green/red backgrounds for positive/negative movements — **MIN-3 fixed**
+- Framework application evidence quotes the student's actual words (explicit) or names the signals (implicit) — **DEV-6 fixed**
+
+4. **Repeat the full test in Spanish** — zero English leakage anywhere.
+
+5. **Prohibited language scan:**
+   ```bash
+   # After generating dashboard data for a test class, scan responses for:
+   # should have / correct / incorrect / well done / optimal / ideal / best option /
+   # weak student / strong performer / unfortunately / fortunately / sadly / surprisingly / !
+   ```
+   Should be zero hits.
+
+---
+
+# COMMIT STRATEGY
+
+- `fix(D1): depth chart point colors use per-point color field`
+- `fix(D2): debrief prep truncation at 100 chars with sentence preservation`
+- `fix(D3): chat history shows full student input without truncation`
+- `fix(D4): kpi trajectory cells use green/red backgrounds`
+- `fix(D5): module health descriptions AI-generated (2-3 + 3-5 sentences)`
+- `fix(D6): turn annotations AI-generated from distribution + classification data`
+- `fix(D7): class reasoning pattern descriptions AI-generated per competency`
+- `fix(D8): class debrief opener AI-generated from lowest competency + framework + turn`
+- `fix(D9): framework detection evidence references student's specific words and signals`
+
+---
+
+# ABSOLUTE PROHIBITIONS (apply to all D1–D9 work)
+
+1. **Do not add new session state fields.** All data already exists from Parts A–C.
+2. **Do not break existing endpoint signatures.** The response shape stays identical; only the content of description/annotation/opener fields changes.
+3. **Cache must still work.** The 5-min cache wraps the entire response, so LLM-generated text is cached per scenario — not regenerated on every dashboard load. Verify cache is honored.
+4. **Prohibited language** (enforce via post-generation scan on every LLM call):
+   - EN: `correct`, `incorrect`, `good/bad decision`, `well done`, `optimal`, `ideal`, `best option`, `should have`, `you should`, `consider`, `need(s) to`, `would benefit from`, `weak student`, `strong performer`, `struggling student`, `unfortunately`, `fortunately`, `sadly`, `surprisingly`, `as expected`, exclamation marks (`!`)
+   - ES: `correcto`, `incorrecto`, `buena decisión`, `mala decisión`, `bien hecho`, `óptimo`, `ideal`, `mejor opción`, `debería haber`, `deberías`, `considera`, `necesita`, `estudiante débil`, `estudiante fuerte`, `lamentablemente`, `afortunadamente`, exclamation marks (`!`)
+5. **Scenario language respected.** English scenarios → only English output. Spanish scenarios → only Spanish output.
+6. **Do not touch Parts A–C work that's already correct.** Only fix the listed deviations.

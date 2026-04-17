@@ -23,13 +23,14 @@ export function detectFrameworks(
       const matchedTerm = nameMatch ? fw.name : fw.domainKeywords.find((kw) =>
         new RegExp(`\\b${escapeRegex(kw)}\\b`, "i").test(studentInput)
       ) || fw.name;
+      const snippet = extractSnippet(studentInput, matchedTerm);
       return {
         framework_id: fw.id,
         framework_name: fw.name,
         level: "explicit" as const,
         evidence: language === "en"
-          ? `The response directly references "${matchedTerm}", a key term from the ${fw.name} framework.`
-          : `La respuesta referencia directamente "${matchedTerm}", un término clave del marco ${fw.name}.`,
+          ? `Student wrote: "${snippet}" — directly using "${matchedTerm}", a key term from the ${fw.name} framework.`
+          : `El estudiante escribió: "${snippet}" — usando directamente "${matchedTerm}", un término clave del marco ${fw.name}.`,
       };
     }
 
@@ -77,4 +78,28 @@ export function detectFrameworks(
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractSnippet(text: string, term: string, maxLen: number = 120): string {
+  const regex = new RegExp(escapeRegex(term), "i");
+  const match = text.match(regex);
+  if (!match || match.index === undefined) {
+    return text.length > maxLen ? text.substring(0, maxLen).trim() + "..." : text.trim();
+  }
+  const idx = match.index;
+  const half = Math.floor(maxLen / 2);
+  let start = Math.max(0, idx - half);
+  let end = Math.min(text.length, idx + term.length + half);
+  if (start > 0) {
+    const spaceIdx = text.indexOf(" ", start);
+    if (spaceIdx !== -1 && spaceIdx < idx) start = spaceIdx + 1;
+  }
+  if (end < text.length) {
+    const spaceIdx = text.lastIndexOf(" ", end);
+    if (spaceIdx !== -1 && spaceIdx > idx + term.length) end = spaceIdx;
+  }
+  let snippet = text.substring(start, end).trim();
+  if (start > 0) snippet = "..." + snippet;
+  if (end < text.length) snippet = snippet + "...";
+  return snippet;
 }

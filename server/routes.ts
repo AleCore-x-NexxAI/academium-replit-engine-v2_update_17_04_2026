@@ -7,7 +7,7 @@ import { processStudentTurn, processReflection, DEFAULT_DIRECTOR_PROMPT } from "
 import { DEFAULT_EVALUATOR_PROMPT } from "./agents/evaluator";
 import { DEFAULT_NARRATOR_PROMPT } from "./agents/narrator";
 import { DEFAULT_DOMAIN_EXPERT_PROMPT } from "./agents/domainExpert";
-import { SUPPORTED_MODELS } from "./openai";
+import { SUPPORTED_MODELS, generateChatCompletion } from "./openai";
 import { getCapacityStatus, getJobStatus as getLLMJobStatus } from "./llm";
 import { turnQueue, type TurnJob } from "./llm/turnQueue";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
@@ -3005,6 +3005,34 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
     dashboardCache.set(key, { data, expiry: Date.now() + 5 * 60 * 1000 });
   }
 
+  const PROHIBITED_EN = /(\bcorrect\b|\bincorrect\b|good decision|bad decision|well done|\boptimal\b|\bideal\b|best option|should have|you should|\bconsider\b|needs? to|would benefit from|weak student|strong performer|struggling student|\bunfortunately\b|\bfortunately\b|\bsadly\b|\bsurprisingly\b|as expected|!)/i;
+  const PROHIBITED_ES = /(\bcorrecto\b|\bincorrecto\b|buena decisi[oó]n|mala decisi[oó]n|bien hecho|\b[oó]ptimo\b|\bideal\b|mejor opci[oó]n|deber[ií]a haber|deber[ií]as|\bconsidera\b|\bnecesita\b|estudiante d[eé]bil|estudiante fuerte|\blamentablemente\b|\bafortunadamente\b|!)/i;
+  function hasProhibited(text: string, isEn: boolean): boolean {
+    return (isEn ? PROHIBITED_EN : PROHIBITED_ES).test(text);
+  }
+
+  async function generateClean(prompt: string, isEn: boolean, agentName: string, maxTokens: number, fallback: string): Promise<string> {
+    try {
+      let out = (await generateChatCompletion(
+        [{ role: "user", content: prompt }],
+        { maxTokens, model: "gpt-4o-mini", agentName }
+      )).trim().replace(/^["']|["']$/g, "");
+      if (hasProhibited(out, isEn)) {
+        const retryPrompt = prompt + (isEn
+          ? `\n\nThe previous attempt contained prohibited language. Generate again, strictly avoiding: should have, correct, incorrect, well done, optimal, ideal, best option, weak/strong student, unfortunately, fortunately, exclamation marks.`
+          : `\n\nEl intento anterior contenía lenguaje prohibido. Genera de nuevo, evitando estrictamente: debería haber, correcto, incorrecto, bien hecho, óptimo, ideal, mejor opción, estudiante débil/fuerte, lamentablemente, afortunadamente, signos de exclamación.`);
+        out = (await generateChatCompletion(
+          [{ role: "user", content: retryPrompt }],
+          { maxTokens, model: "gpt-4o-mini", agentName: agentName + "Retry" }
+        )).trim().replace(/^["']|["']$/g, "");
+        if (hasProhibited(out, isEn)) return fallback;
+      }
+      return out;
+    } catch {
+      return fallback;
+    }
+  }
+
   async function verifyScenarioOwner(req: any, res: any, scenarioId: string) {
     const userId = req.user.claims.sub;
     const user = await storage.getUser(userId);
@@ -3134,7 +3162,7 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       const sessionsData = await getSessionsWithTurns(scenarioId);
       const completed = sessionsData.filter(s => s.session.status === "completed");
 
-      const frameworkResults = frameworks.map((fw: any) => {
+      const frameworkResults = await Promise.all(frameworks.map(async (fw: any) => {
         let appliedCount = 0;
         const evidenceTexts: string[] = [];
         for (const s of completed) {
@@ -3158,24 +3186,85 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         else if (rate > 0) status = "not_yet_evidenced";
         else status = "absent";
 
-        const description = completed.length > 0
-          ? (isEn
-            ? `${appliedCount} of ${completed.length} students showed application of ${fw.name}. ${evidenceTexts.length > 0 ? evidenceTexts[0].substring(0, 100) : "No detailed evidence collected."}`
-            : `${appliedCount} de ${completed.length} estudiantes mostraron aplicación de ${fw.name}. ${evidenceTexts.length > 0 ? evidenceTexts[0].substring(0, 100) : "No se recopiló evidencia detallada."}`)
-          : (isEn ? "No completed sessions yet." : "No hay sesiones completadas aún.");
+        let description: string;
+        let deeperDescription: string;
 
-        return {
-          id: fw.id,
-          name: fw.name,
-          status,
-          description,
-          deeperDescription: description,
-        };
-      });
+        if (completed.length === 0) {
+          description = isEn ? "No completed sessions yet." : "No hay sesiones completadas aún.";
+          deeperDescription = description;
+        } else {
+          const fallbackShort = isEn
+            ? `${appliedCount} of ${completed.length} students showed application of ${fw.name}.`
+            : `${appliedCount} de ${completed.length} estudiantes mostraron aplicación de ${fw.name}.`;
+          const descPrompt = isEn
+            ? `Framework: "${fw.name}"\nApplied by ${appliedCount} of ${completed.length} students (${status}).\nEvidence samples from student responses:\n${evidenceTexts.slice(0, 5).map((e, i) => `${i+1}. ${e}`).join("\n") || "(No evidence collected)"}\n\nWrite a 2-3 sentence professor-facing description describing how students engaged with this framework. Mention how many students applied it. Describe what sub-concepts appeared or didn't based on the evidence. Descriptive only. No recommendations. No "should", "consider", "need to", "weak student", "strong performer". No exclamation marks. No comparisons by name. Write in English.`
+            : `Marco: "${fw.name}"\nAplicado por ${appliedCount} de ${completed.length} estudiantes (${status}).\nEjemplos de evidencia:\n${evidenceTexts.slice(0, 5).map((e, i) => `${i+1}. ${e}`).join("\n") || "(Sin evidencia recopilada)"}\n\nEscribe una descripción de 2-3 oraciones para el profesor. Menciona cuántos estudiantes lo aplicaron. Describe qué sub-conceptos aparecieron o no aparecieron según la evidencia. Solo descriptivo. Sin recomendaciones. Sin "debería", "considera", "necesita", "estudiante débil", "estudiante fuerte". Sin signos de exclamación. Sin comparaciones por nombre. Escribe en español.`;
+          description = await generateClean(descPrompt, isEn, "moduleHealthDescription", 200, fallbackShort);
 
-      const classDebriefOpener = isEn
-        ? "What framework were students working from when making their decisions, and what would it have looked like if they had named it explicitly?"
-        : "¿Desde qué marco estaban trabajando los estudiantes al tomar sus decisiones, y cómo se vería si lo nombraran explícitamente?";
+          const deepPrompt = isEn
+            ? `Framework: "${fw.name}" (status: ${status})\n${appliedCount} of ${completed.length} students applied it.\nFull evidence set:\n${evidenceTexts.map((e, i) => `${i+1}. ${e}`).join("\n") || "(No evidence)"}\n\nWrite a 3-5 sentence detailed description of how students engaged with this framework across the class. Describe which sub-concepts appeared, which were absent, and how consistently the pattern held. Descriptive only. Same prohibitions as above. Write in English.`
+            : `Marco: "${fw.name}" (estado: ${status})\n${appliedCount} de ${completed.length} estudiantes lo aplicaron.\nConjunto completo de evidencia:\n${evidenceTexts.map((e, i) => `${i+1}. ${e}`).join("\n") || "(Sin evidencia)"}\n\nEscribe una descripción detallada de 3-5 oraciones de cómo los estudiantes interactuaron con este marco en la clase. Describe qué sub-conceptos aparecieron, cuáles estuvieron ausentes, y cuán consistente fue el patrón. Solo descriptivo. Mismas prohibiciones. Escribe en español.`;
+          deeperDescription = await generateClean(deepPrompt, isEn, "moduleHealthDeeperDescription", 400, description);
+        }
+
+        return { id: fw.id, name: fw.name, status, description, deeperDescription };
+      }));
+
+      // Class debrief opener — connect lowest competency + lowest framework + worst turn
+      const compMap: Record<string, { name: string; nameEs: string; rate: number; worstTurn: number | null }> = {
+        C1: { name: "Analytical reasoning", nameEs: "Razonamiento analítico", rate: 0, worstTurn: null },
+        C2: { name: "Strategic decision-making", nameEs: "Toma de decisiones estratégicas", rate: 0, worstTurn: null },
+        C3: { name: "Stakeholder consideration", nameEs: "Consideración de stakeholders", rate: 0, worstTurn: null },
+        C4: { name: "Ethical reasoning", nameEs: "Razonamiento ético", rate: 0, worstTurn: null },
+        C5: { name: "Tradeoff awareness", nameEs: "Conciencia de tradeoffs", rate: 0, worstTurn: null },
+      };
+      for (const [key, info] of Object.entries(compMap)) {
+        let count = 0, total = 0;
+        const turnAbsence: Record<number, { absent: number; total: number }> = {};
+        for (const s of completed) {
+          const state = s.session.currentState as any;
+          const logs = state?.decisionEvidenceLogs || [];
+          logs.forEach((log: any, i: number) => {
+            total++;
+            const turnNum = i + 1;
+            if (!turnAbsence[turnNum]) turnAbsence[turnNum] = { absent: 0, total: 0 };
+            turnAbsence[turnNum].total++;
+            const ev = log.competency_evidence?.[key];
+            if (ev === "demonstrated" || ev === "emerging") count++;
+            else turnAbsence[turnNum].absent++;
+          });
+        }
+        info.rate = total > 0 ? count / total : 0;
+        let maxAbsRate = 0;
+        for (const [turnStr, data] of Object.entries(turnAbsence)) {
+          const absRate = data.total > 0 ? data.absent / data.total : 0;
+          if (absRate > maxAbsRate) {
+            maxAbsRate = absRate;
+            info.worstTurn = Number(turnStr);
+          }
+        }
+      }
+
+      const lowestComp = Object.entries(compMap).sort(([, a], [, b]) => a.rate - b.rate)[0];
+      const fwOrder: Record<string, number> = { absent: 0, not_yet_evidenced: 1, developing: 2, transferring: 3 };
+      const lowestFw = frameworkResults
+        .filter(f => f.status !== "transferring")
+        .sort((a, b) => (fwOrder[a.status] ?? 4) - (fwOrder[b.status] ?? 4))[0];
+
+      let classDebriefOpener: string | null;
+      if (completed.length === 0 || !lowestFw) {
+        classDebriefOpener = null;
+      } else {
+        const targetTurn = lowestComp[1].worstTurn || 1;
+        const compName = isEn ? lowestComp[1].name : lowestComp[1].nameEs;
+        const openerFallback = isEn
+          ? `In Turn ${targetTurn}, you made a decision — what framework were you working from, and what would it have looked like if you had named it explicitly?`
+          : `En el Turno ${targetTurn}, tomaste una decisión — ¿desde qué marco estabas trabajando, y cómo se vería si lo nombraras explícitamente?`;
+        const openerPrompt = isEn
+          ? `You are generating a class debrief opener question for a professor.\nLowest competency: "${compName}" (demonstrated in only ${Math.round(lowestComp[1].rate * 100)}% of assessments)\nLowest-transferring framework: "${lowestFw.name}" (status: ${lowestFw.status})\nMost pronounced gap turn: Turn ${targetTurn}\n\nWrite ONE question (max 2 sentences) that:\n- References Turn ${targetTurn} specifically\n- Connects the framework and the competency\n- Is a genuine open question (ends with "?")\n- Asks students to name the framework they used AND consider a dimension they missed\n- Must not imply any student was wrong\n- No "should have", "what was the right answer", "correct", "incorrect"\n- No exclamation marks\n- Write in English`
+          : `Vas a generar una pregunta de apertura de debrief para el profesor.\nCompetencia más baja: "${compName}" (demostrada en solo ${Math.round(lowestComp[1].rate * 100)}% de las evaluaciones)\nMarco con menor transferencia: "${lowestFw.name}" (estado: ${lowestFw.status})\nTurno con mayor brecha: Turno ${targetTurn}\n\nEscribe UNA pregunta (máx 2 oraciones) que:\n- Haga referencia específica al Turno ${targetTurn}\n- Conecte el marco y la competencia\n- Sea una pregunta abierta genuina (termine con "?")\n- Pida a los estudiantes nombrar el marco que usaron Y considerar una dimensión que omitieron\n- No debe implicar que algún estudiante estaba equivocado\n- Sin "deberías haber", "cuál era la respuesta correcta", "correcto", "incorrecto"\n- Sin signos de exclamación\n- Escribe en español`;
+        classDebriefOpener = await generateClean(openerPrompt, isEn, "classDebriefOpener", 200, openerFallback);
+      }
 
       const result = { frameworks: frameworkResults, classDebriefOpener };
       setCache(`module-health-${scenarioId}`, result);
@@ -3212,6 +3301,8 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
 
       for (let t = 0; t < maxTurns; t++) {
         let sum = 0, count = 0;
+        let integratedCount = 0, engagedCount = 0, surfaceCount = 0;
+        let nudgeCount = 0, blockCount = 0, passCount = 0;
         for (const s of completed) {
           const state = s.session.currentState as any;
           const logs = state?.decisionEvidenceLogs || [];
@@ -3219,6 +3310,13 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
             const band = logs[t].rds_band;
             sum += band === "INTEGRATED" ? 3 : band === "ENGAGED" ? 2 : 1;
             count++;
+            if (band === "INTEGRATED") integratedCount++;
+            else if (band === "ENGAGED") engagedCount++;
+            else surfaceCount++;
+            const classification = logs[t].classification;
+            if (classification === "NUDGE") nudgeCount++;
+            else if (classification === "BLOCK") blockCount++;
+            else passCount++;
           }
         }
         const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
@@ -3235,22 +3333,15 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
           else label = avg < prev ? "Dropped" : "Surface";
         }
 
-        const descriptionEn = t === 0
-          ? "Initial turn established baseline reasoning depth across the class."
-          : avg > points[t - 1].avg
-            ? "Reasoning depth increased from the previous turn."
-            : avg < points[t - 1].avg
-              ? "Reasoning depth decreased compared to the previous turn."
-              : "Reasoning depth remained consistent with the previous turn.";
-        const descriptionEs = t === 0
-          ? "El turno inicial estableció la profundidad de razonamiento base de la clase."
-          : avg > points[t - 1].avg
-            ? "La profundidad de razonamiento aumentó respecto al turno anterior."
-            : avg < points[t - 1].avg
-              ? "La profundidad de razonamiento disminuyó respecto al turno anterior."
-              : "La profundidad de razonamiento se mantuvo consistente con el turno anterior.";
-
-        annotations.push({ turn: t + 1, label, description: isEn ? descriptionEn : descriptionEs });
+        const priorAvg = t > 0 ? points[t - 1].avg : null;
+        const fallback = isEn
+          ? `Average depth ${avg} at Turn ${t + 1} with ${nudgeCount} nudge and ${blockCount} block events.`
+          : `Profundidad promedio ${avg} en Turno ${t + 1} con ${nudgeCount} eventos de nudge y ${blockCount} de block.`;
+        const annoPrompt = isEn
+          ? `Class reasoning depth at Turn ${t + 1}: avg ${avg} (${integratedCount} integrated, ${engagedCount} engaged, ${surfaceCount} surface out of ${count} students).\nClassification events this turn: ${passCount} PASS, ${nudgeCount} NUDGE, ${blockCount} BLOCK.\n${priorAvg !== null ? `Previous turn avg: ${priorAvg} (change: ${(avg - priorAvg).toFixed(1)}).` : "This is the first turn — no prior comparison."}\n\nWrite 1-2 sentences describing what the data shows drove the depth at this turn. Describe only — no recommendations, no teaching advice. No "should", "consider", "need to", "unfortunately", "fortunately". No exclamation marks. Write in English.`
+          : `Profundidad de razonamiento de la clase en el Turno ${t + 1}: promedio ${avg} (${integratedCount} integrado, ${engagedCount} engaged, ${surfaceCount} superficial de ${count} estudiantes).\nEventos de clasificación este turno: ${passCount} PASS, ${nudgeCount} NUDGE, ${blockCount} BLOCK.\n${priorAvg !== null ? `Promedio del turno anterior: ${priorAvg} (cambio: ${(avg - priorAvg).toFixed(1)}).` : "Este es el primer turno — no hay comparación previa."}\n\nEscribe 1-2 oraciones describiendo lo que los datos muestran que impulsó la profundidad en este turno. Solo descripción — sin recomendaciones, sin consejos pedagógicos. Sin "debería", "considera", "necesita", "lamentablemente", "afortunadamente". Sin signos de exclamación. Escribe en español.`;
+        const description = await generateClean(annoPrompt, isEn, "depthTurnAnnotation", 150, fallback);
+        annotations.push({ turn: t + 1, label, description });
       }
 
       const result = { points, annotations };
@@ -3299,23 +3390,51 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         }
       }
 
-      const patterns = Object.entries(competencyMap).map(([id, info]) => {
+      // Collect evidence quotes per competency for AI descriptions
+      const competencyEvidence: Record<string, string[]> = { C1: [], C2: [], C3: [], C4: [], C5: [] };
+      for (const s of completed) {
+        const state = s.session.currentState as any;
+        const logs = state?.decisionEvidenceLogs || [];
+        for (const log of logs) {
+          const evidence = log.competency_evidence || {};
+          const quotes = log.evidence_quotes || {};
+          for (const key of Object.keys(competencyEvidence)) {
+            if (evidence[key] && quotes[key] && competencyEvidence[key].length < 8) {
+              competencyEvidence[key].push(String(quotes[key]));
+            }
+          }
+        }
+      }
+
+      const patterns = await Promise.all(Object.entries(competencyMap).map(async ([id, info]) => {
         const rate = info.total > 0 ? info.count / info.total : 0;
         let status: string;
         if (rate >= 0.60) status = "transferring";
         else if (rate >= 0.20) status = "developing";
         else status = "not_yet_evidenced";
 
+        const compName = isEn ? info.name : info.nameEs;
+        const fallback = isEn
+          ? `Observed in ${info.count} of ${info.total} turn-level assessments across the class.`
+          : `Observado en ${info.count} de ${info.total} evaluaciones a nivel de turno en toda la clase.`;
+
+        let description = fallback;
+        if (info.total > 0) {
+          const samples = competencyEvidence[id].slice(0, 5);
+          const prompt = isEn
+            ? `Competency: "${compName}"\nDemonstrated in ${info.count} of ${info.total} turn-level assessments (${Math.round(rate * 100)}%, status: ${status}).\nEvidence quotes from student responses:\n${samples.map((q, i) => `${i+1}. "${q}"`).join("\n") || "(No evidence quotes available)"}\n\nWrite a 2-3 sentence professor-facing description of how this competency appeared (or didn't) across the class. Mention the rate. Describe the pattern of how students engaged with this competency based on the evidence. Descriptive only. No "should", "consider", "need to", "weak student", "strong student", "unfortunately". No exclamation marks. No naming individual students. Write in English.`
+            : `Competencia: "${compName}"\nDemostrada en ${info.count} de ${info.total} evaluaciones a nivel de turno (${Math.round(rate * 100)}%, estado: ${status}).\nCitas de evidencia de respuestas de estudiantes:\n${samples.map((q, i) => `${i+1}. "${q}"`).join("\n") || "(Sin citas de evidencia disponibles)"}\n\nEscribe una descripción de 2-3 oraciones para el profesor sobre cómo esta competencia apareció (o no) en la clase. Menciona la tasa. Describe el patrón con que los estudiantes interactuaron con esta competencia según la evidencia. Solo descriptivo. Sin "debería", "considera", "necesita", "estudiante débil", "estudiante fuerte", "lamentablemente". Sin signos de exclamación. Sin nombrar estudiantes individuales. Escribe en español.`;
+          description = await generateClean(prompt, isEn, "classPatternDescription", 250, fallback);
+        }
+
         return {
           id,
-          name: isEn ? info.name : info.nameEs,
+          name: compName,
           rate: Math.round(rate * 100) / 100,
           status,
-          description: isEn
-            ? `Observed in ${info.count} of ${info.total} turn-level assessments across the class.`
-            : `Observado en ${info.count} de ${info.total} evaluaciones a nivel de turno en toda la clase.`,
+          description,
         };
-      });
+      }));
 
       patterns.sort((a, b) => b.rate - a.rate);
 
