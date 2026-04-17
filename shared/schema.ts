@@ -258,6 +258,23 @@ export interface Indicator {
   direction?: "up_better" | "down_better"; // ↑ mejor or ↓ mejor
 }
 
+export const CANONICAL_KPIS_ES: Indicator[] = [
+  { id: "K1", label: "Presupuesto / Impacto Financiero", value: 50, direction: "up_better" },
+  { id: "K2", label: "Moral del Equipo", value: 50, direction: "up_better" },
+  { id: "K3", label: "Reputación de Marca", value: 50, direction: "up_better" },
+  { id: "K4", label: "Eficiencia Operativa", value: 50, direction: "up_better" },
+  { id: "K5", label: "Confianza de Stakeholders", value: 50, direction: "up_better" },
+];
+export const CANONICAL_KPIS_EN: Indicator[] = [
+  { id: "K1", label: "Budget / Financial Impact", value: 50, direction: "up_better" },
+  { id: "K2", label: "Team Morale", value: 50, direction: "up_better" },
+  { id: "K3", label: "Brand Reputation", value: 50, direction: "up_better" },
+  { id: "K4", label: "Operational Efficiency", value: 50, direction: "up_better" },
+  { id: "K5", label: "Stakeholder Trust", value: 50, direction: "up_better" },
+];
+export function getCanonicalKPIs(language: "es" | "en" = "es"): Indicator[] {
+  return language === "en" ? CANONICAL_KPIS_EN.map(k => ({ ...k })) : CANONICAL_KPIS_ES.map(k => ({ ...k }));
+}
 export const CANONICAL_KPIS: Indicator[] = [
   { id: "K1", label: "Presupuesto / Impacto Financiero", value: 50, direction: "up_better" },
   { id: "K2", label: "Moral del Equipo", value: 50, direction: "up_better" },
@@ -305,6 +322,44 @@ export interface InitialState {
   
   // Subject matter context for Domain Expert
   subjectMatterContext?: string; // Expert knowledge context for this scenario
+  
+  hintButtonEnabled?: boolean;
+  maxHintsPerTurn?: 1 | 2 | 3 | 4 | 5;
+  frameworks?: CaseFramework[];
+}
+
+export interface CaseFramework {
+  id: string;
+  name: string;
+  domainKeywords: string[];
+  signalPattern?: {
+    requiredSignals: Array<"intent" | "justification" | "tradeoffAwareness" | "stakeholderAwareness" | "ethicalAwareness">;
+    minQuality: "WEAK" | "PRESENT" | "STRONG";
+    additionalKeywords?: string[];
+  };
+}
+
+export interface FrameworkDetection {
+  framework_id: string;
+  framework_name: string;
+  level: "explicit" | "implicit" | "not_evidenced";
+  evidence: string;
+}
+
+export interface DashboardSummary {
+  session_headline: string;
+  signal_averages: {
+    analytical: number;
+    strategic: number;
+    tradeoff: number;
+    stakeholder: number;
+    ethical: number;
+  };
+  framework_summary: Array<{
+    framework_id: string;
+    best_level: "explicit" | "implicit" | "not_evidenced";
+    turn_of_best_application: number | null;
+  }>;
 }
 
 export interface Stakeholder {
@@ -403,6 +458,7 @@ export interface DisplayKPIEntry {
   tier: 1 | 2 | 3;
   delta: number;
   shortReason: string;
+  dashboard_reasoning_link?: string;
 }
 
 export interface CausalExplanationEntry {
@@ -431,8 +487,9 @@ export interface SimulationState {
   integrityFlags?: boolean[];
   indicatorAccumulation?: Record<string, IndicatorAccumulationEntry>;
   hintCounters?: Record<number, number>;
-  regenerationUsed?: Record<number, boolean>;
   lastTurnNarrative?: string;
+  framework_detections?: FrameworkDetection[][];
+  dashboard_summary?: DashboardSummary;
 }
 
 export interface NarrativeResponse {
@@ -476,6 +533,8 @@ export interface TurnResponse {
   displayKPIs?: DisplayKPIEntry[];
   causalExplanations?: CausalExplanationEntry[];
   decisionAcknowledgment?: string;
+  dashboard_debrief_question?: string;
+  framework_detections?: FrameworkDetection[];
   updatedState?: SimulationState;
 }
 

@@ -49,7 +49,6 @@ interface SimulationStore {
   setGameOver: (isOver: boolean) => void;
   setMode: (mode: "guided" | "assessment") => void;
   setOptions: (options: string[]) => void;
-  replaceLastNarrative: (text: string) => void;
   initializeSession: (
     sessionId: string,
     initialKpis: KPIs,
@@ -230,16 +229,6 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   setMode: (mode) => set({ mode }),
 
   setOptions: (options) => set({ options }),
-  replaceLastNarrative: (text) => set((state) => {
-    const history = [...state.history];
-    for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].role === "system" || history[i].role === "npc") {
-        history[i] = { ...history[i], content: text };
-        break;
-      }
-    }
-    return { history };
-  }),
 
   initializeSession: (sessionId, initialKpis, history, mode = "guided", indicators = [], totalDecisions = 0, decisionPoints = []) =>
     set({

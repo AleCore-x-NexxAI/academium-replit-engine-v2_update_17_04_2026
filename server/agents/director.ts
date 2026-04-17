@@ -753,6 +753,12 @@ export async function processStudentTurn(
     signalExtractionResult: evidenceLog.signals_detected,
   };
 
+  const { detectFrameworks } = await import("./frameworkDetector");
+  const scenarioFrameworks = context.scenario?.frameworks || [];
+  const frameworkDetections = !isMcq && scenarioFrameworks.length > 0
+    ? detectFrameworks(context.studentInput, evidenceLog.signals_detected, scenarioFrameworks, context.language)
+    : [];
+
   const turnPosition = determineTurnPosition(context);
 
   let narrativeFailed = false;
@@ -1063,6 +1069,13 @@ export async function processStudentTurn(
     directionalConnection: e.directionalConnection,
   }));
 
+  for (const entry of displayKPIEntries) {
+    const matchingExpl = causalExplanations.find(e => e.indicatorId === entry.indicatorId);
+    if (matchingExpl?.dashboardReasoningLink) {
+      entry.dashboard_reasoning_link = matchingExpl.dashboardReasoningLink;
+    }
+  }
+
   const accumulationEntries: Record<string, import("@shared/schema").IndicatorAccumulationEntry> = {};
   if (kpiImpact.indicatorAccumulation) {
     for (const [k, v] of Object.entries(kpiImpact.indicatorAccumulation)) {
@@ -1075,6 +1088,13 @@ export async function processStudentTurn(
         firstAppearanceTurn: v.firstAppearanceTurn,
       };
     }
+  }
+
+  let debriefQuestion: string | undefined;
+  try {
+    debriefQuestion = await generateDebriefQuestion(context, evidenceLog.signals_detected, currentDecisionNum);
+  } catch (err) {
+    console.error("[Director] Debrief question generation failed:", err);
   }
 
   const assemblyPath = decisionsComplete ? "PASS_FINAL" : "PASS_INTERMEDIATE";
@@ -1109,6 +1129,7 @@ export async function processStudentTurn(
       ? "\n\nYou have completed all decisions. Take a moment to reflect on the journey and the choices you made throughout this simulation."
       : "\n\nHas completado todas las decisiones. Tómate un momento para reflexionar sobre el recorrido y las elecciones que tomaste a lo largo de esta simulación.";
     assembledNarrative += reflectionPrompt;
+
   }
 
   if (degradation.fallbackKPI && kpiFailed) {
@@ -1151,9 +1172,26 @@ export async function processStudentTurn(
     integrityFlags: context.integrityFlags,
     indicatorAccumulation: Object.keys(accumulationEntries).length > 0 ? accumulationEntries : undefined,
     hintCounters: context.hintCounters,
-    regenerationUsed: context.regenerationUsed,
     lastTurnNarrative: narrative.text,
+    framework_detections: [
+      ...(context.framework_detections || []),
+      frameworkDetections,
+    ],
   };
+
+  if (decisionsComplete) {
+    try {
+      const allEvidenceLogs = [...existingEvidenceLogs, evidenceEntry];
+      const allFrameworkDetections = [...(context.framework_detections || []), frameworkDetections];
+      const frameworks = context.scenario.frameworks || [];
+      const dashboardSummary = await generateDashboardSummary(
+        context, allEvidenceLogs, allFrameworkDetections, frameworks
+      );
+      updatedState.dashboard_summary = dashboardSummary;
+    } catch (err) {
+      console.error("[Director] Dashboard summary generation failed:", err);
+    }
+  }
 
   storage.createTurnEvent({
     sessionId: context.sessionId,
@@ -1188,6 +1226,158 @@ export async function processStudentTurn(
     displayKPIs: displayKPIEntries.length > 0 ? displayKPIEntries : undefined,
     causalExplanations: causalExplanationEntries.length > 0 ? causalExplanationEntries : undefined,
     decisionAcknowledgment,
+    framework_detections: frameworkDetections.length > 0 ? frameworkDetections : undefined,
+    dashboard_debrief_question: debriefQuestion || undefined,
     updatedState,
   };
+}
+
+const DEBRIEF_PROHIBITED = [
+  /\b(correct|incorrect|good|bad|should have|would have been better|missed the opportunity|debería|hubiera sido mejor|perdió la oportunidad|buena|mala|correcta|incorrecta|weak|strong student|unfortunately|fortunately|optimal|ideal)\b/i,
+  /!/,
+  /\b(tu |tus |usted |your |you )\b/i,
+];
+
+async function generateDebriefQuestion(
+  context: AgentContext,
+  signals: SignalExtractionResult,
+  turnNumber: number,
+): Promise<string> {
+  const isEn = context.language === "en";
+  const signalMap: Record<string, number> = {
+    intent: signals.intent.quality,
+    justification: signals.justification.quality,
+    tradeoffAwareness: signals.tradeoffAwareness.quality,
+    stakeholderAwareness: signals.stakeholderAwareness.quality,
+    ethicalAwareness: signals.ethicalAwareness.quality,
+  };
+  const lowestSignal = Object.entries(signalMap).sort(([,a], [,b]) => a - b)[0];
+  const lowestName = lowestSignal[0];
+  const intentText = signals.intent.extracted_text || context.studentInput.substring(0, 80);
+
+  const prompt = isEn
+    ? `Generate ONE debrief question for a professor to ask a student about Turn ${turnNumber}.
+Student wrote: "${context.studentInput.substring(0, 200)}"
+Lowest signal: ${lowestName} (score ${lowestSignal[1]}/3)
+Intent: "${intentText}"
+
+Rules:
+- Reference something the student actually wrote (paraphrase or short quote)
+- Target the lowest-scoring signal
+- Genuine open question, no leading, no implied "right answer"
+- No prohibited language: correct/incorrect, good/bad, should have, would have been better, missed the opportunity, exclamation marks
+- Must NOT imply the student was wrong
+- Maximum 1 sentence
+- Write in English
+
+Return ONLY the question text, nothing else.`
+    : `Genera UNA pregunta de debriefing para que un profesor le haga a un estudiante sobre el Turno ${turnNumber}.
+El estudiante escribió: "${context.studentInput.substring(0, 200)}"
+Señal más baja: ${lowestName} (puntaje ${lowestSignal[1]}/3)
+Intención: "${intentText}"
+
+Reglas:
+- Referencia algo que el estudiante realmente escribió (paráfrasis o cita corta)
+- Apunta a la señal más baja
+- Pregunta abierta genuina, sin inducción, sin "respuesta correcta" implícita
+- Sin lenguaje prohibido: correcto/incorrecto, bueno/malo, debería haber, hubiera sido mejor, perdió la oportunidad, signos de exclamación
+- NO debe implicar que el estudiante se equivocó
+- Máximo 1 oración
+- Escribe en español
+
+Devuelve SOLO el texto de la pregunta, nada más.`;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const retryNote = attempt > 0 ? `\n\nPREVIOUS ATTEMPT FAILED quality gate. Avoid prohibited language.` : "";
+      const response = await generateChatCompletion(
+        [{ role: "user", content: prompt + retryNote }],
+        { maxTokens: 128, model: "gpt-4o-mini", agentName: "debriefQuestionGenerator" }
+      );
+      const question = response.trim().replace(/^["']|["']$/g, "");
+      const hasProhibited = DEBRIEF_PROHIBITED.some(p => p.test(question));
+      if (!hasProhibited) return question;
+    } catch (err) {
+      console.error(`[DebriefQuestion] Attempt ${attempt + 1} failed:`, err);
+    }
+  }
+
+  return isEn
+    ? `In Turn ${turnNumber}, the decision focused on ${intentText.substring(0, 60)} — what considerations were being weighed in that direction?`
+    : `En el Turno ${turnNumber}, la decisión se centró en ${intentText.substring(0, 60)} — ¿qué consideraciones se estaban sopesando en esa dirección?`;
+}
+
+async function generateDashboardSummary(
+  context: AgentContext,
+  evidenceLogs: import("@shared/schema").DecisionEvidenceLogEntry[],
+  frameworkDetections: import("@shared/schema").FrameworkDetection[][],
+  frameworks: import("@shared/schema").CaseFramework[],
+): Promise<import("@shared/schema").DashboardSummary> {
+  const isEn = context.language === "en";
+
+  const signalNames = ["intent", "justification", "tradeoffAwareness", "stakeholderAwareness", "ethicalAwareness"] as const;
+  const signalAverages = {
+    analytical: 0, strategic: 0, tradeoff: 0, stakeholder: 0, ethical: 0,
+  };
+
+  const frTurns = evidenceLogs.filter(l => !l.isMcq);
+  if (frTurns.length > 0) {
+    const sums = { intent: 0, justification: 0, tradeoffAwareness: 0, stakeholderAwareness: 0, ethicalAwareness: 0 };
+    for (const log of frTurns) {
+      for (const sig of signalNames) {
+        sums[sig] += log.signals_detected[sig]?.quality ?? 0;
+      }
+    }
+    signalAverages.analytical = Math.round((sums.justification / frTurns.length) * 10) / 10;
+    signalAverages.strategic = Math.round((sums.intent / frTurns.length) * 10) / 10;
+    signalAverages.tradeoff = Math.round((sums.tradeoffAwareness / frTurns.length) * 10) / 10;
+    signalAverages.stakeholder = Math.round((sums.stakeholderAwareness / frTurns.length) * 10) / 10;
+    signalAverages.ethical = Math.round((sums.ethicalAwareness / frTurns.length) * 10) / 10;
+  }
+
+  const frameworkSummary = frameworks.map(fw => {
+    let bestLevel: "explicit" | "implicit" | "not_evidenced" = "not_evidenced";
+    let bestTurn: number | null = null;
+    const levelPriority = { explicit: 3, implicit: 2, not_evidenced: 1 };
+    for (let turnIdx = 0; turnIdx < frameworkDetections.length; turnIdx++) {
+      const turnDetections = frameworkDetections[turnIdx] || [];
+      const det = turnDetections.find(d => d.framework_id === fw.id);
+      if (det && levelPriority[det.level] > levelPriority[bestLevel]) {
+        bestLevel = det.level;
+        bestTurn = turnIdx + 1;
+      }
+    }
+    return { framework_id: fw.id, best_level: bestLevel, turn_of_best_application: bestTurn };
+  });
+
+  const bandSummary = evidenceLogs.map((l, i) => `Turn ${i + 1}: ${l.rds_band || "SURFACE"}`).join(", ");
+
+  const highestSignal = Object.entries(signalAverages).sort(([,a], [,b]) => b - a)[0];
+  const lowestSignal = Object.entries(signalAverages).sort(([,a], [,b]) => a - b)[0];
+
+  let sessionHeadline: string;
+  try {
+    const headlinePrompt = isEn
+      ? `Write a 1-2 sentence professor-facing session summary.
+Reasoning arc: ${bandSummary}
+Highest signal: ${highestSignal[0]} (avg ${highestSignal[1]})
+Lowest signal: ${lowestSignal[0]} (avg ${lowestSignal[1]})
+Rules: Observation only. Identify ONE strength OR ONE gap (not both). No evaluation language. No "correct/incorrect", "good/bad", "well done", "optimal", "ideal", "should have", "you should", "best", "unfortunately", "fortunately", "sadly", "surprisingly". No exclamation marks. No "weak/strong student". ${isEn ? "Write in English." : "Write in Spanish."}`
+      : `Escribe un resumen de 1-2 oraciones para el profesor sobre esta sesión.
+Arco de razonamiento: ${bandSummary}
+Señal más alta: ${highestSignal[0]} (promedio ${highestSignal[1]})
+Señal más baja: ${lowestSignal[0]} (promedio ${lowestSignal[1]})
+Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin lenguaje evaluativo. Sin "correcto/incorrecto", "bueno/malo", "bien hecho", "óptimo", "ideal", "debería haber". Sin signos de exclamación. Sin "estudiante débil/fuerte". Escribe en español.`;
+
+    sessionHeadline = (await generateChatCompletion(
+      [{ role: "user", content: headlinePrompt }],
+      { maxTokens: 128, model: "gpt-4o-mini", agentName: "dashboardSummaryGenerator" }
+    )).trim().replace(/^["']|["']$/g, "");
+  } catch {
+    sessionHeadline = isEn
+      ? `Session showed ${highestSignal[0]} as the dominant reasoning pattern across ${evidenceLogs.length} turns.`
+      : `La sesión mostró ${highestSignal[0]} como el patrón de razonamiento dominante en ${evidenceLogs.length} turnos.`;
+  }
+
+  return { session_headline: sessionHeadline, signal_averages: signalAverages, framework_summary: frameworkSummary };
 }

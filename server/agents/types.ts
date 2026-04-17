@@ -117,7 +117,7 @@ export interface AgentContext {
   integrityFlags?: boolean[];
   indicatorAccumulation?: Record<string, IndicatorAccumulation>;
   hintCounters?: Record<number, number>;
-  regenerationUsed?: Record<number, boolean>;
+  framework_detections?: import("@shared/schema").FrameworkDetection[][];
   scenario: {
     title: string;
     domain: string;
@@ -139,6 +139,7 @@ export interface AgentContext {
     culturalContext?: string;
     regulatoryEnvironment?: string;
     subjectMatterContext?: string;
+    frameworks?: import("@shared/schema").CaseFramework[];
   };
 }
 
@@ -191,6 +192,7 @@ export interface CausalExplanation {
   decisionReference: string;
   causalMechanism: string;
   directionalConnection: string;
+  dashboardReasoningLink?: string;
 }
 
 export interface DomainExpertOutput {

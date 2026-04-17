@@ -54,8 +54,6 @@ export default function Simulation() {
   const [hintMaxReached, setHintMaxReached] = useState(false);
   const [hintsRemaining, setHintsRemaining] = useState(2);
   const [isHintLoading, setIsHintLoading] = useState(false);
-  const [regenerationUsed, setRegenerationUsed] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const {
     history,
@@ -85,7 +83,6 @@ export default function Simulation() {
     updateThinkingStep,
     addTurn,
     handleRevisionRequest,
-    replaceLastNarrative,
     initializeSession,
     resetStore,
   } = useSimulationStore();
@@ -146,12 +143,10 @@ export default function Simulation() {
       );
       const cd = session.currentState.currentDecision || 1;
       const serverHintCounters = session.currentState.hintCounters || {};
-      const serverRegenUsed = session.currentState.regenerationUsed || {};
+      const hintMax = initialState?.maxHintsPerTurn ?? 2;
       const usedHints = serverHintCounters[cd] || 0;
-      setHintsRemaining(Math.max(0, 2 - usedHints));
-      setHintMaxReached(usedHints >= 2);
-      const prevDec = cd - 1;
-      setRegenerationUsed(prevDec >= 1 && !!serverRegenUsed[prevDec]);
+      setHintsRemaining(Math.max(0, hintMax - usedHints));
+      setHintMaxReached(usedHints >= hintMax);
     }
     return () => {
       initializedRef.current = false;
@@ -393,8 +388,8 @@ export default function Simulation() {
     setLastTurnStatus(null);
     setHintText(null);
     setHintMaxReached(false);
-    setHintsRemaining(2);
-    setRegenerationUsed(false);
+    const hintMax = session?.scenario?.initialState?.maxHintsPerTurn ?? 2;
+    setHintsRemaining(hintMax);
     return submitMutation.mutateAsync(input);
   };
 
@@ -419,28 +414,6 @@ export default function Simulation() {
     }
   }, [sessionId, isHintLoading, hintMaxReached, toast, lang]);
 
-  const handleRegenerate = useCallback(async () => {
-    if (!sessionId || isRegenerating || regenerationUsed) return;
-    setIsRegenerating(true);
-    try {
-      const res = await apiRequest("POST", `/api/simulations/${sessionId}/regenerate`);
-      const data = await res.json();
-      if (data.regenerated && data.narrative) {
-        setRegenerationUsed(true);
-        replaceLastNarrative(data.narrative.text);
-        toast({ title: lang === "en" ? "Consequence regenerated" : "Consecuencia regenerada" });
-      }
-    } catch (error: any) {
-      const errMsg = error?.message || "";
-      if (errMsg.includes("alreadyUsed") || errMsg.includes("already used")) {
-        setRegenerationUsed(true);
-      } else {
-        toast({ title: lang === "en" ? "Could not regenerate" : "No se pudo regenerar", variant: "destructive" });
-      }
-    } finally {
-      setIsRegenerating(false);
-    }
-  }, [sessionId, isRegenerating, regenerationUsed, toast, lang, replaceLastNarrative]);
 
   if (authLoading || sessionLoading) {
     return (
@@ -592,9 +565,9 @@ export default function Simulation() {
             />
           </div>
 
-          {!isGameOver && !isReflectionStep && !isProcessing && lastTurnStatus !== "block" && (
+          {!isGameOver && !isReflectionStep && !isProcessing && lastTurnStatus !== "block" && (session?.scenario?.initialState?.hintButtonEnabled ?? true) && (
             <div className="flex items-center gap-2 px-4 py-2 border-t">
-              {!hintMaxReached && (
+              {!hintMaxReached ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -609,20 +582,10 @@ export default function Simulation() {
                   )}
                   {lang === "en" ? `Hint (${hintsRemaining})` : `Pista (${hintsRemaining})`}
                 </Button>
-              )}
-              {history.length > 1 && !regenerationUsed && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRegenerate}
-                  disabled={isRegenerating}
-                  data-testid="button-regenerate-consequence"
-                >
-                  {isRegenerating ? (
-                    <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                  ) : null}
-                  {lang === "en" ? "Regenerate consequence" : "Regenerar consecuencia"}
-                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground" data-testid="text-hint-max-reached">
+                  {lang === "en" ? "No more hints available for this decision" : "No hay más pistas disponibles para esta decisión"}
+                </span>
               )}
             </div>
           )}

@@ -567,7 +567,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         integrityFlags: session.currentState.integrityFlags || [],
         indicatorAccumulation: session.currentState.indicatorAccumulation,
         hintCounters: session.currentState.hintCounters || {},
-        regenerationUsed: session.currentState.regenerationUsed || {},
+        framework_detections: session.currentState.framework_detections || [],
         scenario: {
           title: session.scenario?.title || "Business Simulation",
           domain: session.scenario?.domain || "General",
@@ -589,6 +589,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           culturalContext: initialState?.culturalContext,
           regulatoryEnvironment: initialState?.regulatoryEnvironment,
           subjectMatterContext: initialState?.subjectMatterContext,
+          frameworks: initialState?.frameworks,
         },
       };
 
@@ -839,9 +840,14 @@ IMPORTANTE: Todo en ESPAÑOL de Latinoamérica. Sé específico al escenario, no
       const currentDecision = session.currentState.currentDecision || 1;
       const hintCounters = session.currentState.hintCounters || {};
       const currentHintCount = hintCounters[currentDecision] || 0;
+      const maxHints = session.scenario?.initialState?.maxHintsPerTurn ?? 2;
+      const hintEnabled = session.scenario?.initialState?.hintButtonEnabled ?? true;
 
-      if (currentHintCount >= 2) {
-        return res.json({ hint: null, maxReached: true });
+      if (!hintEnabled) {
+        return res.status(403).json({ hint: null, disabled: true });
+      }
+      if (currentHintCount >= maxHints) {
+        return res.json({ hint: null, maxReached: true, maxHints });
       }
 
       const { generateChatCompletion } = await import("./openai");
@@ -888,7 +894,7 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       };
       await storage.updateSimulationSession(sessionId, { currentState: updatedState });
 
-      res.json({ hint, hintsRemaining: 2 - (currentHintCount + 1) });
+      res.json({ hint, hintsRemaining: maxHints - (currentHintCount + 1), maxHints });
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`[Hint Error] Session ${req.params.sessionId} | ${errorMsg}`);
@@ -908,139 +914,6 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
     }
   });
 
-  app.post("/api/simulations/:sessionId/regenerate", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const { sessionId } = req.params;
-
-      const session = await storage.getSimulationSessionWithScenario(sessionId);
-      if (!session) {
-        return res.status(404).json({ message: "Session not found" });
-      }
-      if (session.userId !== userId) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-
-      const currentDecision = session.currentState.currentDecision || 1;
-      const regenerationUsed = session.currentState.regenerationUsed || {};
-
-      const prevDecision = currentDecision - 1;
-      if (prevDecision < 1) {
-        return res.status(400).json({ message: "No previous turn to regenerate" });
-      }
-      if (regenerationUsed[prevDecision]) {
-        return res.status(400).json({ message: "Regeneration already used for this turn", alreadyUsed: true });
-      }
-
-      const language: "es" | "en" = (session.scenario?.language as "es" | "en") || "es";
-      const initialState = session.scenario?.initialState;
-      const scenarioLlmModel = session.scenario?.llmModel || undefined;
-
-      const { generateNarrative } = await import("./agents/narrator");
-      const { generateCausalExplanations } = await import("./agents/causalExplainer");
-
-      const lastUserEntry = [...session.currentState.history].reverse().find((h: HistoryEntry) => h.role === "user");
-      if (!lastUserEntry) {
-        return res.status(400).json({ message: "No previous student input found" });
-      }
-
-      const regenContext: AgentContext = {
-        sessionId,
-        turnCount: session.currentState.turnCount - 1,
-        currentKpis: session.currentState.kpis,
-        indicators: session.currentState.indicators,
-        history: session.currentState.history.slice(0, -2),
-        studentInput: lastUserEntry.content,
-        llmModel: scenarioLlmModel as AgentContext["llmModel"],
-        language,
-        totalDecisions: initialState?.totalDecisions,
-        currentDecision: prevDecision,
-        decisionPoints: initialState?.decisionPoints,
-        scenario: {
-          title: session.scenario?.title || "Business Simulation",
-          domain: session.scenario?.domain || "General",
-          role: initialState?.role || "Business Leader",
-          objective: initialState?.objective || "Navigate the challenge",
-          companyName: initialState?.companyName,
-          industry: initialState?.industry,
-          stakeholders: initialState?.stakeholders,
-          timelineContext: initialState?.timelineContext,
-        },
-      };
-
-      const newNarrative = await generateNarrative(regenContext);
-
-      const allTurns = await storage.getTurnsBySession(sessionId);
-      const lastTurn = allTurns.length > 0 ? allTurns[allTurns.length - 1] : null;
-      const existingResponse = lastTurn?.agentResponse;
-      const existingDisplayKPIs: DisplayKPI[] = (existingResponse?.displayKPIs || []) as DisplayKPI[];
-
-      let newExplanations: CausalExplanation[] = [];
-      if (existingDisplayKPIs.length > 0 && existingResponse?.indicatorDeltas) {
-        try {
-          const kpiImpact: DomainExpertOutput = {
-            kpiDeltas: {},
-            indicatorDeltas: existingResponse.indicatorDeltas as Record<string, number>,
-            reasoning: "",
-            displayKPIs: existingDisplayKPIs.map((d: DisplayKPI) => ({
-              indicatorId: d.indicatorId,
-              label: d.label,
-              direction: d.direction,
-              magnitude: d.magnitude,
-              magnitudeEn: d.magnitudeEn || d.magnitude,
-              tier: d.tier || 1,
-              delta: d.delta || 0,
-              shortReason: d.shortReason || "",
-            })),
-          };
-          newExplanations = await generateCausalExplanations(
-            regenContext,
-            kpiImpact,
-            newNarrative.text,
-          );
-        } catch (err) {
-          console.error("[Regenerate] Causal explanation regeneration failed:", err);
-        }
-      }
-
-      const updatedHistory = [...session.currentState.history];
-      if (updatedHistory.length >= 2) {
-        const lastEntry = updatedHistory[updatedHistory.length - 1];
-        if (lastEntry.role === "system" || lastEntry.role === "npc") {
-          lastEntry.content = newNarrative.text;
-        }
-      }
-
-      if (lastTurn && lastTurn.id && existingResponse) {
-        const updatedAgentResponse = {
-          ...existingResponse,
-          narrative: { text: newNarrative.text, speaker: newNarrative.speaker, mood: newNarrative.mood },
-          causalExplanations: newExplanations.length > 0 ? newExplanations : existingResponse.causalExplanations,
-        };
-        await storage.updateTurn(lastTurn.id, { agentResponse: updatedAgentResponse });
-      }
-
-      const updatedRegenerationUsed = { ...regenerationUsed, [prevDecision]: true };
-      const updatedState = {
-        ...session.currentState,
-        history: updatedHistory,
-        regenerationUsed: updatedRegenerationUsed,
-        lastTurnNarrative: newNarrative.text,
-      };
-      await storage.updateSimulationSession(sessionId, { currentState: updatedState });
-
-      res.json({
-        narrative: { text: newNarrative.text, mood: newNarrative.mood },
-        causalExplanations: newExplanations.length > 0 ? newExplanations : undefined,
-        displayKPIs: existingDisplayKPIs,
-        regenerated: true,
-      });
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`[Regenerate Error] Session ${req.params.sessionId} | ${errorMsg}`);
-      res.status(500).json({ message: "Error regenerating consequence" });
-    }
-  });
 
   // Abandon a simulation session (mark as abandoned so user can start fresh)
   app.post("/api/simulations/:sessionId/abandon", isAuthenticated, async (req: any, res) => {
@@ -1657,6 +1530,33 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
     } catch (error) {
       console.error("Error updating canonical case:", error);
       res.status(500).json({ message: "Error al actualizar el caso" });
+    }
+  });
+
+  app.post("/api/scenarios/suggest-framework-keywords", isAuthenticated, async (req: any, res) => {
+    try {
+      const { frameworkName, caseContext, language } = req.body;
+      if (!frameworkName) {
+        return res.status(400).json({ message: "frameworkName required" });
+      }
+      const { generateChatCompletion } = await import("./openai");
+      const lang = language === "en" ? "en" : "es";
+      const prompt = lang === "en"
+        ? `Given the framework "${frameworkName}" taught in a business simulation scenario${caseContext ? ` about: ${caseContext}` : ""}, return 8-15 domain keywords a student might use when applying this framework, and which of the 5 reasoning signals (intent, justification, tradeoffAwareness, stakeholderAwareness, ethicalAwareness) would indicate implicit application. Respond in English. Return JSON only: {"keywords": ["..."], "signalPattern": {"requiredSignals": ["..."], "minQuality": "PRESENT"}}`
+        : `Dado el marco teórico "${frameworkName}" enseñado en un escenario de simulación de negocios${caseContext ? ` sobre: ${caseContext}` : ""}, retorna 8-15 palabras clave del dominio que un estudiante podría usar al aplicar este marco, y cuáles de las 5 señales de razonamiento (intent, justification, tradeoffAwareness, stakeholderAwareness, ethicalAwareness) indicarían aplicación implícita. Responde en español. Retorna solo JSON: {"keywords": ["..."], "signalPattern": {"requiredSignals": ["..."], "minQuality": "PRESENT"}}`;
+
+      const response = await generateChatCompletion(
+        [{ role: "user", content: prompt }],
+        { responseFormat: "json", maxTokens: 512, agentName: "frameworkKeywordSuggester" }
+      );
+      const parsed = JSON.parse(response);
+      res.json({
+        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+        signalPattern: parsed.signalPattern || { requiredSignals: ["justification"], minQuality: "PRESENT" },
+      });
+    } catch (error) {
+      console.error("Error suggesting framework keywords:", error);
+      res.status(500).json({ message: "Error generating keyword suggestions" });
     }
   });
 

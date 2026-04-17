@@ -129,10 +129,19 @@ Genera una explicación causal para CADA indicador mostrado. Devuelve JSON:
       "indicatorId": "<id>",
       "decisionReference": "<Referencia a la Decisión>",
       "causalMechanism": "<Mecanismo Causal>",
-      "directionalConnection": "<Conexión Direccional>"
+      "directionalConnection": "<Conexión Direccional>",
+      "dashboardReasoningLink": "<max 15 words>"
     }
   ]
-}`;
+}
+
+DASHBOARD REASONING LINK (per indicator, mandatory):
+- Maximum 15 words total
+- Positive movement format: "Driven by: [primary signal] — [one clause describing what student demonstrated]"
+- Negative movement format: "Gap: [primary signal] absent — [one clause describing what was missing]"
+- References ONLY the single primary signal that drove the movement
+- No prohibited language
+- ${isEn ? "Write in English" : "Write in Spanish (e.g., 'Impulsado por: razonamiento analítico — justificación específica del caso presente')"}`;
 
   try {
     const response = await generateChatCompletion(
@@ -202,6 +211,7 @@ function parseAndFilterExplanations(response: string, displayKPIs: DisplayKPI[])
       decisionReference?: string;
       causalMechanism?: string;
       directionalConnection?: string;
+      dashboardReasoningLink?: string;
     }>;
   };
   const explanations: CausalExplanation[] = (parsed.explanations || []).map(e => ({
@@ -209,6 +219,7 @@ function parseAndFilterExplanations(response: string, displayKPIs: DisplayKPI[])
     decisionReference: e.decisionReference || "",
     causalMechanism: e.causalMechanism || "",
     directionalConnection: e.directionalConnection || "",
+    dashboardReasoningLink: e.dashboardReasoningLink || undefined,
   }));
 
   const validIds = new Set(displayKPIs.map(d => d.indicatorId));
@@ -243,6 +254,23 @@ function runExplainerQualityGates(explanations: CausalExplanation[]): ExplainerG
     if (/!/.test(fullText)) {
       failures.push({ gate: "Exclamation", reason: `Exclamation mark in ${exp.indicatorId}` });
     }
+
+    if (exp.dashboardReasoningLink) {
+      const linkText = exp.dashboardReasoningLink;
+      const wordCount = linkText.split(/\s+/).filter(Boolean).length;
+      if (wordCount > 15) {
+        failures.push({ gate: "ReasoningLinkLength", reason: `dashboardReasoningLink exceeds 15 words for ${exp.indicatorId} (${wordCount} words)` });
+      }
+      for (const pattern of PRESCRIPTIVE_PATTERNS) {
+        if (pattern.test(linkText)) {
+          failures.push({ gate: "ReasoningLinkProhibited", reason: `Prohibited language in dashboardReasoningLink for ${exp.indicatorId}` });
+          break;
+        }
+      }
+      if (/!/.test(linkText)) {
+        failures.push({ gate: "ReasoningLinkExclamation", reason: `Exclamation in dashboardReasoningLink for ${exp.indicatorId}` });
+      }
+    }
   }
 
   return { passed: failures.length === 0, failures };
@@ -261,6 +289,16 @@ function regexRepairExplanations(explanations: CausalExplanation[]): CausalExpla
     exp.decisionReference = exp.decisionReference.replace(/!/g, ".");
     exp.causalMechanism = exp.causalMechanism.replace(/!/g, ".");
     exp.directionalConnection = exp.directionalConnection.replace(/!/g, ".");
+    if (exp.dashboardReasoningLink) {
+      for (const pattern of PRESCRIPTIVE_PATTERNS) {
+        exp.dashboardReasoningLink = exp.dashboardReasoningLink.replace(pattern, "").replace(/\s{2,}/g, " ").trim();
+      }
+      exp.dashboardReasoningLink = exp.dashboardReasoningLink.replace(/!/g, ".");
+      const words = exp.dashboardReasoningLink.split(/\s+/).filter(Boolean);
+      if (words.length > 15) {
+        exp.dashboardReasoningLink = words.slice(0, 15).join(" ");
+      }
+    }
   }
   return explanations;
 }

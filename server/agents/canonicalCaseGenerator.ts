@@ -18,7 +18,7 @@ import type {
   DecisionPoint,
   Indicator
 } from "@shared/schema";
-import { CANONICAL_KPIS } from "@shared/schema";
+import { getCanonicalKPIs } from "@shared/schema";
 import { generateChatCompletion } from "../openai";
 import { POC_VERSION, STRUCTURE_LOCK_NOTICE, DEFAULT_DECISIONS, MIN_DECISIONS, MAX_DECISIONS } from "./constants";
 
@@ -224,8 +224,8 @@ export async function generateCanonicalCase(
     : "";
 
   const langDirective = isEn
-    ? `\n\nCRITICAL LANGUAGE OVERRIDE: Generate ALL content in ENGLISH. All titles, descriptions, prompts, options, contexts, constraints, and objectives MUST be in English. Zero Spanish.`
-    : "";
+    ? `\n\nCRITICAL LANGUAGE OVERRIDE: Generate ALL content in ENGLISH. All titles, descriptions, prompts, options, contexts, constraints, and objectives MUST be in English. Zero Spanish.\nCRITICAL: Indicator labels MUST be in English. Example English labels: "Team Morale", "Budget", "Brand Reputation".`
+    : `\n\nCRÍTICO: Los nombres de indicadores DEBEN estar en español. Ejemplo: "Moral del Equipo", "Presupuesto", "Reputación".`;
 
   const response = await generateChatCompletion(
     [
@@ -242,14 +242,19 @@ export async function generateCanonicalCase(
 
   const parsed = JSON.parse(response);
   
-  const defaultIndicators: Indicator[] = CANONICAL_KPIS.map(k => ({ ...k }));
+  const defaultIndicators: Indicator[] = getCanonicalKPIs(language);
 
-  // S7.1: Default focus cues for each decision
-  const defaultFocusCues = [
-    "Considera: impacto en el equipo / presión de tiempo / riesgos inmediatos.",
-    "La tensión principal aquí es equilibrar recursos con objetivos.",
-    "Piensa en cómo tus decisiones anteriores afectan esta elección final.",
-  ];
+  const defaultFocusCues = isEn
+    ? [
+        "Consider: team impact / time pressure / immediate risks.",
+        "The main tension here is balancing resources with objectives.",
+        "Think about how your previous decisions affect this final choice.",
+      ]
+    : [
+        "Considera: impacto en el equipo / presión de tiempo / riesgos inmediatos.",
+        "La tensión principal aquí es equilibrar recursos con objetivos.",
+        "Piensa en cómo tus decisiones anteriores afectan esta elección final.",
+      ];
   
   const decisionPoints: DecisionPoint[] = (parsed.decisionPoints || []).map((dp: any, index: number) => ({
     number: dp.number || index + 1,

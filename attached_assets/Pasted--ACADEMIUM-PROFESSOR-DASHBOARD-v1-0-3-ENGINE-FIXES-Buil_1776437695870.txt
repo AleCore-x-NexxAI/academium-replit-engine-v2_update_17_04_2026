@@ -1,0 +1,949 @@
+# ACADEMIUM — PROFESSOR DASHBOARD v1.0 + 3 ENGINE FIXES
+
+**Build prompt for Replit agent. Self-contained. No external spec documents required.**
+**Visual reference:** `docs/dashboard_blueprint.html` (save this file in the repo before building — it shows the exact layout with placeholder text explaining what each element is and where its data comes from).
+
+---
+
+## SETUP (do this first, once)
+
+1. Place `dashboard_blueprint.html` into `docs/dashboard_blueprint.html` in the repo. This is the visual reference.
+2. Open `replit.md` and add a section near the top:
+   ```
+   ## Professor Dashboard (in development)
+   The professor dashboard is a new feature being built on top of Engine Packet v2.0.
+   Visual reference: docs/dashboard_blueprint.html — shows the exact layout and what each
+   element represents. All data, generation, and prohibition rules governing the dashboard
+   are inlined in the build prompt for each subtask. Do not invent logic not specified here.
+   ```
+3. Verify `docs/ENGINE_PACKET_V2.md` is still the governing engine spec — none of the work below modifies engine behavior beyond the explicit extensions in Part B.
+
+---
+
+## EXECUTION ORDER
+
+Strict order. Deploy and verify after each Part before moving to the next:
+
+- **PART A** — Three small bug fixes (A1 → A2 → A3)
+- **PART B** — Five engine extensions (B1 → B2 → B3 → B4 → B5)
+- **PART C** — Dashboard UI (C1 → C2 → C3 → C4)
+
+Commit after each sub-task. Use commit prefixes `fix(A1)`, `feat(B1)`, `feat(C1)`, etc.
+
+---
+
+# PART A — THREE SMALL FIXES
+
+---
+
+## A1. Fix language mismatch in indicator labels
+
+**Problem:** When a professor creates a case in English, the indicator labels displayed in the student UI are still in Spanish. Example: UI language is English, but the indicator says "Moral del Equipo" instead of "Team Morale". Same issue leaks into `shortReason`, causal explanations, and mentor notes in some flows.
+
+**Root cause:**
+- `shared/schema.ts` (around line 261): `CANONICAL_KPIS` constant is hardcoded in Spanish.
+- `server/agents/canonicalCaseGenerator.ts` (around line 245): `defaultIndicators = CANONICAL_KPIS.map(k => ({ ...k }))` copies Spanish labels regardless of scenario language.
+- Some agent prompts don't consistently apply `getLanguageDirective(context.language)`.
+
+**Fix:**
+
+1. In `shared/schema.ts`, replace the single `CANONICAL_KPIS` constant with a bilingual version:
+   ```typescript
+   export const CANONICAL_KPIS_ES: Indicator[] = [
+     { id: "K1", label: "Presupuesto / Impacto Financiero", value: 50, direction: "up_better" },
+     { id: "K2", label: "Moral del Equipo", value: 50, direction: "up_better" },
+     { id: "K3", label: "Reputación de Marca", value: 50, direction: "up_better" },
+     { id: "K4", label: "Eficiencia Operativa", value: 50, direction: "up_better" },
+     { id: "K5", label: "Confianza de Stakeholders", value: 50, direction: "up_better" },
+   ];
+   export const CANONICAL_KPIS_EN: Indicator[] = [
+     { id: "K1", label: "Budget / Financial Impact", value: 50, direction: "up_better" },
+     { id: "K2", label: "Team Morale", value: 50, direction: "up_better" },
+     { id: "K3", label: "Brand Reputation", value: 50, direction: "up_better" },
+     { id: "K4", label: "Operational Efficiency", value: 50, direction: "up_better" },
+     { id: "K5", label: "Stakeholder Trust", value: 50, direction: "up_better" },
+   ];
+   export function getCanonicalKPIs(language: "es" | "en" = "es"): Indicator[] {
+     return language === "en" ? CANONICAL_KPIS_EN.map(k => ({ ...k })) : CANONICAL_KPIS_ES.map(k => ({ ...k }));
+   }
+   // Keep CANONICAL_KPIS as alias for backward compatibility:
+   export const CANONICAL_KPIS = CANONICAL_KPIS_ES;
+   ```
+
+2. In `server/agents/canonicalCaseGenerator.ts`, replace the default indicator assignment:
+   ```typescript
+   const defaultIndicators: Indicator[] = getCanonicalKPIs(language);
+   ```
+   Also update `defaultFocusCues` (around lines 247–251) to include an English version used when `language === "en"`.
+
+3. **Audit AI generation for language compliance.** Every agent that produces user-facing text must end its system prompt with `getLanguageDirective(context.language)`. Walk these files and confirm — add if missing:
+   - `server/agents/narrator.ts` (confirm)
+   - `server/agents/causalExplainer.ts` (confirm)
+   - `server/agents/signalExtractor.ts` (confirm)
+   - `server/agents/inputValidator.ts` (confirm)
+   - `server/agents/domainExpert.ts` — check `shortReason` generation; its prompt must end with the directive because `shortReason` is displayed in the student UI.
+   - `server/agents/evaluator.ts` — check `feedback.message` generation for the same reason.
+
+4. In the canonicalCaseGenerator prompt (the one that generates the scenario's custom indicators), add an explicit instruction near the bottom:
+   ```
+   CRITICAL: Indicator labels MUST be in ${language === "en" ? "English" : "Spanish"}.
+   Example English labels: "Team Morale", "Budget", "Brand Reputation".
+   Example Spanish labels: "Moral del Equipo", "Presupuesto", "Reputación".
+   ```
+
+5. **Data migration is out of scope.** Existing scenarios keep their original labels. Only NEW scenarios created after this fix use the correct language from the start.
+
+**Done looks like:**
+- Create a new English-language scenario. Play one turn. Every piece of visible text (indicator labels, `shortReason`, causal explanation, consequence narrative, mentor note) is in English with zero Spanish fragments.
+- Same test in Spanish produces zero English fragments.
+
+**Files touched:** `shared/schema.ts`, `server/agents/canonicalCaseGenerator.ts`, `server/agents/domainExpert.ts`, `server/agents/evaluator.ts` (verification).
+
+---
+
+## A2. Remove consequence regeneration entirely
+
+**Problem:** After a student submits a decision, a "Regenerate consequence" / "Regenerar consecuencia" button appears next to the hint button. This feature is being removed end-to-end.
+
+**Fix — delete every trace:**
+
+1. **Backend endpoint.** In `server/routes.ts`, delete the entire `POST /api/simulations/:sessionId/regenerate` handler (starts around line 911, ends around line 1040).
+
+2. **SimulationState field.** In `shared/schema.ts` (around line 434), delete:
+   ```typescript
+   regenerationUsed?: Record<number, boolean>;
+   ```
+
+3. **Frontend button.** In `client/src/pages/Simulation.tsx`:
+   - Delete the `handleRegenerate` callback (around line 422).
+   - Delete the regenerate button JSX (around line 617, `data-testid="button-regenerate-consequence"`).
+   - Remove any state variables that only tracked regeneration (`regenerating`, `regenerationAvailable`, `alreadyUsed`).
+   - Remove any server-sync code that loads regeneration state on session init.
+
+4. **Store method.** In `client/src/stores/simulationStore.ts`:
+   - Delete `replaceLastNarrative` from the interface (around line 52).
+   - Delete its implementation (around line 233).
+
+5. **Grep check.** Run `grep -ri "regenerationUsed\|handleRegenerate\|replaceLastNarrative\|Regenerate consequence\|Regenerar consecuencia" .` — expect zero matches when done. Do NOT remove matches that relate to scenario generation, narrative quality-gate retries, or authoring studio content regeneration — those are different features that stay.
+
+**Done looks like:**
+- No "Regenerate" button visible in the student simulation UI.
+- `POST /api/simulations/:sessionId/regenerate` returns 404.
+- Existing sessions continue to work; missing `regenerationUsed` doesn't break state loading.
+
+**Files touched:** `server/routes.ts`, `shared/schema.ts`, `client/src/pages/Simulation.tsx`, `client/src/stores/simulationStore.ts`.
+
+---
+
+## A3. Make hint button professor-configurable
+
+**Problem:** Hint button has a hardcoded max of 2 hints per turn. Professors should be able to:
+- Turn hints on or off per case
+- If on, pick max hints per turn (1, 2, 3, 4, or 5)
+
+**Fix:**
+
+1. **Extend the scenario schema.** In `shared/schema.ts`, add to `InitialState` (or the scenario table, wherever scenario-level config lives):
+   ```typescript
+   hintButtonEnabled?: boolean;          // default: true for backward compat
+   maxHintsPerTurn?: 1 | 2 | 3 | 4 | 5;  // default: 2 for backward compat
+   ```
+   If these fields belong on the `scenarios` table, create a Drizzle migration.
+
+2. **Professor case editor UI.** In the scenario configuration UI (e.g., `client/src/pages/CanonicalCaseCreator.tsx`), add a new section near other behavioral settings:
+   - A toggle switch labeled "Hint button" / "Botón de pista" — binds to `hintButtonEnabled`.
+   - When toggle is ON, show a dropdown "Max hints per decision" / "Pistas máximas por decisión" with options 1, 2, 3, 4, 5 — binds to `maxHintsPerTurn`.
+   - When toggle is OFF, dropdown is hidden.
+   - Defaults: enabled=true, max=2.
+   - Style: shadcn Switch + Select components matching existing settings.
+
+3. **Hint endpoint.** In `server/routes.ts` find `POST /api/simulations/:sessionId/hint` (around line 823). Replace the hardcoded max check:
+   ```typescript
+   const maxHints = session.scenario?.initialState?.maxHintsPerTurn ?? 2;
+   const hintEnabled = session.scenario?.initialState?.hintButtonEnabled ?? true;
+
+   if (!hintEnabled) {
+     return res.status(403).json({ hint: null, disabled: true });
+   }
+   if (currentHintCount >= maxHints) {
+     return res.json({ hint: null, maxReached: true, maxHints });
+   }
+   ```
+   Include `maxHints` in the successful response so the UI can show "Hint 1 of 3", etc.
+
+4. **Frontend hint button.** In `client/src/pages/Simulation.tsx`:
+   - Read `scenario.initialState.hintButtonEnabled` and `maxHintsPerTurn` on session load.
+   - Only render the hint button if `hintButtonEnabled` is true.
+   - Show remaining count, e.g., "Pista (2 disponibles)" / "Hint (2 left)".
+   - When max reached, disable button and show "No hay más pistas disponibles para esta decisión" / "No more hints available for this decision".
+   - When student advances to the next decision, the counter resets (already handled by `hintCounters` being keyed by `currentDecision`).
+
+5. **Backward compatibility.** The `?? true` and `?? 2` defaults keep every existing scenario working identically to before.
+
+**Done looks like:**
+- Open case creator → hint button toggle visible.
+- Toggle OFF + save → simulation shows no hint button.
+- Toggle ON + set max 4 + save → simulation shows hint button, works 4 times on one decision, then shows "no more hints" message, then resets on next decision.
+- Existing scenarios show the button with max 2 unchanged.
+
+**Files touched:** `shared/schema.ts`, `server/routes.ts`, `client/src/pages/CanonicalCaseCreator.tsx`, `client/src/pages/Simulation.tsx`, Drizzle migration (if needed).
+
+---
+
+# PART B — ENGINE EXTENSIONS
+
+These add the five data fields the dashboard needs. Do them before Part C. All rules are inlined here — no external spec reference required.
+
+---
+
+## B1. Scenario Config — Frameworks Field
+
+**What it does:** Lets professors specify 0–8 pedagogical frameworks/theories they teach in a course (e.g., "BATNA negotiation", "OLI entry mode theory", "Hofstede cultural distance"). The engine will detect application of those frameworks in student responses (B2).
+
+**Schema addition** in `shared/schema.ts`:
+
+```typescript
+export interface CaseFramework {
+  id: string;                      // auto-generated UUID
+  name: string;                    // professor-entered free text, e.g., "BATNA negotiation"
+  domainKeywords: string[];        // AI-suggested on setup; professor can edit
+  signalPattern?: {
+    requiredSignals: Array<"intent" | "justification" | "tradeoffAwareness" | "stakeholderAwareness" | "ethicalAwareness">;
+    minQuality: "WEAK" | "PRESENT" | "STRONG";
+    additionalKeywords?: string[];
+  };
+}
+```
+
+Add to `InitialState` (or scenarios table via migration):
+```typescript
+frameworks?: CaseFramework[];   // 0-8 entries
+```
+
+**Professor UI** — add a "Course frameworks" section in the case editor:
+- Text input to add a framework name. Limit: 8 frameworks total.
+- When professor enters a name, auto-call keyword suggestion endpoint (next step). Return suggested keywords + signal pattern. Display both in editable chips/controls.
+- Professor can edit keywords (add/remove chips) and toggle which signals are required.
+- Empty frameworks list is valid → module health section of dashboard will show "No frameworks configured for this case".
+
+**New endpoint** `POST /api/scenarios/suggest-framework-keywords`:
+```
+Body: { frameworkName: string, caseContext: string, language: "es" | "en" }
+Returns: { keywords: string[], signalPattern: { requiredSignals: [...], minQuality: "PRESENT" } }
+```
+
+Implementation: Use `generateChatCompletion` with a prompt asking:
+> "Given the framework '[name]' taught in a [case context] scenario, return 8–15 domain keywords a student might use when applying this framework, and which of the 5 reasoning signals (intent, justification, tradeoffAwareness, stakeholderAwareness, ethicalAwareness) would indicate implicit application. Respond in ${language}. Return JSON: {keywords: [], signalPattern: {requiredSignals: [...], minQuality: 'PRESENT'}}"
+
+**Done looks like:**
+- Case creator has a "Course frameworks" section. Professor can add up to 8 frameworks, each with name + editable keywords + signal pattern.
+- Empty list allowed.
+- Existing scenarios work unchanged.
+
+---
+
+## B2. Framework Detection Engine Pass
+
+**What it does:** On every FR turn (not MCQ), after the 5 signals are extracted, run a pass that classifies each professor-specified framework as `explicit`, `implicit`, or `not_evidenced` based on the student's response + extracted signals.
+
+**New agent file:** `server/agents/frameworkDetector.ts`.
+
+**Detection rules (implement exactly):**
+- **Explicit** — Student's response contains the framework name, a named theorist, or any domain keyword (case-insensitive regex match against the framework's `domainKeywords` array).
+- **Implicit** — All of:
+  - Framework's `signalPattern.requiredSignals` are all present at or above `signalPattern.minQuality` in the turn's extracted signals.
+  - At least one non-technical domain keyword or a conceptually-related word appears in the student's response OR the student's extracted signals reference the domain (e.g., stakeholder awareness mentions a geographic/cultural element for a cultural-distance framework).
+- **Not evidenced** — Neither condition met.
+
+**For MCQ (Turn 1):** Skip framework detection. MCQ responses don't carry enough signal content. Return an empty `framework_detections` array.
+
+**Session state addition** in `shared/schema.ts`:
+```typescript
+export interface FrameworkDetection {
+  framework_id: string;
+  framework_name: string;
+  level: "explicit" | "implicit" | "not_evidenced";
+  evidence: string;  // 1 sentence describing what in the student's input produced this
+}
+```
+
+Add to the per-turn schema (where `decisionEvidenceLogs` lives):
+```typescript
+framework_detections?: FrameworkDetection[];
+```
+
+**Evidence sentence rules** (enforce via post-generation checks):
+- Maximum 1 sentence.
+- References what the student actually wrote (at least one word/phrase from `student_input`).
+- No evaluation language ("good", "bad", "correct", "incorrect", "should have").
+- Uses scenario language.
+
+**Pipeline integration** in `server/agents/director.ts`: After signal extraction completes and before the parallel S3+S4 block, add:
+```typescript
+const frameworkDetections = scenario.initialState?.frameworks?.length
+  ? await detectFrameworks(
+      contextWithRDS,
+      evidenceLog.signals_detected,
+      scenario.initialState.frameworks
+    )
+  : [];
+// Store frameworkDetections in the turn record alongside decisionEvidenceLog
+```
+
+**Done looks like:**
+- Every FR turn produces a `framework_detections` array with one entry per professor-specified framework.
+- Each entry has a level and a grounded 1-sentence evidence string.
+- MCQ and scenarios without frameworks produce `[]`.
+- Scenario language respected in evidence strings.
+
+---
+
+## B3. Dashboard Reasoning Link on KPI Movements
+
+**What it does:** The existing `causalExplanation` (2–4 sentences, narrative voice) powers the student-facing "Why?" button. The dashboard needs a shorter, ≤15-word phrase for the KPI pills in the debrief prep tab.
+
+**Field addition** on the displayed-KPI schema (wherever `dashboardReasoningLink` fits in the existing `DisplayKPI` structure):
+```typescript
+dashboard_reasoning_link?: string;
+// Positive format: "Driven by: [signal name] — [one-clause description]"
+// Negative format: "Gap: [signal name] absent — [one-clause description]"
+```
+
+**Generation:** In `server/agents/causalExplainer.ts`, extend the existing JSON schema returned by the LLM to include this field per displayed KPI:
+```json
+{
+  "explanations": [
+    {
+      "indicatorId": "K2",
+      "decisionReference": "...",
+      "causalMechanism": "...",
+      "directionalConnection": "...",
+      "dashboardReasoningLink": "Driven by: analytical reasoning — case-specific justification present"
+    }
+  ]
+}
+```
+
+Add these rules to the causalExplainer's system prompt:
+```
+Additionally for each explanation, produce a "dashboardReasoningLink":
+- Maximum 15 words total
+- Format for positive movement: "Driven by: [primary signal] — [one clause describing what student demonstrated]"
+- Format for negative movement: "Gap: [primary signal] absent — [one clause describing what was missing]"
+- References ONLY the single primary signal that drove the movement
+- No prohibited language (no evaluation, no praise, no "should have")
+- Scenario language respected
+```
+
+**Post-generation validation:** After parsing the LLM response, run the `dashboardReasoningLink` through the existing `PROHIBITED_PATTERNS` scan from the narrator. If violations → retry once → else regex-repair.
+
+**Done looks like:**
+- Every displayed KPI movement in session state has a populated `dashboard_reasoning_link`.
+- ≤15 words after the colon.
+- Spanish scenarios → Spanish links. English scenarios → English links.
+- No prohibited terms.
+
+---
+
+## B4. Session-Level Dashboard Summary
+
+**What it does:** When the final turn completes, compute and store aggregation fields on the session so the dashboard doesn't recompute on every load.
+
+**Schema addition** in `shared/schema.ts`:
+```typescript
+export interface DashboardSummary {
+  session_headline: string;           // 1–2 sentence AI-generated session summary
+  signal_averages: {                  // pre-computed for radar chart (0–3 scale, 1 decimal)
+    analytical: number;
+    strategic: number;
+    tradeoff: number;
+    stakeholder: number;
+    ethical: number;
+  };
+  framework_summary: Array<{
+    framework_id: string;
+    best_level: "explicit" | "implicit" | "not_evidenced";
+    turn_of_best_application: number | null;
+  }>;
+}
+```
+
+Add to `SimulationState`:
+```typescript
+dashboard_summary?: DashboardSummary;
+```
+
+**Where to compute:** In `server/agents/director.ts`, at the end of `processStudentTurn` when `decisionsComplete === true`, generate and persist this.
+
+**Session headline generation rules (inline — enforce exactly):**
+- 1–2 sentences maximum.
+- References the student's reasoning arc (which turns were Surface/Engaged/Integrated).
+- Identifies the single most significant gap OR strength (not both).
+- Written as observation, not evaluation.
+- Uses scenario language.
+- May note if pattern differs from class average (optional).
+- Prohibited: "correct/incorrect", "good/bad decision", "well done", "optimal", "ideal", "should have", "you should", "best", "unfortunately", "fortunately", "sadly", "surprisingly", any exclamation marks.
+- Prohibited dashboard-specific: "weak student", "strong performer", any comparison by student name.
+
+**Signal averages computation:**
+```typescript
+// For each of the 5 signals:
+const average = signalValues.reduce((sum, v) => sum + v, 0) / signalValues.length;
+// Where signalValues = turn-level signal quality (0-3) across all completed turns
+// Round to 1 decimal.
+```
+
+**Framework summary computation:** Per framework, find the turn where `level` was highest (priority: explicit > implicit > not_evidenced) and record `turn_of_best_application`. If never applied anywhere: `best_level: "not_evidenced"`, `turn_of_best_application: null`.
+
+**Done looks like:**
+- Completing a session triggers generation of `dashboard_summary`.
+- Headline in scenario language, ≤2 sentences, no prohibited terms.
+- Signal averages and framework summary numerically correct (verify manually from session turn data).
+
+---
+
+## B5. Per-Turn Debrief Question Generation
+
+**What it does:** After each turn completes, generate a professor-facing debrief question targeting this specific student's most significant signal gap at that turn.
+
+**Schema addition** — add to each turn's record:
+```typescript
+dashboard_debrief_question?: string;
+```
+
+**Generation rules (enforce exactly):**
+1. Must reference something the student actually wrote at this turn (paraphrase or short quote from `student_input`).
+2. Must target the lowest-scoring signal at this turn (or the signal that dropped most from prior turn, if prior exists).
+3. Phrased as a genuine open question — no leading questions, no implied "right answer".
+4. Must not contain any prohibited language (same list as B4 session headline + no "should have", "would have been better", "missed the opportunity to").
+5. Must not imply the student was wrong or made a mistake.
+6. Maximum 1 sentence.
+7. Uses scenario language.
+
+**Fallback template** when 3 retries all fail quality gate:
+```
+// Spanish:
+"En el Turno [N], tú [paráfrasis de la intención] — ¿qué estabas sopesando que te llevó a esa dirección?"
+// English:
+"In Turn [N], you [paraphrase of intent signal] — what were you weighing that led you to that direction?"
+```
+
+**Quality gate logic:**
+1. Generate once.
+2. Scan for prohibited patterns.
+3. If fail: retry with violations appended to prompt. Retry max 2 times.
+4. If still failing after 3 total attempts: use fallback template.
+
+**Where to generate:** In `server/agents/director.ts`, after the causal explainer finishes. Can run in parallel with `dashboard_reasoning_link` generation if desired, or as a separate method in `causalExplainer.ts` called right after the main explanation pass.
+
+**Done looks like:**
+- Every turn record has a populated `dashboard_debrief_question`.
+- The question references the student's specific words.
+- It targets the signal gap.
+- No prohibited language.
+- Scenario language respected.
+- Fallback template only used when 3 retries fail (should be rare).
+
+---
+
+# PART C — DASHBOARD UI
+
+All visual and logic rules are inline below. Visual source of truth: `docs/dashboard_blueprint.html`. That file shows the exact layout with descriptive placeholders explaining what each element represents and where its data comes from — treat it as an interactive spec.
+
+---
+
+## C1. Scenario View Navigation Restructure
+
+**What it does:** Within a scenario view, the professor sees three top-level tabs: **Analytics** / **Students** / **Control**.
+
+**Current state:** `ScenarioAnalytics.tsx` has "Estudiantes" and "Vista de Clase" tabs. This is being restructured.
+
+**Implementation:**
+1. Rename or restructure `ScenarioAnalytics.tsx` → `ScenarioDashboard.tsx` (or keep the filename, restructure internally).
+2. Replace the current tabs with: **Analytics** (default) / **Students** / **Control**.
+3. Use shadcn Tabs. Match the blueprint HTML nav styling: small rounded tab buttons, subtle border and gray text when inactive, darker background and bold text when active.
+4. Header area above tabs displays:
+   - Scenario title (large, 15px, weight 500)
+   - `[Course name] · [Term] · [N] students enrolled` (smaller, gray, 12px)
+5. Route: `/scenarios/:id/dashboard` defaults to Analytics tab. Persist tab selection via `?tab=analytics|students|control`.
+
+**Analytics tab content:** everything in C2.
+**Students tab content:** migrate existing student list view (adapt styling if needed).
+**Control tab content:** existing controls untouched.
+
+**Done looks like:**
+- Open a scenario → three tabs, Analytics default.
+- Switching tabs updates URL.
+- Header shows scenario metadata correctly.
+
+---
+
+## C2. Analytics Tab — Class Overview
+
+Build in the order below. Each subtask matches a section of `dashboard_blueprint.html` (top to bottom).
+
+---
+
+### C2.1 — Top stats row (4 cards)
+
+**Four white cards in a row:**
+
+| Card | Value source | Description (inline under value) |
+|---|---|---|
+| Completed | Count of sessions where `session_status === "complete"` | "Number of students who have finished all turns and submitted the reflection" |
+| In progress | Count of sessions where `session_status === "active"` | "Number of students who have started but not yet completed the simulation" |
+| Biggest drop point | Computed (see below) | "The turn where average reasoning depth dropped most significantly across the class" |
+| Applied course theory | Computed (see below) | "How many students showed evidence of applying at least one professor-specified framework" |
+
+**Biggest drop point computation:**
+1. For each turn N, compute class average RDS band: `avg = mean(student.turn_N.rds_band)` where Surface=1, Engaged=2, Integrated=3.
+2. Compute deltas: `delta[i] = avg[i] - avg[i-1]` for i from 2 to N.
+3. The turn with the largest negative delta = biggest drop point.
+4. If no negative delta exists → display "—".
+
+**Applied course theory count:**
+- Count students who have at least one `framework_detections[].level === "explicit"` OR `"implicit"` across any turn of their completed session.
+- Display as "N of M" where M = completed students, N = students with applied theory.
+- If no frameworks configured on scenario → display "—".
+
+**API endpoint:** `GET /api/scenarios/:scenarioId/class-stats`
+```json
+Returns: {
+  completed: number,
+  inProgress: number,
+  biggestDropPoint: { turn: number, delta: number } | null,
+  appliedCourseTheory: { n: number, m: number } | null
+}
+```
+
+---
+
+### C2.2 — Module Health section
+
+**White card.** Title "Module health". Subtitle: "How the frameworks and theories you connected to this simulation are showing up — or not — in student decisions. One block per framework. Read this when planning your next class."
+
+**Content:**
+- Grid of framework blocks (4 columns on desktop, responsive). One block per professor-specified framework. Up to 8.
+- Each block shows:
+  - **Framework name** (from `scenario.initialState.frameworks[i].name`)
+  - **Status badge** — see classification rules below
+  - **Description** — 2–3 sentence AI-generated description
+
+**Status classification rules (hard thresholds):**
+| Status | Color | Rule |
+|---|---|---|
+| Transferring | Green — bg `#EAF3DE` text `#27500A` | ≥60% of completed students showed Explicit or Implicit application in ≥1 turn |
+| Developing | Amber — bg `#FAEEDA` text `#633806` | 20–59% showed application |
+| Not yet evidenced | Blue — bg `#E6F1FB` text `#0C447C` | <20% showed application |
+| Absent | Red — bg `#FCEBEB` text `#791F1F` | 0% showed application |
+
+**Module health description generation rules:**
+- 2–3 sentences maximum.
+- States what percentage of students showed application (or that none did). Use natural language: "2 of 3 students showed..." not "66.7%".
+- Describes specifically what sub-concepts appeared or didn't — mine this from the aggregated `framework_detections[].evidence` strings across students.
+- Only descriptive language. No recommendations. No evaluations. No "consider doing X".
+- Uses scenario language.
+- Prohibited examples:
+  - ❌ "Consider revisiting BATNA before the next class."
+  - ❌ "Students need more practice applying this framework explicitly."
+  - ❌ "This is weak — focus on this area."
+- Correct examples:
+  - ✅ "2 of 3 students showed principled negotiation logic without naming the framework. One student applied it explicitly with a performance clause."
+  - ✅ "No student referenced Hofstede dimensions, relationship norms, or cultural adaptation across any turn despite the Brazilian market context."
+
+**Divider below framework grid.**
+
+**Class debrief opener box** (gray-on-dashed-border in blueprint, blue background in final styling):
+- Label: "Class debrief opener" (small uppercase, gray, letter-spaced)
+- One AI-generated question displayed prominently.
+
+**Class debrief opener generation rules:**
+1. Identify the competency with the lowest class demonstration rate.
+2. Cross-reference with the framework with the lowest module health status.
+3. Generate ONE question that connects both.
+4. Maximum 2 sentences.
+5. Must be a genuine question (ends with ?).
+6. Must reference a specific decision point (turn) where the gap was most pronounced.
+7. Must not imply any student was wrong.
+8. Uses scenario language.
+9. Prohibited: naming individual students. Prohibited: recommendations. Prohibited: evaluative language.
+10. If question fails the quality gate after 3 retries, fall back to a template like:
+    ```
+    EN: "In Turn [N], many students made a [decision type] — what framework were they working from, and what would it have looked like if they had named it?"
+    ES: "En el Turno [N], muchos estudiantes tomaron una decisión de [tipo] — ¿desde qué marco estaban trabajando, y cómo se vería si lo nombraran explícitamente?"
+    ```
+
+**Expandable deeper view** (below the debrief box):
+- Button: "Show full framework breakdown ↓" / "Ocultar desglose completo ↑"
+- Click reveals: one deeper-view card per framework (3 per row on desktop).
+- Deeper-view card shows framework name + a longer description (3–5 sentences) detailing which sub-concepts appeared/didn't and how consistently the pattern held across students.
+
+**API endpoints:**
+- `GET /api/scenarios/:scenarioId/module-health` returns status + descriptions per framework + debrief opener.
+- `GET /api/scenarios/:scenarioId/module-health/deeper` returns extended descriptions per framework.
+
+---
+
+### C2.3 — Reasoning Depth Chart (line chart)
+
+**Left card in a 2-column row.** Title "Reasoning depth across turns". Subtitle "Line chart showing the class average reasoning depth (Surface / Engaged / Integrated) at each turn — annotated below with what the data shows drove each shift".
+
+**Chart (Chart.js, as in blueprint):**
+- Type: line chart with fill under the line (semi-transparent background).
+- X-axis: turn numbers (Turn 1 ... Turn N).
+- Y-axis: 0 to 3, with labels "Surface" at 1, "Engaged" at 2, "Integrated" at 3.
+- Data: per turn, the class average of students' RDS band mapped to numeric (Surface=1, Engaged=2, Integrated=3), rounded to 1 decimal.
+- Point colors:
+  - Green `#1D9E75` if avg ≥ 2.5
+  - Blue `#378ADD` if avg ≥ 1.5 and < 2.5
+  - Amber `#BA7517` if avg < 1.5
+- Line color: blue `#378ADD`. Fill: `rgba(55,138,221,0.07)`.
+- Height: 115px. Tension: 0.35.
+
+**Below the chart: one annotation block per turn** (flex row).
+- Small gray background card per turn.
+- Shows: `Turn N — [Shift label]` (with color-coded turn label)
+- Description: 1–2 sentences explaining what the data shows drove this turn's depth.
+
+**Turn annotation generation rules:**
+- Max 2 sentences.
+- Describes what the data shows — not what it means for teaching.
+- Never prescriptive.
+- Uses scenario language.
+- Grounded in: (a) RDS band distribution at this turn, (b) NUDGE/BLOCK event counts at this turn, (c) comparison to prior turn if applicable.
+- Prohibited: recommendations, evaluations, "students need to", "this shows you should", "unfortunately".
+
+**API endpoint:** `GET /api/scenarios/:scenarioId/depth-trajectory`
+```json
+Returns: {
+  points: [{ turn: 1, avg: 2.0, color: "blue" }, ...],
+  annotations: [{ turn: 1, label: "Engaged", description: "..." }, ...]
+}
+```
+
+---
+
+### C2.4 — Class Reasoning Patterns (right card)
+
+**Right card in the 2-column row.** Title "Where the class is and where it's heading". Subtitle "The most significant reasoning patterns detected across all completed sessions — described with what the data actually shows, not an evaluation".
+
+**Content:** One block per competency. Show all 5 competencies ranked by demonstration rate, OR show top 2 + bottom 2 (4 blocks total). Recommendation: show 4 blocks (clearest visual).
+
+Each block:
+- Competency name (C1 Analytical reasoning / C2 Strategic decision-making / C3 Stakeholder consideration / C4 Ethical reasoning / C5 Tradeoff awareness — use canonical labels)
+- Status badge (Transferring / Developing / Not yet evidenced) — same colors as module health
+- Progress bar — width = class demonstration rate 0–100%, never displayed as a number. Fill color matches the status badge color.
+- 1 sentence AI-generated description
+
+**Class demonstration rate per competency:**
+```
+For each competency Cx:
+  count = 0
+  total = 0
+  for each student session:
+    for each turn:
+      total += 1
+      if competency_evidence[Cx] in ["demonstrated", "emerging"]:
+        count += 1
+  rate = count / total  // 0.0 to 1.0
+```
+
+**Status thresholds (same as module health):**
+- Transferring: rate ≥ 0.60
+- Developing: 0.20 ≤ rate < 0.60
+- Not yet evidenced: rate < 0.20
+
+**Description generation rules:**
+- 1 sentence per competency.
+- Describes what was observed. No evaluation.
+- Uses scenario language.
+- Examples:
+  - ✅ "Most students justified decisions with case-specific evidence and followed a logical structure. Most consistent competency across the class."
+  - ✅ "Decisions were framed around outcomes, not the people those outcomes affected. Present in one student at one turn across the full class."
+  - ❌ "Students need to improve their ethical reasoning." (prescriptive — prohibited)
+
+**API endpoint:** bundled into the `/module-health` endpoint or a new `/class-patterns`.
+
+---
+
+### C2.5 — Students table
+
+**White card.** Title "Students". Subtitle: "Each dot represents one turn — color shows reasoning depth. Click 'View session' to open the individual four-tab analysis."
+
+**Table columns:** Student | Status | Reasoning arc | Key pattern | (action)
+
+**Row contents:**
+- **Student** — name (bold) + email (smaller gray)
+- **Status** — "Completed" (green badge) or "In progress" (blue badge)
+- **Reasoning arc** — N colored dots (one per turn, N = total decisions in scenario). Colors:
+  - Integrated: `#1D9E75` (green)
+  - Engaged: `#378ADD` (blue)
+  - Surface: `#BA7517` (amber)
+  - Dots connected by arrows (`→`).
+  - Below the dots: a small italic caption like "Peaked T2 · dropped T3" or "Consistent throughout" or "Late activator · improved T3" — this is a short-form pattern label derived from the reasoning arc shape.
+  - If in progress: show "Available when completed" placeholder.
+- **Key pattern** — 1-sentence observation about this student's session. Comes from a simplified version of `dashboard_summary.session_headline` (truncate if needed). For in-progress students: "—".
+- **Action** — "View session" button. Opens the modal (C3). Disabled with `opacity: 0.35` if student is in progress.
+
+**Short-form pattern label generation (for the dot caption):**
+- Look at the N `rds_band` values.
+- Pattern detection:
+  - All same band → "Consistent throughout"
+  - Rises then drops → "Peaked T[peak] · dropped T[drop]"
+  - Continuously rises → "Late activator · improved T[last]"
+  - Continuously drops → "Early peak · dropped T[last]"
+  - Mixed → "Mixed depth · [most notable turn]"
+- Max 6 words.
+- Uses scenario/professor UI language.
+
+**API endpoint:** `GET /api/scenarios/:scenarioId/students-summary`
+```json
+Returns: {
+  students: [
+    {
+      id, name, email, status,
+      arc: [{ turn: 1, band: "engaged", color: "#378ADD" }, ...],
+      arcLabel: "Peaked T2 · dropped T3",
+      keyPattern: "Strongest analytical reasoning. Ethical dimension absent across all turns.",
+      canView: true
+    }, ...
+  ]
+}
+```
+
+**Legend below the table (as in blueprint):**
+- Small colored dots + labels: Integrated reasoning / Engaged reasoning / Surface reasoning
+- Right-aligned: "Dots represent turns left to right" (italic, gray)
+
+---
+
+## C3. Student Session Modal
+
+**Spec:** Full-screen or large modal overlay. Opens when "View session" is clicked. Closes on X button or overlay click.
+
+---
+
+### C3.1 — Modal Header (always visible)
+
+**Structure:**
+- Top row: Student name (large, 18px) + session meta ("[Scenario name] · Completed [date]") + X close button right-aligned.
+- Row of 2 side-by-side boxes:
+  - **Session Summary** (left, wider) — box with label "Session summary" and the content of `session.dashboard_summary.session_headline` (B4).
+  - **Reasoning Arc** (right, narrower) — box with label "Reasoning arc" + N dots (one per turn) labeled "T1 / T2 / T3..." below each dot. Same color scheme as in C2.5.
+
+---
+
+### C3.2 — Modal Tabs
+
+Four tabs under the header:
+- **Chat history** (default active)
+- **Debrief prep**
+- **Reasoning signals**
+- **KPI + course frameworks**
+
+Visual: horizontal tab bar, small rounded buttons, active state highlighted with background + border.
+
+**Tab content is fetched on demand** — do not pre-load all 4 tabs' data. Reopening the modal preserves last active tab.
+
+---
+
+### C3.3 — Tab 1: Chat History
+
+**Top of tab** (gray info box): "The full conversation exactly as it happened — every decision prompt and every word the student wrote, in sequence. No analysis, no signal labels, no annotations. For professors who want to read the student's thinking directly."
+
+**Per-turn card:**
+- Turn label: "Turn N · MCQ" or "Turn N · Free response"
+- **Decision prompt** (labeled box): the question text from the case definition.
+- **Student response** (labeled box): the exact `student_input` — no modification, no grammar correction, no paraphrasing. Truncate long responses (>200 chars) with "Show full response" expand button.
+
+**No other content on this tab.** No signal labels, no KPI movements, no debrief questions, no analysis.
+
+**API endpoint:** `GET /api/sessions/:sessionId/chat-history`
+
+---
+
+### C3.4 — Tab 2: Debrief Prep
+
+**Top of tab:** "One card per turn. Shows what the student decided, what KPI movements their decision produced and why, and one specific question to ask this student in debrief. Designed for fast scanning — professor reads this before class. Each debrief question is generated from the student's specific response and targets their most significant signal gap at that turn."
+
+**Per-turn card:**
+- **Header row:** Turn N · type, + depth badge (Integrated green / Engaged blue / Surface amber / "MCQ" pill for turn 1).
+- **Student response** (labeled box) — truncated to 100 chars with "Show full response" button. Preserve first complete sentence in truncation when possible.
+- **KPI movements — what this decision produced** (labeled section) — row of colored pills, one per displayed KPI at this turn:
+  - Green pill (bg `#EAF3DE`, border `#C0DD97`, text `#27500A`) for positive: `[KPI label] ↑ [Tier] · [dashboard_reasoning_link]`
+  - Red pill (bg `#FCEBEB`, border `#F7C1C1`, text `#791F1F`) for negative: `[KPI label] ↓ [Tier] · [dashboard_reasoning_link]`
+  - Tier: "Slight" / "Moderate" / "Significant" (EN) or "Ligero" / "Moderado" / "Significativo" (ES).
+- **Ask in debrief** (callout box with blue left-border, bg `#E6F1FB`) — displays `session.turns[].dashboard_debrief_question` (B5).
+
+**API endpoint:** `GET /api/sessions/:sessionId/debrief-prep`
+
+---
+
+### C3.5 — Tab 3: Reasoning Signals
+
+**Top of tab:** "The analytical view of this student's reasoning across the full session. Radar chart shows the visual shape of their signal profile — which signals were consistently present and which were absent. Signal table below shows all five signals across every turn with the one-line evidence for each classification."
+
+**Section 1 — Radar chart** (title "Signal strength — session overview"):
+- 5 axes: Analytical reasoning · Strategic decision-making · Tradeoff awareness · Stakeholder consideration · Ethical reasoning
+- Values from `session.dashboard_summary.signal_averages` (B4)
+- Scale 0–3 with labels at gridlines: 0 = blank, 1 = "Emerging", 2 = "Present", 3 = "Strong"
+- Line color: `#378ADD`. Fill: `rgba(55,138,221,0.12)`. Border width: 2.
+- Point radius: 4.
+- Caption below: italic 11px gray: "Scale: 0 = not evidenced · 1 = emerging · 2 = present · 3 = strongly demonstrated. Values represent the average signal quality across all turns."
+
+**Section 2 — "All signals — turn by turn" table:**
+- Columns: Turn | Signal | Level | What the data shows
+- Rows: 5 per turn (one per signal).
+- Level column: colored chip:
+  - Demonstrated (PRESENT/STRONG quality): green bg `#EAF3DE`, text `#27500A`
+  - Emerging (WEAK): amber bg `#FAEEDA`, text `#633806`
+  - Not evidenced (ABSENT): gray bg `#f0f0ee`, text `#999`
+- "What the data shows" column: 1-sentence AI explanation.
+
+**"What the data shows" generation rules:**
+- 1 sentence maximum.
+- Must reference the student's specific words or decision at that turn.
+- Explains WHY this signal level was assigned — not just that it was.
+- No generic explanations. No "the student didn't think about X" — instead: "No mention of the engineering team, budget, or distributor in the response."
+- No prohibited language.
+- Uses scenario language.
+- Store generated text in the turn record to avoid regenerating on every dashboard load. Field: `signal_explanations: Record<SignalName, string>` per turn.
+
+**API endpoint:** `GET /api/sessions/:sessionId/reasoning-signals`
+
+---
+
+### C3.6 — Tab 4: KPI + Course Frameworks
+
+**Top of tab:** "Two views in one tab. KPI trajectory shows which indicators moved at each turn, in which direction, at what tier, and what reasoning signal or gap produced each movement. Course framework application shows how the professor's specified frameworks appeared — explicitly, implicitly, or not at all — in each turn."
+
+**Section 1 — KPI trajectory grid (table):**
+- Columns: `KPI` | `Turn 1 · [Depth]` | `Turn 2 · [Depth]` | `Turn N · [Depth]`
+  - Depth in header = that turn's RDS band (Surface/Engaged/Integrated) as colored pill.
+- Rows: one per active KPI that moved at any point in the session.
+- Cell contents:
+  - If KPI moved: direction arrow (↑/↓) + tier label + `dashboard_reasoning_link` (B3). Light green bg `#EAF3DE` for positive, light red bg `#FCEBEB` for negative.
+  - If KPI didn't move: "—" in gray.
+- Font sizes: 12px for KPI name (weight 500), 11px for cell content.
+
+**Section 2 — Course framework application (per turn):**
+- One block per turn.
+- Block header: "Turn N · [MCQ / Free response]"
+- Per-turn rows, one per professor-specified framework:
+  - Framework name (weight 500)
+  - Level chip: "Explicit" / "Implicit" / "Not evidenced" (colors per scheme above — Demonstrated-green / Emerging-amber / Not-evidenced-gray)
+  - 1-sentence description: pull from `session.turns[].framework_detections[].evidence` (B2).
+
+**API endpoint:** `GET /api/sessions/:sessionId/kpi-frameworks`
+
+---
+
+## C4. Polish, QA, and Edge Cases
+
+### C4.1 — Design tokens (match the blueprint exactly)
+
+- Body background: `#f5f5f3`
+- Card background: `#fff`
+- Card border: `0.5px solid rgba(0,0,0,0.1)`
+- Border radius: 8px (small elements), 12px (cards)
+- Font stack: `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`
+- Font sizes: 10px–22px range (11px most common, 13px titles, 22px stat numbers)
+- Status colors:
+  - Integrated / Transferring / Demonstrated: text `#27500A`, bg `#EAF3DE`, accent `#1D9E75`
+  - Engaged / Developing / Implicit: text `#0C447C`, bg `#E6F1FB`, accent `#378ADD`
+  - Surface / Not-yet-evidenced / Emerging: text `#633806`, bg `#FAEEDA`, accent `#BA7517`
+  - Absent / Negative: text `#791F1F`, bg `#FCEBEB`, accent `#D85A30`
+
+### C4.2 — Empty and edge states
+
+- Class overview with 0 completed sessions: show "No sessions yet" empty state. Don't render charts.
+- Class overview with 1 completed session: all sections render correctly with N=1 data.
+- No frameworks configured on scenario: module health section shows "No frameworks configured for this case. Add frameworks in the scenario editor to see how they're being applied by students." Hide the framework grid, debrief opener, and expandable deeper view.
+- Biggest drop point when depth never dropped: show "—".
+- Radar chart with all-zero signal values (student who received all BLOCKs): renders as a single center point, no crash.
+- Student in progress: "View session" disabled with opacity 0.35.
+
+### C4.3 — Language support
+
+Every AI-generated dashboard text must respect the scenario's language:
+- English scenarios → all dashboard AI text in English
+- Spanish scenarios → all dashboard AI text in Spanish
+- UI chrome (static labels, buttons, section titles) uses the professor's UI language from the existing `useTranslation()` hook
+
+### C4.4 — Performance
+
+- Aggregation endpoints < 500ms for a class of 30 students.
+- `dashboard_summary` computed ONCE on session completion (B4) — stored in session state, never recomputed.
+- Module health descriptions, class pattern descriptions, turn annotations: cached for 5 minutes at the scenario level. Cache invalidated when a new session completes or the scenario is edited.
+- Per-student modal content: read directly from stored session state on-demand, no cache needed.
+
+### C4.5 — Authorization
+
+- All dashboard endpoints behind professor-role authorization.
+- Only the owning professor can access their scenario's dashboard.
+- Students NEVER see the dashboard or any of its endpoints.
+
+### C4.6 — Final QA checklist
+
+Before considering Part C done, verify:
+
+**Data integrity:**
+- [ ] Every displayed competency level traces to a named session state field
+- [ ] Every KPI movement displayed traces to `kpi_movements[].direction` and `.tier`
+- [ ] Every displayed student response matches `student_input` exactly (no modification)
+- [ ] Framework detection levels populated for all configured frameworks across all FR turns
+- [ ] Debrief questions present for all turns in all completed sessions
+- [ ] Signal averages in `dashboard_summary` match manual computation
+
+**Language compliance (scan AI-generated dashboard text):**
+- [ ] Zero "correct"/"incorrect"/"good decision"/"bad decision"/"well done"/"optimal"/"ideal"/"best"
+- [ ] Zero "should have"/"should"/"consider"/"needs to"/"would benefit from"
+- [ ] Zero "weak student"/"strong performer"/"struggling student"
+- [ ] Zero "unfortunately"/"fortunately"/"sadly"/"surprisingly"
+- [ ] Zero exclamation marks
+- [ ] Zero student comparisons by name at class overview level
+- [ ] Zero teaching recommendations in module health descriptions
+
+**Functional:**
+- [ ] All 4 modal tabs render independently without errors
+- [ ] All edge states render gracefully (empty, 1-student, no-frameworks, all-zero-signals, in-progress)
+- [ ] English scenarios produce zero Spanish text anywhere in the dashboard
+- [ ] Spanish scenarios produce zero English text anywhere in the dashboard
+
+---
+
+# ABSOLUTE PROHIBITIONS (apply to ALL work)
+
+1. **Do not break Engine Packet v2.0 compliance.** All existing engine behavior must be identical after this build. The 5 engine extensions (Part B) are ADDITIONS to session state — no existing field is renamed, removed, or has its semantics changed.
+2. **Do not add prohibited language anywhere in AI output.** Full list (bilingual equivalents apply):
+   - `correct/incorrect`, `good/bad decision`, `well done`, `optimal`, `ideal`, `best option`, `best approach`, `better than`, `worse than`, `correct approach`, `wrong approach`
+   - `should have`, `you should`, `would have been better`, `missed the opportunity`, `need to`, `needs to`, `consider doing`, `would benefit from`, `suggest you`, `this suggests you should`
+   - `unfortunately`, `fortunately`, `sadly`, `surprisingly`, `as expected`
+   - `weak student`, `strong performer`, `struggling student`
+   - Any exclamation marks in dashboard text
+   - Any student comparison by name at class overview level
+   - Any numerical grade, percentage score, or ranking
+3. **Do not make the dashboard student-facing.** It is professor-only. All routes are behind professor-role authorization.
+4. **Do not invent session state fields outside this build prompt.** Every new field is named in Part B. If another field seems needed, stop and flag it.
+5. **Do not replace the student simulation UI.** This build only adds the professor dashboard + extends the engine. Student `/simulation/:sessionId` stays exactly as it is (with Part A fixes applied).
+6. **Do not skip the visual blueprint.** `docs/dashboard_blueprint.html` is the design spec. Colors, spacing, tab structure, layout — match it.
+7. **Do not regenerate AI dashboard text on every load.** Compute once at session completion (B4) or at aggregation time (C2 cache), store, read on display.
+
+---
+
+# DEFINITION OF DONE
+
+- Part A fixes manually verified in a new English + a new Spanish scenario.
+- Part B produces correct data for a completed test session — inspect session state dump to verify.
+- Part C matches the blueprint visually at component level (stats row, module health, two-card row, student table, modal with 4 tabs).
+- Full integration test: create a scenario with 3 frameworks + 3 active KPIs, enroll 3 test students with varying signal qualities, have them complete sessions, then open the dashboard. Verify:
+  - Top stats correct
+  - Module health descriptions accurate and non-prescriptive
+  - Depth chart renders with correct points and annotations
+  - Class reasoning patterns correct and ranked properly
+  - Student table rows with correct arcs and pattern labels
+  - Each student modal opens, all 4 tabs render correctly
+  - English-config scenario produces zero Spanish text
+  - Spanish-config scenario produces zero English text
+  - Prohibited language scan clean across all AI-generated output
+- All items in C4.6 QA checklist pass.

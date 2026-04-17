@@ -16,6 +16,7 @@ import {
   ChevronUp,
   Plus,
   Tag,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -35,7 +37,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { HelpIcon } from "@/components/HelpIcon";
 import { useTranslation } from "@/contexts/LanguageContext";
-import type { GeneratedScenarioData, DecisionPoint, Indicator } from "@shared/schema";
+import type { GeneratedScenarioData, DecisionPoint, Indicator, CaseFramework } from "@shared/schema";
+import { Trash2, BookMarked } from "lucide-react";
 
 interface CanonicalCaseCreatorProps {
   onScenarioPublished: () => void;
@@ -63,6 +66,8 @@ interface CanonicalCaseData {
   keyConstraints: string[];
   learningObjectives: string[];
   confidence: number;
+  hintButtonEnabled: boolean;
+  maxHintsPerTurn: 1 | 2 | 3 | 4 | 5;
 }
 
 interface GenerateResponse {
@@ -136,6 +141,8 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [isEditing, setIsEditing] = useState(false);
   const [conceptTags, setConceptTags] = useState<string[]>([]);
   const [conceptTagInput, setConceptTagInput] = useState("");
+  const [frameworks, setFrameworks] = useState<CaseFramework[]>([]);
+  const [frameworkNameInput, setFrameworkNameInput] = useState("");
   const { toast } = useToast();
   const { t } = useTranslation();
 
@@ -186,12 +193,15 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     onSuccess: (data) => {
       setIsEditing(false);
       setDraftId(data.draft.id);
-      setCanonicalCase(data.canonicalCase);
+      setCanonicalCase({ ...data.canonicalCase, hintButtonEnabled: data.canonicalCase.hintButtonEnabled ?? true, maxHintsPerTurn: data.canonicalCase.maxHintsPerTurn ?? 2 });
       setScenarioData(data.scenarioData);
       if (data.scenarioData?.courseConcepts?.length) {
         setConceptTags(data.scenarioData.courseConcepts);
       } else if (data.canonicalCase?.learningObjectives?.length) {
         setConceptTags(data.canonicalCase.learningObjectives.slice(0, 5));
+      }
+      if (data.scenarioData?.initialState?.frameworks?.length) {
+        setFrameworks(data.scenarioData.initialState.frameworks);
       }
       toast({
         title: t("canonicalCase.caseGenerated"),
@@ -211,7 +221,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!draftId || !scenarioData) throw new Error("No draft to save");
-      const dataWithConcepts = { ...scenarioData, courseConcepts: conceptTags.length > 0 ? conceptTags : undefined };
+      const dataWithConcepts = {
+        ...scenarioData,
+        courseConcepts: conceptTags.length > 0 ? conceptTags : undefined,
+        initialState: {
+          ...scenarioData.initialState,
+          frameworks: frameworks.length > 0 ? frameworks : undefined,
+        },
+      };
       const response = await apiRequest("PUT", `/api/canonical-case/${draftId}`, {
         scenarioData: dataWithConcepts,
       });
@@ -236,7 +253,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const publishMutation = useMutation({
     mutationFn: async () => {
       if (!draftId || !scenarioData) throw new Error("No draft to publish");
-      const dataWithConcepts = { ...scenarioData, courseConcepts: conceptTags.length > 0 ? conceptTags : undefined };
+      const dataWithConcepts = {
+        ...scenarioData,
+        courseConcepts: conceptTags.length > 0 ? conceptTags : undefined,
+        initialState: {
+          ...scenarioData.initialState,
+          frameworks: frameworks.length > 0 ? frameworks : undefined,
+        },
+      };
       await apiRequest("PUT", `/api/canonical-case/${draftId}`, { scenarioData: dataWithConcepts });
       const response = await apiRequest("POST", `/api/drafts/${draftId}/publish`, { language });
       return response.json();
@@ -323,7 +347,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         ...scenarioData,
         initialState: { ...scenarioData.initialState, reflectionPrompt: value },
       });
-    } else if (field === "role" || field === "objective") {
+    } else if (field === "role" || field === "objective" || field === "hintButtonEnabled" || field === "maxHintsPerTurn") {
       setScenarioData({
         ...scenarioData,
         initialState: { ...scenarioData.initialState, [field]: value },
@@ -825,6 +849,159 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 </p>
               )}
               <p className="text-xs text-muted-foreground">{conceptTags.length}/8 {t("canonicalCase.concepts")}</p>
+            </div>
+          </EditableSection>
+
+          <EditableSection title={language === "en" ? "Hint Settings" : "Configuración de Pistas"} icon={Lightbulb} defaultExpanded={false}>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="hint-toggle">{language === "en" ? "Hint button" : "Botón de pista"}</Label>
+                <Switch
+                  id="hint-toggle"
+                  checked={canonicalCase.hintButtonEnabled}
+                  onCheckedChange={(checked) => updateField("hintButtonEnabled", checked)}
+                  disabled={!isEditing}
+                  data-testid="switch-hint-enabled"
+                />
+              </div>
+              {canonicalCase.hintButtonEnabled && (
+                <div>
+                  <Label htmlFor="max-hints">{language === "en" ? "Max hints per decision" : "Pistas máximas por decisión"}</Label>
+                  <Select
+                    value={String(canonicalCase.maxHintsPerTurn)}
+                    onValueChange={(val) => updateField("maxHintsPerTurn", Number(val) as 1 | 2 | 3 | 4 | 5)}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger id="max-hints" className="mt-1" data-testid="select-max-hints">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          </EditableSection>
+
+          <EditableSection title={language === "en" ? "Analytical Frameworks" : "Marcos Analíticos"} icon={BookMarked} defaultExpanded={false}>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                {language === "en"
+                  ? "Add up to 8 theoretical/analytical frameworks students might apply (e.g., SWOT, Porter's Five Forces, Stakeholder Analysis). The engine will detect when students reference them."
+                  : "Agrega hasta 8 marcos teóricos/analíticos que los estudiantes podrían aplicar (ej: FODA, Cinco Fuerzas de Porter, Análisis de Stakeholders). El motor detectará cuando los estudiantes los referencien."}
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={frameworkNameInput}
+                  onChange={(e) => setFrameworkNameInput(e.target.value)}
+                  placeholder={language === "en" ? "Framework name..." : "Nombre del marco..."}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const name = frameworkNameInput.trim();
+                      if (name && frameworks.length < 8 && !frameworks.some(f => f.name.toLowerCase() === name.toLowerCase())) {
+                        const newFw: CaseFramework = {
+                          id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                          name,
+                          domainKeywords: [],
+                        };
+                        setFrameworks([...frameworks, newFw]);
+                        setFrameworkNameInput("");
+                      }
+                    }
+                  }}
+                  disabled={!isEditing || frameworks.length >= 8}
+                  data-testid="input-framework-name"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!isEditing || !frameworkNameInput.trim() || frameworks.length >= 8 || frameworks.some(f => f.name.toLowerCase() === frameworkNameInput.trim().toLowerCase())}
+                  onClick={() => {
+                    const name = frameworkNameInput.trim();
+                    if (name && frameworks.length < 8) {
+                      const newFw: CaseFramework = {
+                        id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+                        name,
+                        domainKeywords: [],
+                      };
+                      setFrameworks([...frameworks, newFw]);
+                      setFrameworkNameInput("");
+                    }
+                  }}
+                  data-testid="button-add-framework"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {frameworks.length > 0 && (
+                <div className="space-y-2">
+                  {frameworks.map((fw, idx) => (
+                    <div key={fw.id} className="border rounded-md p-3 space-y-2" data-testid={`framework-card-${idx}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-sm">{fw.name}</span>
+                        {isEditing && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setFrameworks(frameworks.filter((_, i) => i !== idx))}
+                            data-testid={`button-remove-framework-${idx}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                      <div>
+                        <Label className="text-xs">{language === "en" ? "Keywords" : "Palabras clave"}</Label>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {fw.domainKeywords.map((kw, kwIdx) => (
+                            <Badge key={kwIdx} variant="secondary" data-testid={`badge-keyword-${idx}-${kwIdx}`}>
+                              {kw}
+                              {isEditing && (
+                                <button
+                                  className="ml-1"
+                                  onClick={() => {
+                                    const updated = [...frameworks];
+                                    updated[idx] = { ...fw, domainKeywords: fw.domainKeywords.filter((_, ki) => ki !== kwIdx) };
+                                    setFrameworks(updated);
+                                  }}
+                                  data-testid={`button-remove-keyword-${idx}-${kwIdx}`}
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </Badge>
+                          ))}
+                          {isEditing && (
+                            <Input
+                              className="w-32 h-7 text-xs"
+                              placeholder={language === "en" ? "Add keyword..." : "Agregar..."}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const val = (e.target as HTMLInputElement).value.trim().toLowerCase();
+                                  if (val && !fw.domainKeywords.includes(val)) {
+                                    const updated = [...frameworks];
+                                    updated[idx] = { ...fw, domainKeywords: [...fw.domainKeywords, val] };
+                                    setFrameworks(updated);
+                                    (e.target as HTMLInputElement).value = "";
+                                  }
+                                }
+                              }}
+                              data-testid={`input-keyword-${idx}`}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">{frameworks.length}/8 {language === "en" ? "frameworks" : "marcos"}</p>
             </div>
           </EditableSection>
 
