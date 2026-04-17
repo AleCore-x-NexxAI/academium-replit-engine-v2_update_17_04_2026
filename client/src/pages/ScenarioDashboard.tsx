@@ -46,6 +46,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { apiRequest } from "@/lib/queryClient";
+import { ScenarioStudentsTab } from "@/components/scenario-tabs/ScenarioStudentsTab";
+import { ScenarioControlTab } from "@/components/scenario-tabs/ScenarioControlTab";
 import type { Scenario } from "@shared/schema";
 
 interface ClassStats {
@@ -351,15 +353,11 @@ export default function ScenarioDashboard() {
             onViewSession={setSelectedSessionId}
           />
         )}
-        {activeTab === "students" && (
-          <div className="text-center py-12 text-muted-foreground">
-            {isEn ? "Students management — existing view" : "Gestión de estudiantes — vista existente"}
-          </div>
+        {activeTab === "students" && scenarioId && (
+          <ScenarioStudentsTab scenarioId={scenarioId} />
         )}
-        {activeTab === "control" && (
-          <div className="text-center py-12 text-muted-foreground">
-            {isEn ? "Scenario control panel — existing view" : "Panel de control del escenario — vista existente"}
-          </div>
+        {activeTab === "control" && scenarioId && (
+          <ScenarioControlTab scenarioId={scenarioId} />
         )}
       </div>
 

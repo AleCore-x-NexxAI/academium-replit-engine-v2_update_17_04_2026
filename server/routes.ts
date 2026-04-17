@@ -28,9 +28,9 @@ function stripProfessorFields(turnResponse: TurnResponse): TurnResponse {
   }
   return stripped;
 }
-import { llmUsageLogs } from "@shared/schema";
+import { llmUsageLogs, turnEvents } from "@shared/schema";
 import { db } from "./db";
-import { gte, desc, eq } from "drizzle-orm";
+import { gte, desc, eq, and, inArray, sql } from "drizzle-orm";
 import { turns as turnsTable } from "@shared/schema";
 import { 
   extractInsights, 
@@ -3067,6 +3067,135 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
     });
   }
 
+  app.post("/api/admin/scenarios/:scenarioId/backfill-analysis", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== "admin" && user.role !== "professor")) {
+        return res.status(403).json({ message: "Admin or professor access required" });
+      }
+
+      const { scenarioId } = req.params;
+      const scenario = await storage.getScenario(scenarioId);
+      if (!scenario) return res.status(404).json({ message: "Scenario not found" });
+      if (scenario.authorId !== userId && user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized for this scenario" });
+      }
+
+      const initialState = scenario.initialState as any;
+      const language = initialState?.language || (scenario as any).language || "es";
+      const frameworks = initialState?.frameworks || [];
+
+      const sessionsData = await getSessionsWithTurns(scenarioId);
+      const completed = sessionsData.filter(s => s.session.status === "completed");
+
+      const { detectFrameworks } = await import("./agents/frameworkDetector");
+
+      let processedSessions = 0, processedTurns = 0, errors = 0, skipped = 0;
+
+      const compToSignal: Record<string, string> = {
+        C1: "justification",
+        C2: "intent",
+        C3: "stakeholderAwareness",
+        C4: "ethicalAwareness",
+        C5: "tradeoffAwareness",
+      };
+
+      for (const s of completed) {
+        const existingState = (s.session.currentState as any) || {};
+        const existingLogs: any[] = existingState.decisionEvidenceLogs || [];
+        const existingFwDets: any[][] = existingState.framework_detections || [];
+
+        if (existingLogs.length >= s.turns.length && existingFwDets.length >= s.turns.length) {
+          skipped++;
+          continue;
+        }
+
+        const newLogs: any[] = [];
+        const newFwDets: any[][] = [];
+        let sessionAborted = false;
+
+        for (const turn of s.turns) {
+          try {
+            const agentResp: any = turn.agentResponse || {};
+            const updatedState = agentResp.updatedState || {};
+
+            // Prefer evidence captured at the time of the turn
+            if (!updatedState?.decisionEvidenceLogs?.length) {
+              // No captured evidence for this turn — abort the whole session to preserve index alignment
+              console.warn(`[Backfill] Skipping session ${s.session.id}: turn ${turn.turnNumber} has no captured evidence`);
+              sessionAborted = true;
+              errors++;
+              break;
+            }
+
+            const lastLog = updatedState.decisionEvidenceLogs[updatedState.decisionEvidenceLogs.length - 1];
+            const signalsDetected = lastLog.signals_detected;
+            const rdsScore = lastLog.rds_score;
+            const rdsBand = lastLog.rds_band;
+            const rawScores = lastLog.raw_signal_scores;
+            const competencyEvidence = lastLog.competency_evidence;
+            const isMcq = lastLog.isMcq === true;
+
+            const evidenceQuotes: Record<string, string> = {};
+            for (const [comp, sigKey] of Object.entries(compToSignal)) {
+              const sig = (signalsDetected as any)?.[sigKey];
+              if (sig?.extracted_text && sig.quality >= 1) {
+                evidenceQuotes[comp] = String(sig.extracted_text).substring(0, 160);
+              }
+            }
+
+            newLogs.push({
+              signals_detected: signalsDetected,
+              rds_score: rdsScore,
+              rds_band: rdsBand,
+              competency_evidence: competencyEvidence,
+              raw_signal_scores: rawScores,
+              isMcq,
+              student_input: turn.studentInput,
+              classification: "PASS",
+              evidence_quotes: evidenceQuotes,
+              turn_number: turn.turnNumber,
+            });
+
+            if (!isMcq && frameworks.length > 0 && signalsDetected) {
+              const fwDets = detectFrameworks(turn.studentInput, signalsDetected, frameworks, language);
+              newFwDets.push(fwDets);
+            } else {
+              newFwDets.push([]);
+            }
+
+            processedTurns++;
+          } catch (err) {
+            console.error(`[Backfill] Failed turn ${turn.turnNumber} session ${s.session.id}:`, err);
+            sessionAborted = true;
+            errors++;
+            break;
+          }
+        }
+
+        if (sessionAborted) continue;
+
+        const mergedState = {
+          ...existingState,
+          decisionEvidenceLogs: newLogs,
+          framework_detections: newFwDets,
+        };
+
+        await storage.updateSimulationSession(s.session.id, { currentState: mergedState });
+        processedSessions++;
+      }
+
+      const cacheKeys = ["class-stats", "module-health", "depth-trajectory", "class-patterns"];
+      for (const k of cacheKeys) dashboardCache.delete(`${k}-${scenarioId}`);
+
+      res.json({ processedSessions, processedTurns, errors, skipped, totalCompleted: completed.length });
+    } catch (error) {
+      console.error("[Backfill] Fatal error:", error);
+      res.status(500).json({ message: "Backfill failed", error: String(error) });
+    }
+  });
+
   app.post("/api/scenarios/:scenarioId/class-stats", isAuthenticated, async (req: any, res) => {
     try {
       const { scenarioId } = req.params;
@@ -3299,10 +3428,39 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       const points: any[] = [];
       const annotations: any[] = [];
 
+      // Pre-fetch NUDGE/BLOCK counts per turn from turn_events for the whole class
+      const sessionIds = completed.map(s => s.session.id);
+      const nudgeBlockByTurn: Record<number, { nudge: number; block: number }> = {};
+      if (sessionIds.length > 0) {
+        const events = await db
+          .select({
+            turnNumber: turnEvents.turnNumber,
+            eventType: turnEvents.eventType,
+            eventData: turnEvents.eventData,
+          })
+          .from(turnEvents)
+          .where(
+            and(
+              inArray(turnEvents.sessionId, sessionIds),
+              inArray(turnEvents.eventType, ["input_rejected", "agent_call"])
+            )
+          );
+        for (const ev of events) {
+          const tn = ev.turnNumber;
+          if (tn == null) continue;
+          if (!nudgeBlockByTurn[tn]) nudgeBlockByTurn[tn] = { nudge: 0, block: 0 };
+          if (ev.eventType === "input_rejected") {
+            nudgeBlockByTurn[tn].block++;
+          } else if (ev.eventType === "agent_call" && (ev.eventData as any)?.classification === "NUDGE") {
+            nudgeBlockByTurn[tn].nudge++;
+          }
+        }
+      }
+
       for (let t = 0; t < maxTurns; t++) {
         let sum = 0, count = 0;
         let integratedCount = 0, engagedCount = 0, surfaceCount = 0;
-        let nudgeCount = 0, blockCount = 0, passCount = 0;
+        let passCount = 0;
         for (const s of completed) {
           const state = s.session.currentState as any;
           const logs = state?.decisionEvidenceLogs || [];
@@ -3313,12 +3471,12 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
             if (band === "INTEGRATED") integratedCount++;
             else if (band === "ENGAGED") engagedCount++;
             else surfaceCount++;
-            const classification = logs[t].classification;
-            if (classification === "NUDGE") nudgeCount++;
-            else if (classification === "BLOCK") blockCount++;
-            else passCount++;
+            passCount++;
           }
         }
+        const turnNum = t + 1;
+        const nudgeCount = nudgeBlockByTurn[turnNum]?.nudge || 0;
+        const blockCount = nudgeBlockByTurn[turnNum]?.block || 0;
         const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
         const color = avg >= 2.5 ? "green" : avg >= 1.5 ? "blue" : "amber";
         points.push({ turn: t + 1, avg, color });

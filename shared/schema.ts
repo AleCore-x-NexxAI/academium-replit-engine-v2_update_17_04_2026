@@ -438,6 +438,10 @@ export interface DecisionEvidenceLogEntry {
     ethicalAwareness: number;
   };
   isMcq?: boolean;
+  student_input?: string;
+  classification?: "PASS" | "NUDGE" | "BLOCK";
+  evidence_quotes?: Partial<Record<"C1" | "C2" | "C3" | "C4" | "C5", string>>;
+  turn_number?: number;
 }
 
 export interface IndicatorAccumulationEntry {

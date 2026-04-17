@@ -1,0 +1,624 @@
+# ACADEMIUM — Task #30: Dashboard Pre-Meeting Bug Fixes
+
+**Context:** Alejandro tested the professor dashboard, found two major bugs, wants to meet tomorrow to walk through the remaining ones. Fix these two before the meeting so the meeting time is used for the non-obvious bugs, not the obvious ones:
+
+1. **Students tab placeholder** — the scenario dashboard's Students and Control tabs are literal text placeholders ("Students management — existing view" / "Scenario control panel — existing view"), never wired to real content.
+2. **Analysis not showing** — dashboard endpoints return empty payloads because the Part D AI prompts rely on fields (`student_input`, `classification`, `evidence_quotes`) that were never added to `DecisionEvidenceLogEntry`, and `class-patterns` reads `log.evidence_quotes` which is always undefined.
+
+This prompt is self-contained. Every file path, line number, schema addition, and code pattern is inline.
+
+---
+
+## EXECUTION ORDER (do sequentially)
+
+1. **E1** — Extend `DecisionEvidenceLogEntry` schema with the missing fields
+2. **E2** — Write the new fields in `director.ts` at every turn (PASS path)
+3. **E3** — Wire the fields into every dashboard endpoint that needs them
+4. **E4** — Add a backfill helper for existing completed sessions
+5. **E5** — Extract Students tab into a shared component and wire it into both pages
+6. **E6** — Extract Control tab into a shared component and wire it into both pages
+7. **E7** — End-to-end verification (one EN session + one ES session)
+
+Commit after each task: `fix(E1): extend evidence log schema`, etc.
+
+---
+
+# E1. Extend DecisionEvidenceLogEntry Schema
+
+**Problem:** The schema at `shared/schema.ts:428` is missing three fields that Part D AI prompts and dashboard endpoints depend on:
+- `student_input` — needed so AI prompts can reference what the student actually wrote
+- `classification` — PASS / NUDGE / BLOCK, needed for turn annotations (Spec 3.3)
+- `evidence_quotes` — per-competency short quotes from student input, needed by `class-patterns` endpoint which reads `log.evidence_quotes` at `routes.ts:3402` (currently always undefined)
+
+**Fix:** Extend the interface in `shared/schema.ts` around line 428:
+
+```typescript
+export interface DecisionEvidenceLogEntry {
+  // EXISTING FIELDS — keep unchanged:
+  signals_detected: SignalExtractionEntry;
+  rds_score: number | null;
+  rds_band: "SURFACE" | "ENGAGED" | "INTEGRATED" | null;
+  competency_evidence: CompetencyEvidenceEntry;
+  raw_signal_scores: {
+    intent: number;
+    justification: number;
+    tradeoffAwareness: number;
+    stakeholderAwareness: number;
+    ethicalAwareness: number;
+  };
+  isMcq?: boolean;
+
+  // NEW FIELDS (required for dashboard analysis):
+  student_input?: string;
+  classification?: "PASS" | "NUDGE" | "BLOCK";
+  evidence_quotes?: Partial<Record<"C1" | "C2" | "C3" | "C4" | "C5", string>>;
+  turn_number?: number;
+}
+```
+
+**Compatibility:** All new fields are optional with `?` so existing session state (before this deploy) continues to load without migration. Only newly-processed turns will populate them.
+
+**No Drizzle migration needed** — these fields live inside the JSON `currentState` column, not as separate columns.
+
+---
+
+# E2. Write the New Fields in director.ts at Every Turn
+
+**Problem:** `director.ts:1026` constructs the `evidenceEntry` for the PASS path but doesn't include the new fields.
+
+**Fix:** Extend the `evidenceEntry` construction in `server/agents/director.ts` around line 1026. The `competency_evidence` object already contains the per-competency levels — now derive a short quote per competency from `evidenceLog.signals_detected`:
+
+```typescript
+const existingEvidenceLogs = context.decisionEvidenceLogs || [];
+
+// Derive evidence_quotes from the strongest signal per competency
+const competencyQuoteMap: Record<string, string | undefined> = {};
+// Competency → primary signal mapping per Engine Packet v2.0:
+// C1 (analytical) ← justification
+// C2 (strategic)  ← intent
+// C3 (stakeholder)← stakeholderAwareness
+// C4 (ethical)    ← ethicalAwareness
+// C5 (tradeoff)   ← tradeoffAwareness
+const compToSignal: Record<string, keyof typeof evidenceLog.signals_detected> = {
+  C1: "justification",
+  C2: "intent",
+  C3: "stakeholderAwareness",
+  C4: "ethicalAwareness",
+  C5: "tradeoffAwareness",
+};
+for (const [comp, sigKey] of Object.entries(compToSignal)) {
+  const sig = evidenceLog.signals_detected[sigKey];
+  if (sig && sig.extracted_text && sig.quality >= 1) {
+    competencyQuoteMap[comp] = sig.extracted_text.substring(0, 160);
+  }
+}
+
+const evidenceEntry: import("@shared/schema").DecisionEvidenceLogEntry = {
+  // EXISTING FIELDS:
+  signals_detected: {
+    intent: { quality: evidenceLog.signals_detected.intent.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.intent.extracted_text },
+    justification: { quality: evidenceLog.signals_detected.justification.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.justification.extracted_text },
+    tradeoffAwareness: { quality: evidenceLog.signals_detected.tradeoffAwareness.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.tradeoffAwareness.extracted_text },
+    stakeholderAwareness: { quality: evidenceLog.signals_detected.stakeholderAwareness.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.stakeholderAwareness.extracted_text },
+    ethicalAwareness: { quality: evidenceLog.signals_detected.ethicalAwareness.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.ethicalAwareness.extracted_text },
+  },
+  rds_score: evidenceLog.rds_score,
+  rds_band: evidenceLog.rds_band as "SURFACE" | "ENGAGED" | "INTEGRATED" | null,
+  competency_evidence: evidenceLog.competency_evidence,
+  raw_signal_scores: evidenceLog.raw_signal_scores,
+  isMcq: evidenceLog.isMcq,
+
+  // NEW FIELDS:
+  student_input: context.studentInput,
+  classification: "PASS",
+  evidence_quotes: competencyQuoteMap,
+  turn_number: currentDecisionNum,
+};
+```
+
+**NUDGE / BLOCK paths** — these do NOT append to `decisionEvidenceLogs` (they pass through `context.decisionEvidenceLogs` unchanged), because NUDGE asks for re-attempt and BLOCK rejects. This is correct behavior — the evidence log is only appended when a decision is actually committed via PASS. **Do not change this.**
+
+**Do not break the existing flow.** All new fields are optional. Existing tests should continue to pass.
+
+---
+
+# E3. Wire the Fields into Dashboard Endpoints
+
+**Problem:** Several endpoints read fields that exist nowhere. Fix each:
+
+## E3.1 — class-patterns endpoint (`server/routes.ts:~3402`)
+
+Current code reads `log.evidence_quotes[key]` which was always undefined. Now it will be populated. No code change needed other than verifying the read path works — the fix is that E1/E2 now populate it.
+
+## E3.2 — depth-trajectory turn annotations (`server/routes.ts:~3330`)
+
+**Current state:** The D6 prompt text references "classification events this turn: X PASS, Y NUDGE, Z BLOCK" but it can't actually count those because `log.classification` wasn't being set. Now that E2 sets `classification: "PASS"` on every PASS log, PASS counts will be correct. To get NUDGE / BLOCK counts, read from the `turn_events` table (which the director already writes via `storage.createTurnEvent` at every turn).
+
+**Fix:** In the depth-trajectory handler, after computing `integratedCount / engagedCount / surfaceCount / passCount`, also query the `turn_events` table for NUDGE and BLOCK counts at this turn number across the class:
+
+```typescript
+// Inside the for loop at each turn, after existing counts:
+const { db, turnEvents } = await import("./storage"); // or wherever turnEvents schema lives
+const sessionIds = completed.map(s => s.session.id);
+
+let nudgeCount = 0, blockCount = 0;
+if (sessionIds.length > 0) {
+  const events = await db
+    .select()
+    .from(turnEvents)
+    .where(
+      and(
+        inArray(turnEvents.sessionId, sessionIds),
+        eq(turnEvents.turnNumber, t + 1),
+        inArray(turnEvents.eventType, ["validation_nudge", "validation_block"])
+      )
+    );
+  for (const ev of events) {
+    if (ev.eventType === "validation_nudge") nudgeCount++;
+    if (ev.eventType === "validation_block") blockCount++;
+  }
+}
+// passCount already equals the number of completed logs for this turn (count variable above)
+```
+
+**Important:** The actual `eventType` values for NUDGE / BLOCK in the turn_events table need to be verified — check `server/agents/director.ts:588-615` (the BLOCK path writes a `turn_event` with `eventType`) and `director.ts:638-655` (NUDGE path). Use whatever the existing eventType strings are. Adjust the filter above accordingly.
+
+## E3.3 — module-health evidence collection (`server/routes.ts:~3138`)
+
+Already works — just uses `framework_detections[].evidence` which is populated by the framework detector. No change.
+
+## E3.4 — reasoning-signals endpoint (`server/routes.ts:~3515`)
+
+Already works — uses `signals_detected[*].extracted_text`. No change.
+
+**Done:** All existing dashboard endpoints now have populated data to render AI descriptions from.
+
+---
+
+# E4. Backfill Helper for Existing Completed Sessions
+
+**Problem:** Alejandro's test session (and any other already-completed sessions) have empty `decisionEvidenceLogs` and `framework_detections` because they ran before Part B was deployed. Without a backfill, the meeting demo will be an empty dashboard.
+
+**Fix:** Add a one-shot admin endpoint that walks a scenario's completed sessions and reconstructs the missing arrays from the `turns` table (which HAS the raw `studentInput` + `agentResponse` per turn).
+
+**New endpoint** in `server/routes.ts` (placed near the other dashboard endpoints, around line 3040, admin-only):
+
+```typescript
+app.post("/api/admin/scenarios/:scenarioId/backfill-analysis", isAuthenticated, async (req: any, res) => {
+  try {
+    const userId = req.user.claims.sub;
+    const user = await storage.getUser(userId);
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    const { scenarioId } = req.params;
+    const scenario = await storage.getScenario(scenarioId);
+    if (!scenario) return res.status(404).json({ message: "Scenario not found" });
+
+    const initialState = scenario.initialState as any;
+    const language = initialState?.language || scenario.language || "es";
+    const frameworks = initialState?.frameworks || [];
+
+    const sessionsData = await getSessionsWithTurns(scenarioId);
+    const completed = sessionsData.filter(s => s.session.status === "completed");
+
+    const { extractSignals } = await import("./agents/signalExtractor");
+    const { detectFrameworks } = await import("./agents/frameworkDetector");
+    const { computeCompetencyEvidence } = await import("./agents/director");
+    // ^^ If computeCompetencyEvidence isn't exported, inline the logic or export it.
+
+    let processedSessions = 0, processedTurns = 0, errors = 0;
+
+    for (const s of completed) {
+      const existingState = (s.session.currentState as any) || {};
+      const existingLogs: any[] = existingState.decisionEvidenceLogs || [];
+      const existingFwDets: any[][] = existingState.framework_detections || [];
+
+      // Only backfill if logs are actually missing/empty
+      if (existingLogs.length >= s.turns.length && existingFwDets.length >= s.turns.length) continue;
+
+      const newLogs: any[] = [];
+      const newFwDets: any[][] = [];
+
+      for (const turn of s.turns) {
+        try {
+          // Reconstruct the context enough to extract signals
+          const agentResp: any = turn.agentResponse || {};
+          const updatedState = agentResp.updatedState || {};
+          const isMcq = (turn as any).format === "multiple_choice";
+
+          let signalsDetected, rdsScore, rdsBand, rawScores, competencyEvidence;
+
+          // If the agentResponse already contains evidenceLog data (Part B turns), use it directly
+          if (updatedState?.decisionEvidenceLogs?.length) {
+            const lastLog = updatedState.decisionEvidenceLogs[updatedState.decisionEvidenceLogs.length - 1];
+            signalsDetected = lastLog.signals_detected;
+            rdsScore = lastLog.rds_score;
+            rdsBand = lastLog.rds_band;
+            rawScores = lastLog.raw_signal_scores;
+            competencyEvidence = lastLog.competency_evidence;
+          } else {
+            // Old turn — re-extract signals from stored studentInput
+            const extractCtx = {
+              studentInput: turn.studentInput,
+              language,
+              scenario: { ...scenario, initialState },
+              sessionId: s.session.id,
+              currentDecision: turn.turnNumber,
+              // minimal context
+            } as any;
+            const extracted = await extractSignals(extractCtx);
+            signalsDetected = extracted.signals_detected;
+            rdsScore = extracted.rds_score;
+            rdsBand = extracted.rds_band;
+            rawScores = extracted.raw_signal_scores;
+            competencyEvidence = extracted.competency_evidence;
+          }
+
+          // Evidence quotes — derive from signals
+          const compToSignal: Record<string, string> = {
+            C1: "justification",
+            C2: "intent",
+            C3: "stakeholderAwareness",
+            C4: "ethicalAwareness",
+            C5: "tradeoffAwareness",
+          };
+          const evidenceQuotes: Record<string, string> = {};
+          for (const [comp, sigKey] of Object.entries(compToSignal)) {
+            const sig = (signalsDetected as any)[sigKey];
+            if (sig?.extracted_text && sig.quality >= 1) {
+              evidenceQuotes[comp] = sig.extracted_text.substring(0, 160);
+            }
+          }
+
+          newLogs.push({
+            signals_detected: signalsDetected,
+            rds_score: rdsScore,
+            rds_band: rdsBand,
+            competency_evidence: competencyEvidence,
+            raw_signal_scores: rawScores,
+            isMcq,
+            student_input: turn.studentInput,
+            classification: "PASS",
+            evidence_quotes: evidenceQuotes,
+            turn_number: turn.turnNumber,
+          });
+
+          // Reconstruct framework detections
+          if (!isMcq && frameworks.length > 0) {
+            const fwDets = detectFrameworks(turn.studentInput, signalsDetected, frameworks, language);
+            newFwDets.push(fwDets);
+          } else {
+            newFwDets.push([]);
+          }
+
+          processedTurns++;
+        } catch (err) {
+          console.error(`[Backfill] Failed turn ${turn.turnNumber} session ${s.session.id}:`, err);
+          errors++;
+          newLogs.push(null);
+          newFwDets.push([]);
+        }
+      }
+
+      // Write back to session
+      const mergedState = {
+        ...existingState,
+        decisionEvidenceLogs: newLogs.filter(l => l !== null),
+        framework_detections: newFwDets,
+      };
+
+      await storage.updateSimulationSession(s.session.id, { currentState: mergedState });
+      processedSessions++;
+    }
+
+    // Invalidate dashboard cache for this scenario
+    const cacheKeys = ["class-stats", "module-health", "depth-trajectory", "class-patterns"];
+    for (const k of cacheKeys) dashboardCache.delete(`${k}-${scenarioId}`);
+
+    res.json({ processedSessions, processedTurns, errors, totalCompleted: completed.length });
+  } catch (error) {
+    console.error("[Backfill] Fatal error:", error);
+    res.status(500).json({ message: "Backfill failed", error: String(error) });
+  }
+});
+```
+
+**Requirements for the helper:**
+- Admin-only — enforce via role check.
+- Idempotent — skip sessions whose logs are already fully populated.
+- Non-destructive — only adds missing logs, never overwrites existing ones.
+- Invalidates dashboard cache for that scenario so the next dashboard load reflects the backfill.
+- Returns counts of processed sessions / turns / errors for visibility.
+
+**How to run it:** Santi hits `POST /api/admin/scenarios/<scenarioId>/backfill-analysis` once per scenario with broken data. No UI needed — this is an admin one-shot.
+
+**Guarantee:** If `extractSignals` cannot be called with a minimal context (e.g., it requires full pipeline state), the helper should instead just use whatever is already in `turn.agentResponse.updatedState.decisionEvidenceLogs` (newer turns) and reconstruct only what's missing. Do not regenerate signals if doing so would cost significant tokens — prefer preserving whatever was captured originally.
+
+---
+
+# E5. Extract Students Tab into Shared Component
+
+**Problem:** The Students tab content exists only in `client/src/pages/SimulationManagement.tsx:376-587`. The scenario dashboard's Students tab at `client/src/pages/ScenarioDashboard.tsx:354-358` is a placeholder.
+
+**Fix:** Extract the Students tab content into a reusable component, then render it from both pages.
+
+## Step 1 — Create the shared component
+
+New file: `client/src/components/scenario-tabs/ScenarioStudentsTab.tsx`
+
+Copy the entire Students tab content from `SimulationManagement.tsx` lines 376-587 (the full `<TabsContent value="students">` inner JSX). Extract all the mutation logic, state, and handlers that support it:
+
+- `generateCodeMutation`, `addStudentMutation`, `addBulkStudentsMutation`, `deleteSessionMutation`
+- `emailInput`, `bulkEmails`, `joinCodeCopied` state
+- `handleAddStudent`, `handleAddBulkStudents`, `handleCopyCode` handlers
+- `enrolledCount` computation
+
+**Component signature:**
+
+```typescript
+interface ScenarioStudentsTabProps {
+  scenarioId: string;
+  scenario: ExtendedScenario;         // the same ExtendedScenario type from SimulationManagement
+  sessions: SessionWithUser[] | undefined;
+}
+
+export function ScenarioStudentsTab({ scenarioId, scenario, sessions }: ScenarioStudentsTabProps) {
+  // all state + mutations + handlers + JSX go here
+  return (
+    <div className="space-y-6">
+      {/* ... the full existing Students tab content ... */}
+    </div>
+  );
+}
+```
+
+**Types to co-locate or import:**
+```typescript
+interface ExtendedScenario {
+  id: string;
+  title: string;
+  joinCode?: string;
+  isStarted?: boolean;
+  enrolledStudents?: Array<{ email: string; addedAt?: string }>;
+  // ... whatever else the original component used
+}
+
+interface SessionWithUser {
+  id: string;
+  userId: string;
+  status: "enrolled" | "active" | "completed";
+  user?: { firstName?: string; lastName?: string; email?: string };
+}
+```
+
+If these types already live in `@shared/schema` or elsewhere, import them instead of redefining.
+
+## Step 2 — Wire it into ScenarioDashboard.tsx
+
+In `client/src/pages/ScenarioDashboard.tsx`:
+
+1. Add imports at the top:
+```typescript
+import { ScenarioStudentsTab } from "@/components/scenario-tabs/ScenarioStudentsTab";
+```
+
+2. Fetch scenario + sessions at the top of the `ScenarioDashboard` component (alongside existing queries):
+```typescript
+const { data: scenario } = useQuery<any>({
+  queryKey: [`/api/scenarios/${scenarioId}`],
+  enabled: !!scenarioId,
+});
+const { data: sessions } = useQuery<any[]>({
+  queryKey: [`/api/scenarios/${scenarioId}/sessions`],
+  enabled: activeTab === "students" && !!scenarioId,  // lazy-load for the tab
+});
+```
+
+3. Replace the placeholder block at lines 354-358:
+```typescript
+// OLD:
+{activeTab === "students" && (
+  <div className="text-center py-12 text-muted-foreground">
+    {isEn ? "Students management — existing view" : "Gestión de estudiantes — vista existente"}
+  </div>
+)}
+
+// NEW:
+{activeTab === "students" && scenario && (
+  <ScenarioStudentsTab
+    scenarioId={scenarioId!}
+    scenario={scenario}
+    sessions={sessions}
+  />
+)}
+{activeTab === "students" && !scenario && (
+  <div className="flex items-center justify-center py-12">
+    <Skeleton className="h-48 w-full max-w-2xl" />
+  </div>
+)}
+```
+
+## Step 3 — Replace Students tab content in SimulationManagement.tsx
+
+In `client/src/pages/SimulationManagement.tsx`, replace the entire `<TabsContent value="students">...</TabsContent>` (lines 376-587) with:
+
+```tsx
+<TabsContent value="students">
+  <ScenarioStudentsTab
+    scenarioId={scenarioId!}
+    scenario={scenario}
+    sessions={sessions}
+  />
+</TabsContent>
+```
+
+Remove the now-unused state, mutations, and handlers that moved into the shared component.
+
+## Step 4 — Verify scroll
+
+The `ScenarioDashboard` layout's outer `<div className="max-w-[1100px] mx-auto px-5 py-5">` needs to allow vertical scrolling. If the scenario dashboard is wrapped in a fixed-height container, change it to allow natural scroll. Check around `ScenarioDashboard.tsx:335` — the outer wrapper should use `min-h-screen` or similar instead of `h-screen overflow-hidden`.
+
+**Done:** Clicking the Students tab on the scenario dashboard now shows the same Add Students / Access Code / Enrolled Students UI as the standalone scenario management page. Page scrolls naturally.
+
+---
+
+# E6. Extract Control Tab into Shared Component
+
+**Problem:** The Control tab on the scenario dashboard is a placeholder. The real control panel lives in `SimulationManagement.tsx:588-633` (the `<TabsContent value="settings">` block, which manages the "simulation started" toggle).
+
+**Fix:** Same pattern as E5.
+
+## Step 1 — Create the shared component
+
+New file: `client/src/components/scenario-tabs/ScenarioControlTab.tsx`
+
+Copy the entire `<TabsContent value="settings">` content (lines 588-633) including the `toggleStartMutation` logic.
+
+**Component signature:**
+```typescript
+interface ScenarioControlTabProps {
+  scenarioId: string;
+  scenario: ExtendedScenario;
+}
+
+export function ScenarioControlTab({ scenarioId, scenario }: ScenarioControlTabProps) {
+  // toggleStartMutation + switch JSX
+}
+```
+
+Include the `Test Simulation` card (the "Start Test" button block at lines 568-587) as part of the Control tab too — it's a natural fit for the control panel and Alejandro expects the same parity.
+
+## Step 2 — Wire into ScenarioDashboard.tsx
+
+Replace the control placeholder at lines 359-363:
+
+```tsx
+{activeTab === "control" && scenario && (
+  <ScenarioControlTab scenarioId={scenarioId!} scenario={scenario} />
+)}
+{activeTab === "control" && !scenario && (
+  <div className="flex items-center justify-center py-12">
+    <Skeleton className="h-32 w-full max-w-2xl" />
+  </div>
+)}
+```
+
+## Step 3 — Replace in SimulationManagement.tsx
+
+The standalone page currently has two tabs ("test" + "settings") that are effectively the control panel. Consolidate them into one `<TabsContent value="control">` that renders `<ScenarioControlTab />`, OR leave the standalone page as-is with its four tabs for continuity and just use the shared component inside `settings`.
+
+**Recommendation:** Leave the standalone `SimulationManagement.tsx` four-tab layout intact to avoid breaking the existing professor workflow. Use the shared component inside the existing `settings` tab:
+
+```tsx
+<TabsContent value="settings">
+  <ScenarioControlTab scenarioId={scenarioId!} scenario={scenario} />
+</TabsContent>
+```
+
+And combine the Test tab content into the ControlTab component so it appears in the scenario dashboard but also works in the standalone page.
+
+## Step 4 — Verify parity
+
+- Toggling "Simulation Started" on the scenario dashboard triggers the same mutation that toggles it on the standalone page.
+- Both pages immediately reflect the change via shared React Query cache invalidation (use the same query keys).
+- No scroll issues on the control tab.
+
+**Done:** Clicking the Control tab on the scenario dashboard shows the full control panel — start/stop toggle, test simulation button, status description. Parity with standalone page.
+
+---
+
+# E7. End-to-End Verification for the Meeting
+
+After E1–E6 are merged, run this verification in order:
+
+## E7.1 — Fresh English session
+
+1. Create a new English scenario with **3 frameworks** configured (e.g., "BATNA negotiation", "OLI entry mode", "Cultural distance") and **3 active KPIs** in English.
+2. Start the simulation as a test student.
+3. Complete all decisions with varied responses (mix of short and long, some showing analytical reasoning, some showing stakeholder awareness, some weak).
+4. Open the professor dashboard at `/scenarios/<scenarioId>/dashboard`.
+5. Verify **on the Analytics tab**:
+   - Top stats: "Completed: 1", "In progress: 0", drop point and applied theory either populated or "—"
+   - Module Health: 3 framework cards, each with a real status badge (transferring/developing/not yet evidenced) and a 2–3 sentence AI description
+   - Class Debrief Opener: a question referencing a specific turn number and the lowest competency
+   - Depth chart: dots in different colors (green/blue/amber) based on turn averages
+   - Turn annotations: not hardcoded templates, reference the actual NUDGE/BLOCK/PASS counts
+   - Class patterns: 5 competencies with AI-generated observations
+   - Students table: 1 row visible with arc dots + key pattern sentence + "View session" button
+6. Click "View session" — the modal opens with 4 tabs:
+   - Chat history: full student responses visible, no truncation
+   - Debrief prep: per-turn cards with 100-char truncation + KPI pills + debrief question
+   - Reasoning signals: radar chart renders + signal table with evidence per turn
+   - KPI + Frameworks: colored cells for positive/negative movements + per-turn framework application
+7. Verify **on the Students tab**: enrolled students list shows, can add a new student by email, page scrolls naturally.
+8. Verify **on the Control tab**: simulation-started toggle works, test mode button works.
+
+## E7.2 — Fresh Spanish session
+
+Repeat E7.1 with a brand new Spanish scenario. Verify **zero English text** anywhere in the dashboard (all AI descriptions in Spanish).
+
+## E7.3 — Backfill existing session
+
+Find the existing test session in the DB (the one Alejandro's looking at). Call:
+```bash
+curl -X POST https://<replit-domain>/api/admin/scenarios/<that-scenario-id>/backfill-analysis
+```
+with admin auth. Verify response shows `processedTurns > 0`. Reload the dashboard for that scenario. The analysis data should now be populated (or at least signal-based data from existing turns).
+
+## E7.4 — Prohibited language scan
+
+After E7.1 and E7.2, manually scan every AI-generated text block on the dashboard. Should see **zero occurrences** of:
+- EN: `correct`, `incorrect`, `should have`, `well done`, `optimal`, `ideal`, `best option`, `weak student`, `strong performer`, `unfortunately`, exclamation marks
+- ES: `correcto`, `incorrecto`, `debería haber`, `bien hecho`, `óptimo`, `ideal`, `mejor opción`, `estudiante débil/fuerte`, `lamentablemente`
+
+## E7.5 — Deliverable checklist (so the meeting is productive)
+
+Before the meeting, confirm:
+- [ ] One real English session with full dashboard visible
+- [ ] One real Spanish session with full dashboard visible
+- [ ] Students tab renders enrolled list, scrolls correctly
+- [ ] Control tab renders toggles + test button, works correctly
+- [ ] Backfill ran successfully on Alejandro's original test session
+- [ ] No prohibited language in AI output
+- [ ] No TypeScript errors in build
+- [ ] No console errors when navigating the dashboard
+
+---
+
+# COMMIT STRATEGY
+
+- `fix(E1): extend DecisionEvidenceLogEntry with student_input, classification, evidence_quotes, turn_number`
+- `feat(E2): director writes new evidence log fields on PASS`
+- `fix(E3): wire new fields into dashboard endpoints (depth-trajectory NUDGE/BLOCK counts, class-patterns quotes)`
+- `feat(E4): admin backfill endpoint for existing completed sessions`
+- `refactor(E5): extract Students tab into shared component + wire into scenario dashboard`
+- `refactor(E6): extract Control tab into shared component + wire into scenario dashboard`
+- `chore(E7): verification notes and bug-fix validation`
+
+---
+
+# ABSOLUTE PROHIBITIONS
+
+1. **Do not change core engine decision logic.** This is record-keeping only. Classification gates, signal extraction scores, RDS band thresholds, KPI movements — all untouched.
+2. **Do not reformat or restyle the dashboard.** Color scheme, typography, spacing, layout — untouched.
+3. **Do not regenerate AI text for every dashboard load.** The 5-min `dashboardCache` stays.
+4. **Do not add prohibited language anywhere.** Same list as Part D.
+5. **Do not break backward compatibility.** All new schema fields are optional (`?`). Old sessions continue to load without migration.
+6. **Do not run automated migrations on Alejandro's session** without explicitly running the backfill endpoint. The helper is opt-in, not automatic.
+
+---
+
+# DEFINITION OF DONE
+
+- `DecisionEvidenceLogEntry` schema has 4 new optional fields (E1) ✓
+- Director writes all 4 new fields on every PASS turn (E2) ✓
+- Dashboard endpoints use the new fields — NUDGE/BLOCK counts from turn_events, evidence_quotes from logs (E3) ✓
+- Admin backfill endpoint exists and is idempotent (E4) ✓
+- `ScenarioStudentsTab` shared component exists, used by both pages (E5) ✓
+- `ScenarioControlTab` shared component exists, used by both pages (E6) ✓
+- Fresh EN + ES test sessions both produce full, populated dashboards (E7.1, E7.2) ✓
+- Backfill successfully populated Alejandro's existing test session (E7.3) ✓
+- Zero prohibited language in AI output (E7.4) ✓
+- All E7.5 deliverable checklist items checked ✓

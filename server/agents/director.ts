@@ -1023,6 +1023,22 @@ export async function processStudentTurn(
   });
 
   const existingEvidenceLogs = context.decisionEvidenceLogs || [];
+
+  const compToSignal: Record<"C1" | "C2" | "C3" | "C4" | "C5", keyof typeof evidenceLog.signals_detected> = {
+    C1: "justification",
+    C2: "intent",
+    C3: "stakeholderAwareness",
+    C4: "ethicalAwareness",
+    C5: "tradeoffAwareness",
+  };
+  const competencyQuoteMap: Partial<Record<"C1" | "C2" | "C3" | "C4" | "C5", string>> = {};
+  for (const [comp, sigKey] of Object.entries(compToSignal) as Array<["C1" | "C2" | "C3" | "C4" | "C5", keyof typeof evidenceLog.signals_detected]>) {
+    const sig = evidenceLog.signals_detected[sigKey];
+    if (sig && sig.extracted_text && sig.quality >= 1) {
+      competencyQuoteMap[comp] = sig.extracted_text.substring(0, 160);
+    }
+  }
+
   const evidenceEntry: import("@shared/schema").DecisionEvidenceLogEntry = {
     signals_detected: {
       intent: { quality: evidenceLog.signals_detected.intent.quality as 0 | 1 | 2 | 3, extracted_text: evidenceLog.signals_detected.intent.extracted_text },
@@ -1036,6 +1052,10 @@ export async function processStudentTurn(
     competency_evidence: evidenceLog.competency_evidence,
     raw_signal_scores: evidenceLog.raw_signal_scores,
     isMcq: evidenceLog.isMcq,
+    student_input: context.studentInput,
+    classification: "PASS",
+    evidence_quotes: competencyQuoteMap,
+    turn_number: currentDecisionNum,
   };
 
   storage.createTurnEvent({

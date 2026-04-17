@@ -1,527 +1,1748 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Academium — Professor Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:#1a1a1a;background:#f5f5f3}
-.nav{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:0.5px solid rgba(0,0,0,0.1);background:#fff}
-.nav-title{font-size:15px;font-weight:500;color:#999;font-style:italic}
-.nav-meta{font-size:12px;color:#bbb;margin-top:2px;font-style:italic}
-.ntabs{display:flex;gap:4px}
-.ntab{padding:5px 13px;border-radius:8px;font-size:13px;border:0.5px solid transparent;color:#999}
-.ntab.active{background:#f0f0ee;border-color:rgba(0,0,0,0.1);color:#1a1a1a;font-weight:500}
-.pg{padding:18px 20px;max-width:1100px;margin:0 auto}
-.ph{background:#f0f0ee;border:0.5px dashed rgba(0,0,0,0.2);border-radius:8px;padding:10px 14px}
-.ph-lbl{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:#999;margin-bottom:4px}
-.ph-desc{font-size:11px;color:#aaa;line-height:1.45;font-style:italic}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-.stat{background:#fff;border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:14px}
-.stat-n{font-size:22px;font-weight:500;color:#ccc;margin-bottom:4px}
-.stat-lbl{font-size:11px;font-weight:500;color:#999;margin-bottom:3px}
-.stat-desc{font-size:11px;color:#aaa;font-style:italic;line-height:1.4}
-.mh-card{background:#fff;border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:18px 20px;margin-bottom:16px}
-.sec-title{font-size:13px;font-weight:500;margin-bottom:3px}
-.sec-sub{font-size:11px;color:#999;margin-bottom:14px;line-height:1.5;font-style:italic}
-.fw-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:16px}
-.fw-b{padding:12px 14px;border-radius:8px;border:0.5px dashed rgba(0,0,0,0.15);background:#f9f9f8}
-.fw-name-ph{font-size:11px;font-weight:500;color:#bbb;font-style:italic;margin-bottom:5px}
-.fw-badge-ph{font-size:10px;font-weight:500;padding:2px 7px;border-radius:5px;display:inline-block;margin-bottom:6px;background:#f0f0ee;color:#aaa;border:0.5px solid rgba(0,0,0,0.1)}
-.fw-desc-ph{font-size:11px;color:#bbb;line-height:1.4;font-style:italic}
-.divider{height:0.5px;background:rgba(0,0,0,0.1);margin:14px 0}
-.db-strip{padding:12px 14px;background:#f9f9f8;border-radius:8px;border:0.5px dashed rgba(0,0,0,0.15)}
-.db-lbl{font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
-.db-desc{font-size:12px;color:#bbb;line-height:1.5;font-style:italic}
-.xbtn{font-size:12px;color:#bbb;cursor:pointer;background:none;border:none;text-decoration:underline;text-underline-offset:2px;margin-top:10px;display:block;padding:0}
-.mg{display:none;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;padding-top:12px;border-top:0.5px solid rgba(0,0,0,0.1)}
-.mg.open{display:grid}
-.mgb{padding:10px 12px;background:#f9f9f8;border-radius:8px;border:0.5px dashed rgba(0,0,0,0.15)}
-.mgl{font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
-.mgt{font-size:11px;color:#bbb;line-height:1.5;font-style:italic}
-.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
-.card{background:#fff;border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:16px}
-.ct{font-size:13px;font-weight:500;margin-bottom:3px}
-.cs{font-size:11px;color:#999;margin-bottom:12px;font-style:italic}
-.chart-ph{background:#f9f9f8;border:0.5px dashed rgba(0,0,0,0.15);border-radius:8px;height:115px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;margin-bottom:10px}
-.anno-row{display:flex;justify-content:space-around;gap:6px}
-.an{text-align:center;flex:1;padding:8px;background:#f9f9f8;border-radius:8px;border:0.5px dashed rgba(0,0,0,0.12)}
-.at{font-size:11px;font-weight:500;color:#bbb;margin-bottom:2px}
-.aw{font-size:10px;color:#ccc;line-height:1.35;font-style:italic}
-.fi{padding:11px 0;border-bottom:0.5px solid rgba(0,0,0,0.08)}
-.fi:first-child{padding-top:0}
-.fi:last-child{border-bottom:none;padding-bottom:0}
-.fh{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
-.fn{font-size:12px;font-weight:500;color:#bbb;font-style:italic}
-.ftg{font-size:10px;padding:2px 7px;border-radius:5px;background:#f0f0ee;color:#aaa;border:0.5px solid rgba(0,0,0,0.1)}
-.fbar{height:5px;background:#f0f0ee;border-radius:3px;overflow:hidden;margin-bottom:4px;border:0.5px dashed rgba(0,0,0,0.1)}
-.fb{height:100%;border-radius:3px;background:#ddd}
-.fd{font-size:11px;color:#ccc;line-height:1.4;font-style:italic}
-.sc{background:#fff;border:0.5px solid rgba(0,0,0,0.1);border-radius:12px;padding:16px;margin-bottom:14px}
-.stb{width:100%;border-collapse:collapse}
-.stb th{font-size:11px;font-weight:500;color:#999;text-align:left;padding:6px 10px;border-bottom:0.5px solid rgba(0,0,0,0.1)}
-.stb td{padding:10px;border-bottom:0.5px solid rgba(0,0,0,0.08);vertical-align:middle}
-.stb tr:last-child td{border-bottom:none}
-.bdg-ph{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;background:#f0f0ee;color:#aaa;border:0.5px solid rgba(0,0,0,0.1)}
-.arc-ph{display:flex;align-items:center;gap:4px}
-.ad{width:10px;height:10px;border-radius:50%;background:#ddd}
-.aa{font-size:10px;color:#ccc}
-.lgr{display:flex;gap:12px;margin-top:10px;padding-top:10px;border-top:0.5px solid rgba(0,0,0,0.08);flex-wrap:wrap;align-items:center}
-.lg{display:flex;align-items:center;gap:4px;font-size:11px;color:#aaa}
-.ld{width:9px;height:9px;border-radius:50%}
-.vb{padding:4px 10px;border:0.5px solid rgba(0,0,0,0.2);border-radius:8px;font-size:12px;cursor:pointer;background:transparent;color:#999}
-.vb:hover{background:#f5f5f3}
-.overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.25);z-index:100;overflow-y:auto;padding:30px 20px}
-.overlay.open{display:block}
-.modal{background:#fff;border:0.5px solid rgba(0,0,0,0.12);border-radius:12px;width:100%;max-width:700px;margin:0 auto}
-.mhd{padding:14px 18px;border-bottom:0.5px solid rgba(0,0,0,0.1)}
-.mht{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
-.mn{font-size:15px;font-weight:500;color:#aaa;font-style:italic}
-.mm{font-size:12px;color:#bbb;margin-top:1px;font-style:italic}
-.cls{font-size:22px;cursor:pointer;color:#999;background:none;border:none;padding:0;line-height:1}
-.msr{display:flex;gap:8px}
-.msb{flex:1;padding:10px 12px;background:#f9f9f8;border-radius:8px;border:0.5px dashed rgba(0,0,0,0.15)}
-.msl{font-size:11px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px}
-.msd{font-size:11px;color:#bbb;line-height:1.5;font-style:italic}
-.arb{padding:10px 12px;background:#f9f9f8;border-radius:8px;border:0.5px dashed rgba(0,0,0,0.15);min-width:130px}
-.mtabs{display:flex;padding:0 18px;border-bottom:0.5px solid rgba(0,0,0,0.1);overflow-x:auto}
-.mtab{padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:#999;background:none;border-left:none;border-right:none;border-top:none;white-space:nowrap}
-.mtab.active{color:#1a1a1a;border-bottom-color:#378ADD;font-weight:500}
-.mbody{padding:18px;max-height:60vh;overflow-y:auto}
-.tab-intro{font-size:12px;color:#aaa;line-height:1.5;margin-bottom:16px;padding:10px 12px;background:#f9f9f8;border-radius:8px;font-style:italic;border:0.5px dashed rgba(0,0,0,0.12)}
-.turn-ph{margin-bottom:12px;border:0.5px dashed rgba(0,0,0,0.15);border-radius:12px;overflow:hidden}
-.turn-hd{padding:10px 14px;background:#f9f9f8;border-bottom:0.5px dashed rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:space-between}
-.turn-t{font-size:11px;font-weight:500;color:#aaa}
-.turn-d{font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px;background:#f0f0ee;color:#aaa;border:0.5px solid rgba(0,0,0,0.1)}
-.turn-body{padding:12px 14px}
-.field-ph{margin-bottom:10px}
-.field-lbl{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:#bbb;margin-bottom:3px}
-.field-box{padding:8px 10px;background:#f9f9f8;border-radius:8px;border:0.5px dashed rgba(0,0,0,0.12);font-size:11px;color:#bbb;line-height:1.4;font-style:italic}
-.ask-ph{padding:10px 14px;background:#f9f9f8;border-left:2px solid rgba(55,138,221,0.3);border-radius:0 8px 8px 0;margin-top:2px}
-.ask-lbl{font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
-.ask-desc{font-size:11px;color:#bbb;line-height:1.5;font-style:italic}
-.radar-ph{background:#f9f9f8;border:0.5px dashed rgba(0,0,0,0.15);border-radius:8px;height:230px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;margin-bottom:12px}
-.sig-tbl{width:100%;border-collapse:collapse}
-.sig-tbl th{font-size:11px;font-weight:500;color:#aaa;text-align:left;padding:6px 8px;border-bottom:0.5px solid rgba(0,0,0,0.1)}
-.sig-tbl td{font-size:11px;padding:7px 8px;border-bottom:0.5px solid rgba(0,0,0,0.08);vertical-align:top;color:#bbb;font-style:italic}
-.sig-tbl tr:last-child td{border-bottom:none}
-.chip-ph{font-size:11px;padding:2px 6px;border-radius:5px;background:#f0f0ee;color:#aaa;border:0.5px solid rgba(0,0,0,0.1)}
-.traj-ph{border:0.5px dashed rgba(0,0,0,0.15);border-radius:8px;overflow:hidden;margin-bottom:16px}
-.traj-head{display:grid;background:#f9f9f8;border-bottom:0.5px dashed rgba(0,0,0,0.12)}
-.traj-row{display:grid;border-bottom:0.5px dashed rgba(0,0,0,0.08)}
-.traj-row:last-child{border-bottom:none}
-.tc{padding:8px 10px;border-right:0.5px dashed rgba(0,0,0,0.1);font-size:11px;color:#bbb;font-style:italic}
-.tc:last-child{border-right:none}
-.thc{padding:7px 10px;border-right:0.5px dashed rgba(0,0,0,0.1);font-size:10px;font-weight:500;color:#aaa;text-transform:uppercase;letter-spacing:.03em}
-.thc:last-child{border-right:none}
-.cf-ph{border:0.5px dashed rgba(0,0,0,0.15);border-radius:8px;padding:12px 14px}
-.cf-turn{font-size:11px;font-weight:500;color:#aaa;margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em}
-.cf-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:5px}
-.cf-name-ph{font-size:11px;color:#bbb;font-style:italic;min-width:130px}
-.cf-why-ph{font-size:11px;color:#ccc;font-style:italic;line-height:1.35}
-.sh{font-size:12px;font-weight:500;color:#999;margin-bottom:8px;margin-top:16px;padding-top:16px;border-top:0.5px solid rgba(0,0,0,0.08)}
-.sh:first-child{margin-top:0;padding-top:0;border-top:none}
-@media(max-width:700px){
-  .two{grid-template-columns:1fr}
-  .stats{grid-template-columns:repeat(2,1fr)}
-  .fw-grid{grid-template-columns:repeat(2,1fr)}
-  .mg{grid-template-columns:1fr}
-}
-</style>
-</head>
-<body>
-
-<div class="nav">
-  <div>
-    <div class="nav-title">[Case title — populated from the simulation the professor deployed]</div>
-    <div class="nav-meta">[Course name] · [Term] · [N] students enrolled</div>
-  </div>
-  <div class="ntabs">
-    <div class="ntab active">Analytics</div>
-    <div class="ntab">Students</div>
-    <div class="ntab">Control</div>
-  </div>
-</div>
-
-<div class="pg">
-
-  <!-- STAT CARDS -->
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-n">—</div>
-      <div class="stat-lbl">Completed</div>
-      <div class="stat-desc">Number of students who have finished all turns and submitted the reflection</div>
-    </div>
-    <div class="stat">
-      <div class="stat-n">—</div>
-      <div class="stat-lbl">In progress</div>
-      <div class="stat-desc">Number of students who have started but not yet completed the simulation</div>
-    </div>
-    <div class="stat">
-      <div class="stat-n">—</div>
-      <div class="stat-lbl">Biggest drop point</div>
-      <div class="stat-desc">The turn where average reasoning depth dropped most significantly across the class</div>
-    </div>
-    <div class="stat">
-      <div class="stat-n">—</div>
-      <div class="stat-lbl">Applied course theory</div>
-      <div class="stat-desc">How many students showed evidence of applying at least one professor-specified framework</div>
-    </div>
-  </div>
-
-  <!-- MODULE HEALTH -->
-  <div class="mh-card">
-    <div class="sec-title">Module health</div>
-    <div class="sec-sub">How the frameworks and theories the professor connected to this simulation are showing up — or not — in student decisions. One block per framework. Read this when planning your next class.</div>
-    <div class="fw-grid">
-      <div class="fw-b">
-        <div class="fw-name-ph">[Framework or theory name — e.g. BATNA, OLI, Stakeholder mapping]</div>
-        <span class="fw-badge-ph">Transferring / Developing / Not yet evidenced</span>
-        <div class="fw-desc-ph">What the data shows about how students engaged with this framework — whether they applied it explicitly, implicitly, or not at all. Describes what was present or absent without evaluating or recommending.</div>
-      </div>
-      <div class="fw-b">
-        <div class="fw-name-ph">[Framework or theory name]</div>
-        <span class="fw-badge-ph">Transferring / Developing / Not yet evidenced</span>
-        <div class="fw-desc-ph">What the data shows about how students engaged with this framework across all turns and all students. Specific to what appeared in the session data.</div>
-      </div>
-      <div class="fw-b">
-        <div class="fw-name-ph">[Framework or theory name]</div>
-        <span class="fw-badge-ph">Transferring / Developing / Not yet evidenced</span>
-        <div class="fw-desc-ph">What the data shows about how students engaged with this framework. Which sub-concepts appeared, which were absent, how consistently the pattern held.</div>
-      </div>
-      <div class="fw-b">
-        <div class="fw-name-ph">[Framework or theory name]</div>
-        <span class="fw-badge-ph">Transferring / Developing / Not yet evidenced</span>
-        <div class="fw-desc-ph">What the data shows about how students engaged with this framework. Describes only what was observed — never prescribes what to do about it.</div>
-      </div>
-    </div>
-    <div class="divider"></div>
-    <div class="db-strip">
-      <div class="db-lbl">Class debrief opener</div>
-      <div class="db-desc">One question — generated from the most significant gap detected across all sessions. Designed to open a class discussion without pointing at individual students. The professor decides whether and how to use it.</div>
-    </div>
-    <button class="xbtn" onclick="toggleMG(this)">Show full framework breakdown ↓</button>
-    <div class="mg" id="mgrid">
-      <div class="mgb">
-        <div class="mgl">Framework 1 — deeper view</div>
-        <div class="mgt">A more detailed description of specifically what students did and didn't demonstrate within this framework — which sub-concepts appeared, which were absent, and how consistently the pattern held across students.</div>
-      </div>
-      <div class="mgb">
-        <div class="mgl">Framework 2 — deeper view</div>
-        <div class="mgt">A more detailed description of specifically what students did and didn't demonstrate within this framework — which sub-concepts appeared, which were absent, and how consistently the pattern held across students.</div>
-      </div>
-      <div class="mgb">
-        <div class="mgl">Framework 3 — deeper view</div>
-        <div class="mgt">A more detailed description of specifically what students did and didn't demonstrate within this framework — which sub-concepts appeared, which were absent, and how consistently the pattern held across students.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CHARTS ROW -->
-  <div class="two">
-    <div class="card">
-      <div class="ct">Reasoning depth across turns</div>
-      <div class="cs">Line chart showing the class average reasoning depth (Surface / Engaged / Integrated) at each turn — annotated below with what the data shows drove each shift</div>
-      <div class="chart-ph">
-        <div style="font-size:11px;color:#bbb;font-style:italic">Line chart renders here</div>
-        <div style="font-size:10px;color:#ccc;font-style:italic">X axis: turns · Y axis: Surface → Engaged → Integrated</div>
-        <div style="font-size:10px;color:#ccc;font-style:italic">Each point = class average for that turn · color = average depth level</div>
-      </div>
-      <div class="anno-row">
-        <div class="an"><div class="at">Turn 1</div><div class="aw">What the data shows about why reasoning depth was at this level — based on RDS band distribution and classification event patterns</div></div>
-        <div class="an"><div class="at">Turn 2</div><div class="aw">What the data shows about why reasoning depth shifted from the previous turn</div></div>
-        <div class="an"><div class="at">Turn 3</div><div class="aw">What the data shows about why reasoning depth changed at this point in the simulation</div></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="ct">Where the class is and where it's heading</div>
-      <div class="cs">The most significant reasoning patterns detected across all completed sessions — described with what the data actually shows, not an evaluation</div>
-      <div class="fi">
-        <div class="fh"><span class="fn">[Competency name — e.g. Analytical reasoning]</span><span class="ftg">Transferring</span></div>
-        <div class="fbar"><div class="fb" style="width:80%"></div></div>
-        <div class="fd">Plain description of what the class data shows about this competency — how many students demonstrated it, in which turns, and what pattern emerged</div>
-      </div>
-      <div class="fi">
-        <div class="fh"><span class="fn">[Competency name]</span><span class="ftg">Developing</span></div>
-        <div class="fbar"><div class="fb" style="width:45%"></div></div>
-        <div class="fd">Plain description of what the data shows about this competency across all sessions</div>
-      </div>
-      <div class="fi">
-        <div class="fh"><span class="fn">[Competency name]</span><span class="ftg">Developing</span></div>
-        <div class="fbar"><div class="fb" style="width:25%"></div></div>
-        <div class="fd">Plain description of what the data shows about this competency — no judgment, no recommendation</div>
-      </div>
-      <div class="fi">
-        <div class="fh"><span class="fn">[Competency name]</span><span class="ftg">Not yet evidenced</span></div>
-        <div class="fbar"><div class="fb" style="width:8%"></div></div>
-        <div class="fd">Plain description of what was absent and where it was absent in the session data</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- STUDENT TABLE -->
-  <div class="sc">
-    <div style="font-size:13px;font-weight:500;margin-bottom:3px">Students</div>
-    <div style="font-size:11px;color:#999;margin-bottom:12px;font-style:italic">Each dot represents one turn — color shows reasoning depth. Click "View session" to open the individual four-tab analysis.</div>
-    <table class="stb">
-      <thead><tr>
-        <th>Student</th>
-        <th>Status</th>
-        <th>Reasoning arc</th>
-        <th>Key pattern</th>
-        <th></th>
-      </tr></thead>
-      <tbody>
-        <tr>
-          <td>
-            <div style="font-weight:500;font-size:13px;color:#bbb;font-style:italic">[Student name]</div>
-            <div style="font-size:11px;color:#ccc">student@university.edu</div>
-          </td>
-          <td><span class="bdg-ph">Completed</span></td>
-          <td>
-            <div class="arc-ph"><div class="ad"></div><span class="aa">→</span><div class="ad"></div><span class="aa">→</span><div class="ad"></div></div>
-            <div style="font-size:10px;color:#ccc;margin-top:2px;font-style:italic">One dot per turn · color = depth level</div>
-          </td>
-          <td style="font-size:11px;color:#bbb;font-style:italic">One sentence describing the most notable pattern in this student's session — what stood out, what was absent, or how their reasoning evolved</td>
-          <td><button class="vb" onclick="openModal()">View session</button></td>
-        </tr>
-        <tr>
-          <td>
-            <div style="font-weight:500;font-size:13px;color:#bbb;font-style:italic">[Student name]</div>
-            <div style="font-size:11px;color:#ccc">student@university.edu</div>
-          </td>
-          <td><span class="bdg-ph">In progress</span></td>
-          <td><span style="font-size:11px;color:#ccc;font-style:italic">Available when completed</span></td>
-          <td><span style="font-size:11px;color:#ccc;font-style:italic">—</span></td>
-          <td><button class="vb" style="opacity:.35;cursor:default">View session</button></td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="lgr">
-      <div class="lg"><div class="ld" style="background:#1D9E75"></div>Integrated reasoning</div>
-      <div class="lg"><div class="ld" style="background:#378ADD"></div>Engaged reasoning</div>
-      <div class="lg"><div class="ld" style="background:#BA7517"></div>Surface reasoning</div>
-      <div style="font-size:11px;color:#ccc;margin-left:auto;font-style:italic">Dots represent turns left to right</div>
-    </div>
-  </div>
-
-</div>
-
-<!-- MODAL -->
-<div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
-  <div class="modal">
-    <div class="mhd">
-      <div class="mht">
-        <div>
-          <div class="mn">[Student name]</div>
-          <div class="mm">[Simulation name] · [Completion date]</div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Academium — Professor Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 14px;
+        color: #1a1a1a;
+        background: #f5f5f3;
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 20px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+        background: #fff;
+      }
+      .nav-title {
+        font-size: 15px;
+        font-weight: 500;
+        color: #999;
+        font-style: italic;
+      }
+      .nav-meta {
+        font-size: 12px;
+        color: #bbb;
+        margin-top: 2px;
+        font-style: italic;
+      }
+      .ntabs {
+        display: flex;
+        gap: 4px;
+      }
+      .ntab {
+        padding: 5px 13px;
+        border-radius: 8px;
+        font-size: 13px;
+        border: 0.5px solid transparent;
+        color: #999;
+      }
+      .ntab.active {
+        background: #f0f0ee;
+        border-color: rgba(0, 0, 0, 0.1);
+        color: #1a1a1a;
+        font-weight: 500;
+      }
+      .pg {
+        padding: 18px 20px;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .ph {
+        background: #f0f0ee;
+        border: 0.5px dashed rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        padding: 10px 14px;
+      }
+      .ph-lbl {
+        font-size: 10px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #999;
+        margin-bottom: 4px;
+      }
+      .ph-desc {
+        font-size: 11px;
+        color: #aaa;
+        line-height: 1.45;
+        font-style: italic;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .stat {
+        background: #fff;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .stat-n {
+        font-size: 22px;
+        font-weight: 500;
+        color: #ccc;
+        margin-bottom: 4px;
+      }
+      .stat-lbl {
+        font-size: 11px;
+        font-weight: 500;
+        color: #999;
+        margin-bottom: 3px;
+      }
+      .stat-desc {
+        font-size: 11px;
+        color: #aaa;
+        font-style: italic;
+        line-height: 1.4;
+      }
+      .mh-card {
+        background: #fff;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 18px 20px;
+        margin-bottom: 16px;
+      }
+      .sec-title {
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 3px;
+      }
+      .sec-sub {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 14px;
+        line-height: 1.5;
+        font-style: italic;
+      }
+      .fw-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .fw-b {
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+        background: #f9f9f8;
+      }
+      .fw-name-ph {
+        font-size: 11px;
+        font-weight: 500;
+        color: #bbb;
+        font-style: italic;
+        margin-bottom: 5px;
+      }
+      .fw-badge-ph {
+        font-size: 10px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 5px;
+        display: inline-block;
+        margin-bottom: 6px;
+        background: #f0f0ee;
+        color: #aaa;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .fw-desc-ph {
+        font-size: 11px;
+        color: #bbb;
+        line-height: 1.4;
+        font-style: italic;
+      }
+      .divider {
+        height: 0.5px;
+        background: rgba(0, 0, 0, 0.1);
+        margin: 14px 0;
+      }
+      .db-strip {
+        padding: 12px 14px;
+        background: #f9f9f8;
+        border-radius: 8px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+      }
+      .db-lbl {
+        font-size: 10px;
+        font-weight: 500;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 4px;
+      }
+      .db-desc {
+        font-size: 12px;
+        color: #bbb;
+        line-height: 1.5;
+        font-style: italic;
+      }
+      .xbtn {
+        font-size: 12px;
+        color: #bbb;
+        cursor: pointer;
+        background: none;
+        border: none;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        margin-top: 10px;
+        display: block;
+        padding: 0;
+      }
+      .mg {
+        display: none;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .mg.open {
+        display: grid;
+      }
+      .mgb {
+        padding: 10px 12px;
+        background: #f9f9f8;
+        border-radius: 8px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+      }
+      .mgl {
+        font-size: 11px;
+        font-weight: 500;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        margin-bottom: 4px;
+      }
+      .mgt {
+        font-size: 11px;
+        color: #bbb;
+        line-height: 1.5;
+        font-style: italic;
+      }
+      .two {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .card {
+        background: #fff;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .ct {
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 3px;
+      }
+      .cs {
+        font-size: 11px;
+        color: #999;
+        margin-bottom: 12px;
+        font-style: italic;
+      }
+      .chart-ph {
+        background: #f9f9f8;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        height: 115px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        margin-bottom: 10px;
+      }
+      .anno-row {
+        display: flex;
+        justify-content: space-around;
+        gap: 6px;
+      }
+      .an {
+        text-align: center;
+        flex: 1;
+        padding: 8px;
+        background: #f9f9f8;
+        border-radius: 8px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.12);
+      }
+      .at {
+        font-size: 11px;
+        font-weight: 500;
+        color: #bbb;
+        margin-bottom: 2px;
+      }
+      .aw {
+        font-size: 10px;
+        color: #ccc;
+        line-height: 1.35;
+        font-style: italic;
+      }
+      .fi {
+        padding: 11px 0;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+      }
+      .fi:first-child {
+        padding-top: 0;
+      }
+      .fi:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .fh {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 3px;
+      }
+      .fn {
+        font-size: 12px;
+        font-weight: 500;
+        color: #bbb;
+        font-style: italic;
+      }
+      .ftg {
+        font-size: 10px;
+        padding: 2px 7px;
+        border-radius: 5px;
+        background: #f0f0ee;
+        color: #aaa;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .fbar {
+        height: 5px;
+        background: #f0f0ee;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-bottom: 4px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.1);
+      }
+      .fb {
+        height: 100%;
+        border-radius: 3px;
+        background: #ddd;
+      }
+      .fd {
+        font-size: 11px;
+        color: #ccc;
+        line-height: 1.4;
+        font-style: italic;
+      }
+      .sc {
+        background: #fff;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+      .stb {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .stb th {
+        font-size: 11px;
+        font-weight: 500;
+        color: #999;
+        text-align: left;
+        padding: 6px 10px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .stb td {
+        padding: 10px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+        vertical-align: middle;
+      }
+      .stb tr:last-child td {
+        border-bottom: none;
+      }
+      .bdg-ph {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        background: #f0f0ee;
+        color: #aaa;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .arc-ph {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .ad {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ddd;
+      }
+      .aa {
+        font-size: 10px;
+        color: #ccc;
+      }
+      .lgr {
+        display: flex;
+        gap: 12px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .lg {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: #aaa;
+      }
+      .ld {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+      }
+      .vb {
+        padding: 4px 10px;
+        border: 0.5px solid rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        font-size: 12px;
+        cursor: pointer;
+        background: transparent;
+        color: #999;
+      }
+      .vb:hover {
+        background: #f5f5f3;
+      }
+      .overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.25);
+        z-index: 100;
+        overflow-y: auto;
+        padding: 30px 20px;
+      }
+      .overlay.open {
+        display: block;
+      }
+      .modal {
+        background: #fff;
+        border: 0.5px solid rgba(0, 0, 0, 0.12);
+        border-radius: 12px;
+        width: 100%;
+        max-width: 700px;
+        margin: 0 auto;
+      }
+      .mhd {
+        padding: 14px 18px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .mht {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .mn {
+        font-size: 15px;
+        font-weight: 500;
+        color: #aaa;
+        font-style: italic;
+      }
+      .mm {
+        font-size: 12px;
+        color: #bbb;
+        margin-top: 1px;
+        font-style: italic;
+      }
+      .cls {
+        font-size: 22px;
+        cursor: pointer;
+        color: #999;
+        background: none;
+        border: none;
+        padding: 0;
+        line-height: 1;
+      }
+      .msr {
+        display: flex;
+        gap: 8px;
+      }
+      .msb {
+        flex: 1;
+        padding: 10px 12px;
+        background: #f9f9f8;
+        border-radius: 8px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+      }
+      .msl {
+        font-size: 11px;
+        font-weight: 500;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        margin-bottom: 3px;
+      }
+      .msd {
+        font-size: 11px;
+        color: #bbb;
+        line-height: 1.5;
+        font-style: italic;
+      }
+      .arb {
+        padding: 10px 12px;
+        background: #f9f9f8;
+        border-radius: 8px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+        min-width: 130px;
+      }
+      .mtabs {
+        display: flex;
+        padding: 0 18px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+        overflow-x: auto;
+      }
+      .mtab {
+        padding: 8px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        color: #999;
+        background: none;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        white-space: nowrap;
+      }
+      .mtab.active {
+        color: #1a1a1a;
+        border-bottom-color: #378add;
+        font-weight: 500;
+      }
+      .mbody {
+        padding: 18px;
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      .tab-intro {
+        font-size: 12px;
+        color: #aaa;
+        line-height: 1.5;
+        margin-bottom: 16px;
+        padding: 10px 12px;
+        background: #f9f9f8;
+        border-radius: 8px;
+        font-style: italic;
+        border: 0.5px dashed rgba(0, 0, 0, 0.12);
+      }
+      .turn-ph {
+        margin-bottom: 12px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .turn-hd {
+        padding: 10px 14px;
+        background: #f9f9f8;
+        border-bottom: 0.5px dashed rgba(0, 0, 0, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .turn-t {
+        font-size: 11px;
+        font-weight: 500;
+        color: #aaa;
+      }
+      .turn-d {
+        font-size: 11px;
+        font-weight: 500;
+        padding: 2px 7px;
+        border-radius: 5px;
+        background: #f0f0ee;
+        color: #aaa;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .turn-body {
+        padding: 12px 14px;
+      }
+      .field-ph {
+        margin-bottom: 10px;
+      }
+      .field-lbl {
+        font-size: 10px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #bbb;
+        margin-bottom: 3px;
+      }
+      .field-box {
+        padding: 8px 10px;
+        background: #f9f9f8;
+        border-radius: 8px;
+        border: 0.5px dashed rgba(0, 0, 0, 0.12);
+        font-size: 11px;
+        color: #bbb;
+        line-height: 1.4;
+        font-style: italic;
+      }
+      .ask-ph {
+        padding: 10px 14px;
+        background: #f9f9f8;
+        border-left: 2px solid rgba(55, 138, 221, 0.3);
+        border-radius: 0 8px 8px 0;
+        margin-top: 2px;
+      }
+      .ask-lbl {
+        font-size: 10px;
+        font-weight: 500;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 3px;
+      }
+      .ask-desc {
+        font-size: 11px;
+        color: #bbb;
+        line-height: 1.5;
+        font-style: italic;
+      }
+      .radar-ph {
+        background: #f9f9f8;
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        height: 230px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .sig-tbl {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .sig-tbl th {
+        font-size: 11px;
+        font-weight: 500;
+        color: #aaa;
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .sig-tbl td {
+        font-size: 11px;
+        padding: 7px 8px;
+        border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
+        vertical-align: top;
+        color: #bbb;
+        font-style: italic;
+      }
+      .sig-tbl tr:last-child td {
+        border-bottom: none;
+      }
+      .chip-ph {
+        font-size: 11px;
+        padding: 2px 6px;
+        border-radius: 5px;
+        background: #f0f0ee;
+        color: #aaa;
+        border: 0.5px solid rgba(0, 0, 0, 0.1);
+      }
+      .traj-ph {
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 16px;
+      }
+      .traj-head {
+        display: grid;
+        background: #f9f9f8;
+        border-bottom: 0.5px dashed rgba(0, 0, 0, 0.12);
+      }
+      .traj-row {
+        display: grid;
+        border-bottom: 0.5px dashed rgba(0, 0, 0, 0.08);
+      }
+      .traj-row:last-child {
+        border-bottom: none;
+      }
+      .tc {
+        padding: 8px 10px;
+        border-right: 0.5px dashed rgba(0, 0, 0, 0.1);
+        font-size: 11px;
+        color: #bbb;
+        font-style: italic;
+      }
+      .tc:last-child {
+        border-right: none;
+      }
+      .thc {
+        padding: 7px 10px;
+        border-right: 0.5px dashed rgba(0, 0, 0, 0.1);
+        font-size: 10px;
+        font-weight: 500;
+        color: #aaa;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .thc:last-child {
+        border-right: none;
+      }
+      .cf-ph {
+        border: 0.5px dashed rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        padding: 12px 14px;
+      }
+      .cf-turn {
+        font-size: 11px;
+        font-weight: 500;
+        color: #aaa;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .cf-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        margin-bottom: 5px;
+      }
+      .cf-name-ph {
+        font-size: 11px;
+        color: #bbb;
+        font-style: italic;
+        min-width: 130px;
+      }
+      .cf-why-ph {
+        font-size: 11px;
+        color: #ccc;
+        font-style: italic;
+        line-height: 1.35;
+      }
+      .sh {
+        font-size: 12px;
+        font-weight: 500;
+        color: #999;
+        margin-bottom: 8px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+      }
+      .sh:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+      }
+      @media (max-width: 700px) {
+        .two {
+          grid-template-columns: 1fr;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .fw-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .mg {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="nav">
+      <div>
+        <div class="nav-title">
+          [Case title — populated from the simulation the professor deployed]
         </div>
-        <button class="cls" onclick="closeModal()">×</button>
-      </div>
-      <div class="msr">
-        <div class="msb">
-          <div class="msl">Session summary</div>
-          <div class="msd">One to two sentences describing the most important pattern in this student's session — their overall reasoning arc, the most significant gap or strength, and anything that makes their session notable for debrief. AI-generated from session state data. Max 2 sentences.</div>
+        <div class="nav-meta">
+          [Course name] · [Term] · [N] students enrolled
         </div>
-        <div class="arb">
-          <div class="msl" style="margin-bottom:6px">Reasoning arc</div>
-          <div style="display:flex;align-items:flex-start;gap:5px">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div class="ad"></div><div style="font-size:10px;color:#ccc">T1</div></div>
-            <span class="aa" style="margin-top:4px">→</span>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div class="ad"></div><div style="font-size:10px;color:#ccc">T2</div></div>
-            <span class="aa" style="margin-top:4px">→</span>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:2px"><div class="ad"></div><div style="font-size:10px;color:#ccc">T3</div></div>
+      </div>
+      <div class="ntabs">
+        <div class="ntab active">Analytics</div>
+        <div class="ntab">Students</div>
+        <div class="ntab">Control</div>
+      </div>
+    </div>
+
+    <div class="pg">
+      <!-- STAT CARDS -->
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-n">—</div>
+          <div class="stat-lbl">Completed</div>
+          <div class="stat-desc">
+            Number of students who have finished all turns and submitted the
+            reflection
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-n">—</div>
+          <div class="stat-lbl">In progress</div>
+          <div class="stat-desc">
+            Number of students who have started but not yet completed the
+            simulation
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-n">—</div>
+          <div class="stat-lbl">Biggest drop point</div>
+          <div class="stat-desc">
+            The turn where average reasoning depth dropped most significantly
+            across the class
+          </div>
+        </div>
+        <div class="stat">
+          <div class="stat-n">—</div>
+          <div class="stat-lbl">Applied course theory</div>
+          <div class="stat-desc">
+            How many students showed evidence of applying at least one
+            professor-specified framework
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="mtabs">
-      <button class="mtab active" onclick="sw('chat',this)">Chat history</button>
-      <button class="mtab" onclick="sw('debrief',this)">Debrief prep</button>
-      <button class="mtab" onclick="sw('signals',this)">Reasoning signals</button>
-      <button class="mtab" onclick="sw('kpi',this)">KPI + course frameworks</button>
-    </div>
-
-    <div class="mbody" id="mbody">
-
-      <!-- TAB 1: CHAT HISTORY (default visible) -->
-      <div id="tab-chat">
-        <div class="tab-intro">The full conversation exactly as it happened — every decision prompt and every word the student wrote, in sequence. No analysis, no signal labels, no annotations. For professors who want to read the student's thinking directly. Source: session.turns[].student_input (direct read, unmodified).</div>
-        <div class="turn-ph">
-          <div class="turn-hd"><span class="turn-t">Turn 1 · MCQ</span></div>
-          <div class="turn-body">
-            <div class="field-ph"><div class="field-lbl">Decision prompt</div><div class="field-box">The question or scenario the student was asked to respond to at this turn — pulled from the case definition</div></div>
-            <div class="field-ph"><div class="field-lbl">Student response</div><div class="field-box">What the student selected or wrote — displayed exactly as submitted with no modification, no grammar correction, no paraphrasing</div></div>
+      <!-- MODULE HEALTH -->
+      <div class="mh-card">
+        <div class="sec-title">Module health</div>
+        <div class="sec-sub">
+          How the frameworks and theories the professor connected to this
+          simulation are showing up — or not — in student decisions. One block
+          per framework. Read this when planning your next class.
+        </div>
+        <div class="fw-grid">
+          <div class="fw-b">
+            <div class="fw-name-ph">
+              [Framework or theory name — e.g. BATNA, OLI, Stakeholder mapping]
+            </div>
+            <span class="fw-badge-ph"
+              >Transferring / Developing / Not yet evidenced</span
+            >
+            <div class="fw-desc-ph">
+              What the data shows about how students engaged with this framework
+              — whether they applied it explicitly, implicitly, or not at all.
+              Describes what was present or absent without evaluating or
+              recommending.
+            </div>
+          </div>
+          <div class="fw-b">
+            <div class="fw-name-ph">[Framework or theory name]</div>
+            <span class="fw-badge-ph"
+              >Transferring / Developing / Not yet evidenced</span
+            >
+            <div class="fw-desc-ph">
+              What the data shows about how students engaged with this framework
+              across all turns and all students. Specific to what appeared in
+              the session data.
+            </div>
+          </div>
+          <div class="fw-b">
+            <div class="fw-name-ph">[Framework or theory name]</div>
+            <span class="fw-badge-ph"
+              >Transferring / Developing / Not yet evidenced</span
+            >
+            <div class="fw-desc-ph">
+              What the data shows about how students engaged with this
+              framework. Which sub-concepts appeared, which were absent, how
+              consistently the pattern held.
+            </div>
+          </div>
+          <div class="fw-b">
+            <div class="fw-name-ph">[Framework or theory name]</div>
+            <span class="fw-badge-ph"
+              >Transferring / Developing / Not yet evidenced</span
+            >
+            <div class="fw-desc-ph">
+              What the data shows about how students engaged with this
+              framework. Describes only what was observed — never prescribes
+              what to do about it.
+            </div>
           </div>
         </div>
-        <div class="turn-ph">
-          <div class="turn-hd"><span class="turn-t">Turn 2 · Free response</span></div>
-          <div class="turn-body">
-            <div class="field-ph"><div class="field-lbl">Decision prompt</div><div class="field-box">The question or scenario the student was asked to respond to at this turn</div></div>
-            <div class="field-ph"><div class="field-lbl">Student response</div><div class="field-box">Full text of what the student wrote — long responses truncated with an expand button. Expanded view shows complete text.</div></div>
+        <div class="divider"></div>
+        <div class="db-strip">
+          <div class="db-lbl">Class debrief opener</div>
+          <div class="db-desc">
+            One question — generated from the most significant gap detected
+            across all sessions. Designed to open a class discussion without
+            pointing at individual students. The professor decides whether and
+            how to use it.
           </div>
         </div>
-        <div class="turn-ph">
-          <div class="turn-hd"><span class="turn-t">Turn 3 · Free response</span></div>
-          <div class="turn-body">
-            <div class="field-ph"><div class="field-lbl">Decision prompt</div><div class="field-box">The question or scenario the student was asked to respond to at this turn</div></div>
-            <div class="field-ph"><div class="field-lbl">Student response</div><div class="field-box">Full text of what the student wrote</div></div>
+        <button class="xbtn" onclick="toggleMG(this)">
+          Show full framework breakdown ↓
+        </button>
+        <div class="mg" id="mgrid">
+          <div class="mgb">
+            <div class="mgl">Framework 1 — deeper view</div>
+            <div class="mgt">
+              A more detailed description of specifically what students did and
+              didn't demonstrate within this framework — which sub-concepts
+              appeared, which were absent, and how consistently the pattern held
+              across students.
+            </div>
+          </div>
+          <div class="mgb">
+            <div class="mgl">Framework 2 — deeper view</div>
+            <div class="mgt">
+              A more detailed description of specifically what students did and
+              didn't demonstrate within this framework — which sub-concepts
+              appeared, which were absent, and how consistently the pattern held
+              across students.
+            </div>
+          </div>
+          <div class="mgb">
+            <div class="mgl">Framework 3 — deeper view</div>
+            <div class="mgt">
+              A more detailed description of specifically what students did and
+              didn't demonstrate within this framework — which sub-concepts
+              appeared, which were absent, and how consistently the pattern held
+              across students.
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- TAB 2: DEBRIEF PREP -->
-      <div id="tab-debrief" style="display:none">
-        <div class="tab-intro">One card per turn. Shows what the student decided, what KPI movements their decision produced and why, and one specific question to ask this student in debrief. Designed for fast scanning — professor reads this before class. Each debrief question is generated from the student's specific response and targets their most significant signal gap at that turn.</div>
-        <div class="turn-ph">
-          <div class="turn-hd"><span class="turn-t">Turn 1 · MCQ</span><span class="turn-d">MCQ</span></div>
-          <div class="turn-body">
-            <div class="field-ph"><div class="field-lbl">Student response</div><div class="field-box">What the student selected or wrote — truncated with expand option. Source: session.turns[].student_input</div></div>
-            <div class="field-ph">
-              <div class="field-lbl">KPI movements — what this decision produced</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">
-                <span style="font-size:11px;padding:3px 8px;border-radius:5px;background:#EAF3DE;color:#27500A;border:0.5px solid #C0DD97">[KPI name] ↑ Slight · Driven by: [signal name that caused this]</span>
-                <span style="font-size:11px;padding:3px 8px;border-radius:5px;background:#FCEBEB;color:#791F1F;border:0.5px solid #F7C1C1">[KPI name] ↓ Slight · Gap: [signal name that was absent]</span>
+      <!-- CHARTS ROW -->
+      <div class="two">
+        <div class="card">
+          <div class="ct">Reasoning depth across turns</div>
+          <div class="cs">
+            Line chart showing the class average reasoning depth (Surface /
+            Engaged / Integrated) at each turn — annotated below with what the
+            data shows drove each shift
+          </div>
+          <div class="chart-ph">
+            <div style="font-size: 11px; color: #bbb; font-style: italic">
+              Line chart renders here
+            </div>
+            <div style="font-size: 10px; color: #ccc; font-style: italic">
+              X axis: turns · Y axis: Surface → Engaged → Integrated
+            </div>
+            <div style="font-size: 10px; color: #ccc; font-style: italic">
+              Each point = class average for that turn · color = average depth
+              level
+            </div>
+          </div>
+          <div class="anno-row">
+            <div class="an">
+              <div class="at">Turn 1</div>
+              <div class="aw">
+                What the data shows about why reasoning depth was at this level
+                — based on RDS band distribution and classification event
+                patterns
               </div>
-              <div style="font-size:10px;color:#ccc;font-style:italic;margin-top:4px">Source: session.turns[].kpi_movements[] + dashboard_reasoning_link field</div>
             </div>
-            <div class="ask-ph">
-              <div class="ask-lbl">Ask in debrief</div>
-              <div class="ask-desc">One question — specific to what this student wrote at this turn, not generic. Targets the most significant signal gap. Phrased as a genuine open question. Never implies the student was wrong. Source: session.turns[].dashboard_debrief_question</div>
+            <div class="an">
+              <div class="at">Turn 2</div>
+              <div class="aw">
+                What the data shows about why reasoning depth shifted from the
+                previous turn
+              </div>
+            </div>
+            <div class="an">
+              <div class="at">Turn 3</div>
+              <div class="aw">
+                What the data shows about why reasoning depth changed at this
+                point in the simulation
+              </div>
             </div>
           </div>
         </div>
-        <div class="turn-ph">
-          <div class="turn-hd"><span class="turn-t">Turn 2 · Free response</span><span class="turn-d">Depth: [Surface / Engaged / Integrated]</span></div>
-          <div class="turn-body">
-            <div class="field-ph"><div class="field-lbl">Student response</div><div class="field-box">What the student wrote — truncated with expand option</div></div>
-            <div class="field-ph">
-              <div class="field-lbl">KPI movements</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">
-                <span style="font-size:11px;padding:3px 8px;border-radius:5px;background:#f0f0ee;color:#aaa;border:0.5px solid rgba(0,0,0,0.1);">[KPI name] ↑ or ↓ [Tier] · [Reasoning connection]</span>
-              </div>
-            </div>
-            <div class="ask-ph"><div class="ask-lbl">Ask in debrief</div><div class="ask-desc">One question specific to this student's Turn 2 response — grounded in what they wrote and what they didn't engage with</div></div>
+
+        <div class="card">
+          <div class="ct">Where the class is and where it's heading</div>
+          <div class="cs">
+            The most significant reasoning patterns detected across all
+            completed sessions — described with what the data actually shows,
+            not an evaluation
           </div>
-        </div>
-        <div class="turn-ph">
-          <div class="turn-hd"><span class="turn-t">Turn 3 · Free response</span><span class="turn-d">Depth: [Surface / Engaged / Integrated]</span></div>
-          <div class="turn-body">
-            <div class="field-ph"><div class="field-lbl">Student response</div><div class="field-box">What the student wrote — truncated with expand option</div></div>
-            <div class="field-ph">
-              <div class="field-lbl">KPI movements</div>
-              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">
-                <span style="font-size:11px;padding:3px 8px;border-radius:5px;background:#f0f0ee;color:#aaa;border:0.5px solid rgba(0,0,0,0.1);">[KPI name] ↑ or ↓ [Tier] · [Reasoning connection]</span>
-              </div>
+          <div class="fi">
+            <div class="fh">
+              <span class="fn"
+                >[Competency name — e.g. Analytical reasoning]</span
+              ><span class="ftg">Transferring</span>
             </div>
-            <div class="ask-ph"><div class="ask-lbl">Ask in debrief</div><div class="ask-desc">One question specific to this student's Turn 3 response — often focused on what changed or what was avoided</div></div>
+            <div class="fbar"><div class="fb" style="width: 80%"></div></div>
+            <div class="fd">
+              Plain description of what the class data shows about this
+              competency — how many students demonstrated it, in which turns,
+              and what pattern emerged
+            </div>
+          </div>
+          <div class="fi">
+            <div class="fh">
+              <span class="fn">[Competency name]</span
+              ><span class="ftg">Developing</span>
+            </div>
+            <div class="fbar"><div class="fb" style="width: 45%"></div></div>
+            <div class="fd">
+              Plain description of what the data shows about this competency
+              across all sessions
+            </div>
+          </div>
+          <div class="fi">
+            <div class="fh">
+              <span class="fn">[Competency name]</span
+              ><span class="ftg">Developing</span>
+            </div>
+            <div class="fbar"><div class="fb" style="width: 25%"></div></div>
+            <div class="fd">
+              Plain description of what the data shows about this competency —
+              no judgment, no recommendation
+            </div>
+          </div>
+          <div class="fi">
+            <div class="fh">
+              <span class="fn">[Competency name]</span
+              ><span class="ftg">Not yet evidenced</span>
+            </div>
+            <div class="fbar"><div class="fb" style="width: 8%"></div></div>
+            <div class="fd">
+              Plain description of what was absent and where it was absent in
+              the session data
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- TAB 3: REASONING SIGNALS -->
-      <div id="tab-signals" style="display:none">
-        <div class="tab-intro">The analytical view of this student's reasoning across the full session. Radar chart shows the visual shape of their signal profile — which signals were consistently present and which were absent. Signal table below shows all five signals across every turn with the one-line evidence for each classification. Source: session.turns[].signals_detected{} + session.dashboard_summary.signal_averages</div>
-        <div class="sh">Signal strength — session overview</div>
-        <div class="radar-ph">
-          <div style="font-size:11px;color:#bbb;font-style:italic">Radar chart renders here on tab activation</div>
-          <div style="font-size:10px;color:#ccc;font-style:italic">Five axes: Analytical reasoning · Strategic decision-making · Tradeoff awareness · Stakeholder consideration · Ethical reasoning</div>
-          <div style="font-size:10px;color:#ccc;font-style:italic">Scale: 0 = not evidenced · 1 = emerging · 2 = present · 3 = strongly demonstrated</div>
-          <div style="font-size:10px;color:#ccc;font-style:italic">Values = average signal quality across all turns</div>
+      <!-- STUDENT TABLE -->
+      <div class="sc">
+        <div style="font-size: 13px; font-weight: 500; margin-bottom: 3px">
+          Students
         </div>
-        <div class="sh">All signals — turn by turn</div>
-        <table class="sig-tbl">
-          <thead><tr><th>Turn</th><th>Signal</th><th>Level</th><th>What the data shows</th></tr></thead>
+        <div
+          style="
+            font-size: 11px;
+            color: #999;
+            margin-bottom: 12px;
+            font-style: italic;
+          "
+        >
+          Each dot represents one turn — color shows reasoning depth. Click
+          "View session" to open the individual four-tab analysis.
+        </div>
+        <table class="stb">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Status</th>
+              <th>Reasoning arc</th>
+              <th>Key pattern</th>
+              <th></th>
+            </tr>
+          </thead>
           <tbody>
-            <tr><td>T1</td><td>[Signal name e.g. Analytical reasoning]</td><td><span class="chip-ph">[Demonstrated / Emerging / Not evidenced]</span></td><td>One sentence describing exactly what in the student's response produced this classification — references their specific words</td></tr>
-            <tr><td>T1</td><td>[Signal name]</td><td><span class="chip-ph">[Level]</span></td><td>One sentence of evidence grounded in what the student actually wrote</td></tr>
-            <tr><td>T2</td><td>[Signal name]</td><td><span class="chip-ph">[Level]</span></td><td>Continues for all five signals across all turns — 5 signals × N turns = full table</td></tr>
-            <tr><td>T2</td><td>[Signal name]</td><td><span class="chip-ph">[Level]</span></td><td>Each classification explained without generic language — always tied to the student's specific input</td></tr>
-            <tr><td>T3</td><td>[Signal name]</td><td><span class="chip-ph">[Level]</span></td><td>Source: session.turns[].signals_detected{} — quality level direct read, explanation AI-generated from student_input</td></tr>
+            <tr>
+              <td>
+                <div
+                  style="
+                    font-weight: 500;
+                    font-size: 13px;
+                    color: #bbb;
+                    font-style: italic;
+                  "
+                >
+                  [Student name]
+                </div>
+                <div style="font-size: 11px; color: #ccc">
+                  student@university.edu
+                </div>
+              </td>
+              <td><span class="bdg-ph">Completed</span></td>
+              <td>
+                <div class="arc-ph">
+                  <div class="ad"></div>
+                  <span class="aa">→</span>
+                  <div class="ad"></div>
+                  <span class="aa">→</span>
+                  <div class="ad"></div>
+                </div>
+                <div
+                  style="
+                    font-size: 10px;
+                    color: #ccc;
+                    margin-top: 2px;
+                    font-style: italic;
+                  "
+                >
+                  One dot per turn · color = depth level
+                </div>
+              </td>
+              <td style="font-size: 11px; color: #bbb; font-style: italic">
+                One sentence describing the most notable pattern in this
+                student's session — what stood out, what was absent, or how
+                their reasoning evolved
+              </td>
+              <td>
+                <button class="vb" onclick="openModal()">View session</button>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div
+                  style="
+                    font-weight: 500;
+                    font-size: 13px;
+                    color: #bbb;
+                    font-style: italic;
+                  "
+                >
+                  [Student name]
+                </div>
+                <div style="font-size: 11px; color: #ccc">
+                  student@university.edu
+                </div>
+              </td>
+              <td><span class="bdg-ph">In progress</span></td>
+              <td>
+                <span style="font-size: 11px; color: #ccc; font-style: italic"
+                  >Available when completed</span
+                >
+              </td>
+              <td>
+                <span style="font-size: 11px; color: #ccc; font-style: italic"
+                  >—</span
+                >
+              </td>
+              <td>
+                <button class="vb" style="opacity: 0.35; cursor: default">
+                  View session
+                </button>
+              </td>
+            </tr>
           </tbody>
         </table>
-      </div>
-
-      <!-- TAB 4: KPI + COURSE FRAMEWORKS -->
-      <div id="tab-kpi" style="display:none">
-        <div class="tab-intro">Two views in one tab. KPI trajectory shows which indicators moved at each turn, in which direction, at what tier, and what reasoning signal or gap produced each movement. Course framework application shows how the professor's specified frameworks appeared — explicitly, implicitly, or not at all — in each turn. Source: session.turns[].kpi_movements[] + session.turns[].framework_detections[]</div>
-        <div class="sh">KPI trajectory — decisions and their outcomes</div>
-        <div class="traj-ph">
-          <div class="traj-head" style="grid-template-columns:90px 1fr 1fr 1fr">
-            <div class="thc">KPI</div>
-            <div class="thc">Turn 1 · [Depth]</div>
-            <div class="thc">Turn 2 · [Depth]</div>
-            <div class="thc">Turn 3 · [Depth]</div>
+        <div class="lgr">
+          <div class="lg">
+            <div class="ld" style="background: #1d9e75"></div>
+            Integrated reasoning
           </div>
-          <div class="traj-row" style="grid-template-columns:90px 1fr 1fr 1fr">
-            <div class="tc" style="font-weight:500">[KPI name]</div>
-            <div class="tc">↑ or ↓ [Tier] — what reasoning signal drove or caused this movement</div>
-            <div class="tc">↑ or ↓ [Tier] — what reasoning signal or gap produced this</div>
-            <div class="tc" style="color:#ccc">— No movement this turn</div>
+          <div class="lg">
+            <div class="ld" style="background: #378add"></div>
+            Engaged reasoning
           </div>
-          <div class="traj-row" style="grid-template-columns:90px 1fr 1fr 1fr">
-            <div class="tc" style="font-weight:500">[KPI name]</div>
-            <div class="tc" style="color:#ccc">— No movement this turn</div>
-            <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
-            <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
+          <div class="lg">
+            <div class="ld" style="background: #ba7517"></div>
+            Surface reasoning
           </div>
-          <div class="traj-row" style="grid-template-columns:90px 1fr 1fr 1fr">
-            <div class="tc" style="font-weight:500">[KPI name]</div>
-            <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
-            <div class="tc" style="color:#ccc">— No movement this turn</div>
-            <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
+          <div
+            style="
+              font-size: 11px;
+              color: #ccc;
+              margin-left: auto;
+              font-style: italic;
+            "
+          >
+            Dots represent turns left to right
           </div>
         </div>
-        <div class="sh">Course framework application — turn by turn</div>
-        <div class="cf-ph">
-          <div class="cf-turn">Turn 1 · [Type]</div>
-          <div class="cf-row"><span class="cf-name-ph">[Framework name]</span><span class="chip-ph">[Explicit / Implicit / Not evidenced]</span><span class="cf-why-ph">One sentence describing what was or wasn't present in the student's response for this framework — no evaluation, description only</span></div>
-          <div class="cf-row"><span class="cf-name-ph">[Framework name]</span><span class="chip-ph">[Level]</span><span class="cf-why-ph">One sentence of evidence</span></div>
-          <div class="cf-turn" style="margin-top:10px">Turn 2 · [Type]</div>
-          <div class="cf-row"><span class="cf-name-ph">[Framework name]</span><span class="chip-ph">[Level]</span><span class="cf-why-ph">One sentence describing what appeared or didn't appear in this turn's response</span></div>
-          <div class="cf-row"><span class="cf-name-ph">[Framework name]</span><span class="chip-ph">[Level]</span><span class="cf-why-ph">One sentence of evidence — references student's specific reasoning where applicable</span></div>
-          <div class="cf-turn" style="margin-top:10px">Turn 3 · [Type]</div>
-          <div class="cf-row"><span class="cf-name-ph">[Framework name]</span><span class="chip-ph">[Level]</span><span class="cf-why-ph">One sentence describing framework application at this turn</span></div>
-          <div class="cf-row"><span class="cf-name-ph">[Framework name]</span><span class="chip-ph">[Level]</span><span class="cf-why-ph">Source: session.turns[].framework_detections[] — new engine field required per dashboard spec Section 5.1</span></div>
-        </div>
       </div>
-
     </div>
-  </div>
-</div>
 
-<script>
-function toggleMG(btn){
-  const g=document.getElementById('mgrid');
-  g.classList.toggle('open');
-  btn.textContent=g.classList.contains('open')?'Hide full framework breakdown ↑':'Show full framework breakdown ↓';
-}
+    <!-- MODAL -->
+    <div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
+      <div class="modal">
+        <div class="mhd">
+          <div class="mht">
+            <div>
+              <div class="mn">[Student name]</div>
+              <div class="mm">[Simulation name] · [Completion date]</div>
+            </div>
+            <button class="cls" onclick="closeModal()">×</button>
+          </div>
+          <div class="msr">
+            <div class="msb">
+              <div class="msl">Session summary</div>
+              <div class="msd">
+                One to two sentences describing the most important pattern in
+                this student's session — their overall reasoning arc, the most
+                significant gap or strength, and anything that makes their
+                session notable for debrief. AI-generated from session state
+                data. Max 2 sentences.
+              </div>
+            </div>
+            <div class="arb">
+              <div class="msl" style="margin-bottom: 6px">Reasoning arc</div>
+              <div style="display: flex; align-items: flex-start; gap: 5px">
+                <div
+                  style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 2px;
+                  "
+                >
+                  <div class="ad"></div>
+                  <div style="font-size: 10px; color: #ccc">T1</div>
+                </div>
+                <span class="aa" style="margin-top: 4px">→</span>
+                <div
+                  style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 2px;
+                  "
+                >
+                  <div class="ad"></div>
+                  <div style="font-size: 10px; color: #ccc">T2</div>
+                </div>
+                <span class="aa" style="margin-top: 4px">→</span>
+                <div
+                  style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 2px;
+                  "
+                >
+                  <div class="ad"></div>
+                  <div style="font-size: 10px; color: #ccc">T3</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-function openModal(){
-  document.getElementById('overlay').classList.add('open');
-  document.getElementById('overlay').scrollTop=0;
-}
+        <div class="mtabs">
+          <button class="mtab active" onclick="sw('chat',this)">
+            Chat history
+          </button>
+          <button class="mtab" onclick="sw('debrief',this)">
+            Debrief prep
+          </button>
+          <button class="mtab" onclick="sw('signals',this)">
+            Reasoning signals
+          </button>
+          <button class="mtab" onclick="sw('kpi',this)">
+            KPI + course frameworks
+          </button>
+        </div>
 
-function closeModal(){
-  document.getElementById('overlay').classList.remove('open');
-}
+        <div class="mbody" id="mbody">
+          <!-- TAB 1: CHAT HISTORY (default visible) -->
+          <div id="tab-chat">
+            <div class="tab-intro">
+              The full conversation exactly as it happened — every decision
+              prompt and every word the student wrote, in sequence. No analysis,
+              no signal labels, no annotations. For professors who want to read
+              the student's thinking directly. Source:
+              session.turns[].student_input (direct read, unmodified).
+            </div>
+            <div class="turn-ph">
+              <div class="turn-hd">
+                <span class="turn-t">Turn 1 · MCQ</span>
+              </div>
+              <div class="turn-body">
+                <div class="field-ph">
+                  <div class="field-lbl">Decision prompt</div>
+                  <div class="field-box">
+                    The question or scenario the student was asked to respond to
+                    at this turn — pulled from the case definition
+                  </div>
+                </div>
+                <div class="field-ph">
+                  <div class="field-lbl">Student response</div>
+                  <div class="field-box">
+                    What the student selected or wrote — displayed exactly as
+                    submitted with no modification, no grammar correction, no
+                    paraphrasing
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="turn-ph">
+              <div class="turn-hd">
+                <span class="turn-t">Turn 2 · Free response</span>
+              </div>
+              <div class="turn-body">
+                <div class="field-ph">
+                  <div class="field-lbl">Decision prompt</div>
+                  <div class="field-box">
+                    The question or scenario the student was asked to respond to
+                    at this turn
+                  </div>
+                </div>
+                <div class="field-ph">
+                  <div class="field-lbl">Student response</div>
+                  <div class="field-box">
+                    Full text of what the student wrote — long responses
+                    truncated with an expand button. Expanded view shows
+                    complete text.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="turn-ph">
+              <div class="turn-hd">
+                <span class="turn-t">Turn 3 · Free response</span>
+              </div>
+              <div class="turn-body">
+                <div class="field-ph">
+                  <div class="field-lbl">Decision prompt</div>
+                  <div class="field-box">
+                    The question or scenario the student was asked to respond to
+                    at this turn
+                  </div>
+                </div>
+                <div class="field-ph">
+                  <div class="field-lbl">Student response</div>
+                  <div class="field-box">
+                    Full text of what the student wrote
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-function handleOverlayClick(e){
-  if(e.target===document.getElementById('overlay'))closeModal();
-}
+          <!-- TAB 2: DEBRIEF PREP -->
+          <div id="tab-debrief" style="display: none">
+            <div class="tab-intro">
+              One card per turn. Shows what the student decided, what KPI
+              movements their decision produced and why, and one specific
+              question to ask this student in debrief. Designed for fast
+              scanning — professor reads this before class. Each debrief
+              question is generated from the student's specific response and
+              targets their most significant signal gap at that turn.
+            </div>
+            <div class="turn-ph">
+              <div class="turn-hd">
+                <span class="turn-t">Turn 1 · MCQ</span
+                ><span class="turn-d">MCQ</span>
+              </div>
+              <div class="turn-body">
+                <div class="field-ph">
+                  <div class="field-lbl">Student response</div>
+                  <div class="field-box">
+                    What the student selected or wrote — truncated with expand
+                    option. Source: session.turns[].student_input
+                  </div>
+                </div>
+                <div class="field-ph">
+                  <div class="field-lbl">
+                    KPI movements — what this decision produced
+                  </div>
+                  <div
+                    style="
+                      display: flex;
+                      gap: 6px;
+                      flex-wrap: wrap;
+                      margin-top: 3px;
+                    "
+                  >
+                    <span
+                      style="
+                        font-size: 11px;
+                        padding: 3px 8px;
+                        border-radius: 5px;
+                        background: #eaf3de;
+                        color: #27500a;
+                        border: 0.5px solid #c0dd97;
+                      "
+                      >[KPI name] ↑ Slight · Driven by: [signal name that caused
+                      this]</span
+                    >
+                    <span
+                      style="
+                        font-size: 11px;
+                        padding: 3px 8px;
+                        border-radius: 5px;
+                        background: #fcebeb;
+                        color: #791f1f;
+                        border: 0.5px solid #f7c1c1;
+                      "
+                      >[KPI name] ↓ Slight · Gap: [signal name that was
+                      absent]</span
+                    >
+                  </div>
+                  <div
+                    style="
+                      font-size: 10px;
+                      color: #ccc;
+                      font-style: italic;
+                      margin-top: 4px;
+                    "
+                  >
+                    Source: session.turns[].kpi_movements[] +
+                    dashboard_reasoning_link field
+                  </div>
+                </div>
+                <div class="ask-ph">
+                  <div class="ask-lbl">Ask in debrief</div>
+                  <div class="ask-desc">
+                    One question — specific to what this student wrote at this
+                    turn, not generic. Targets the most significant signal gap.
+                    Phrased as a genuine open question. Never implies the
+                    student was wrong. Source:
+                    session.turns[].dashboard_debrief_question
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="turn-ph">
+              <div class="turn-hd">
+                <span class="turn-t">Turn 2 · Free response</span
+                ><span class="turn-d"
+                  >Depth: [Surface / Engaged / Integrated]</span
+                >
+              </div>
+              <div class="turn-body">
+                <div class="field-ph">
+                  <div class="field-lbl">Student response</div>
+                  <div class="field-box">
+                    What the student wrote — truncated with expand option
+                  </div>
+                </div>
+                <div class="field-ph">
+                  <div class="field-lbl">KPI movements</div>
+                  <div
+                    style="
+                      display: flex;
+                      gap: 6px;
+                      flex-wrap: wrap;
+                      margin-top: 3px;
+                    "
+                  >
+                    <span
+                      style="
+                        font-size: 11px;
+                        padding: 3px 8px;
+                        border-radius: 5px;
+                        background: #f0f0ee;
+                        color: #aaa;
+                        border: 0.5px solid rgba(0, 0, 0, 0.1);
+                      "
+                      >[KPI name] ↑ or ↓ [Tier] · [Reasoning connection]</span
+                    >
+                  </div>
+                </div>
+                <div class="ask-ph">
+                  <div class="ask-lbl">Ask in debrief</div>
+                  <div class="ask-desc">
+                    One question specific to this student's Turn 2 response —
+                    grounded in what they wrote and what they didn't engage with
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="turn-ph">
+              <div class="turn-hd">
+                <span class="turn-t">Turn 3 · Free response</span
+                ><span class="turn-d"
+                  >Depth: [Surface / Engaged / Integrated]</span
+                >
+              </div>
+              <div class="turn-body">
+                <div class="field-ph">
+                  <div class="field-lbl">Student response</div>
+                  <div class="field-box">
+                    What the student wrote — truncated with expand option
+                  </div>
+                </div>
+                <div class="field-ph">
+                  <div class="field-lbl">KPI movements</div>
+                  <div
+                    style="
+                      display: flex;
+                      gap: 6px;
+                      flex-wrap: wrap;
+                      margin-top: 3px;
+                    "
+                  >
+                    <span
+                      style="
+                        font-size: 11px;
+                        padding: 3px 8px;
+                        border-radius: 5px;
+                        background: #f0f0ee;
+                        color: #aaa;
+                        border: 0.5px solid rgba(0, 0, 0, 0.1);
+                      "
+                      >[KPI name] ↑ or ↓ [Tier] · [Reasoning connection]</span
+                    >
+                  </div>
+                </div>
+                <div class="ask-ph">
+                  <div class="ask-lbl">Ask in debrief</div>
+                  <div class="ask-desc">
+                    One question specific to this student's Turn 3 response —
+                    often focused on what changed or what was avoided
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-function sw(tab,el){
-  document.querySelectorAll('.mtab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  ['chat','debrief','signals','kpi'].forEach(id=>{
-    const el=document.getElementById('tab-'+id);
-    if(el)el.style.display=tab===id?'block':'none';
-  });
-}
-</script>
-</body>
+          <!-- TAB 3: REASONING SIGNALS -->
+          <div id="tab-signals" style="display: none">
+            <div class="tab-intro">
+              The analytical view of this student's reasoning across the full
+              session. Radar chart shows the visual shape of their signal
+              profile — which signals were consistently present and which were
+              absent. Signal table below shows all five signals across every
+              turn with the one-line evidence for each classification. Source:
+              session.turns[].signals_detected{} +
+              session.dashboard_summary.signal_averages
+            </div>
+            <div class="sh">Signal strength — session overview</div>
+            <div class="radar-ph">
+              <div style="font-size: 11px; color: #bbb; font-style: italic">
+                Radar chart renders here on tab activation
+              </div>
+              <div style="font-size: 10px; color: #ccc; font-style: italic">
+                Five axes: Analytical reasoning · Strategic decision-making ·
+                Tradeoff awareness · Stakeholder consideration · Ethical
+                reasoning
+              </div>
+              <div style="font-size: 10px; color: #ccc; font-style: italic">
+                Scale: 0 = not evidenced · 1 = emerging · 2 = present · 3 =
+                strongly demonstrated
+              </div>
+              <div style="font-size: 10px; color: #ccc; font-style: italic">
+                Values = average signal quality across all turns
+              </div>
+            </div>
+            <div class="sh">All signals — turn by turn</div>
+            <table class="sig-tbl">
+              <thead>
+                <tr>
+                  <th>Turn</th>
+                  <th>Signal</th>
+                  <th>Level</th>
+                  <th>What the data shows</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>T1</td>
+                  <td>[Signal name e.g. Analytical reasoning]</td>
+                  <td>
+                    <span class="chip-ph"
+                      >[Demonstrated / Emerging / Not evidenced]</span
+                    >
+                  </td>
+                  <td>
+                    One sentence describing exactly what in the student's
+                    response produced this classification — references their
+                    specific words
+                  </td>
+                </tr>
+                <tr>
+                  <td>T1</td>
+                  <td>[Signal name]</td>
+                  <td><span class="chip-ph">[Level]</span></td>
+                  <td>
+                    One sentence of evidence grounded in what the student
+                    actually wrote
+                  </td>
+                </tr>
+                <tr>
+                  <td>T2</td>
+                  <td>[Signal name]</td>
+                  <td><span class="chip-ph">[Level]</span></td>
+                  <td>
+                    Continues for all five signals across all turns — 5 signals
+                    × N turns = full table
+                  </td>
+                </tr>
+                <tr>
+                  <td>T2</td>
+                  <td>[Signal name]</td>
+                  <td><span class="chip-ph">[Level]</span></td>
+                  <td>
+                    Each classification explained without generic language —
+                    always tied to the student's specific input
+                  </td>
+                </tr>
+                <tr>
+                  <td>T3</td>
+                  <td>[Signal name]</td>
+                  <td><span class="chip-ph">[Level]</span></td>
+                  <td>
+                    Source: session.turns[].signals_detected{} — quality level
+                    direct read, explanation AI-generated from student_input
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- TAB 4: KPI + COURSE FRAMEWORKS -->
+          <div id="tab-kpi" style="display: none">
+            <div class="tab-intro">
+              Two views in one tab. KPI trajectory shows which indicators moved
+              at each turn, in which direction, at what tier, and what reasoning
+              signal or gap produced each movement. Course framework application
+              shows how the professor's specified frameworks appeared —
+              explicitly, implicitly, or not at all — in each turn. Source:
+              session.turns[].kpi_movements[] +
+              session.turns[].framework_detections[]
+            </div>
+            <div class="sh">KPI trajectory — decisions and their outcomes</div>
+            <div class="traj-ph">
+              <div
+                class="traj-head"
+                style="grid-template-columns: 90px 1fr 1fr 1fr"
+              >
+                <div class="thc">KPI</div>
+                <div class="thc">Turn 1 · [Depth]</div>
+                <div class="thc">Turn 2 · [Depth]</div>
+                <div class="thc">Turn 3 · [Depth]</div>
+              </div>
+              <div
+                class="traj-row"
+                style="grid-template-columns: 90px 1fr 1fr 1fr"
+              >
+                <div class="tc" style="font-weight: 500">[KPI name]</div>
+                <div class="tc">
+                  ↑ or ↓ [Tier] — what reasoning signal drove or caused this
+                  movement
+                </div>
+                <div class="tc">
+                  ↑ or ↓ [Tier] — what reasoning signal or gap produced this
+                </div>
+                <div class="tc" style="color: #ccc">
+                  — No movement this turn
+                </div>
+              </div>
+              <div
+                class="traj-row"
+                style="grid-template-columns: 90px 1fr 1fr 1fr"
+              >
+                <div class="tc" style="font-weight: 500">[KPI name]</div>
+                <div class="tc" style="color: #ccc">
+                  — No movement this turn
+                </div>
+                <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
+                <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
+              </div>
+              <div
+                class="traj-row"
+                style="grid-template-columns: 90px 1fr 1fr 1fr"
+              >
+                <div class="tc" style="font-weight: 500">[KPI name]</div>
+                <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
+                <div class="tc" style="color: #ccc">
+                  — No movement this turn
+                </div>
+                <div class="tc">↑ or ↓ [Tier] — reasoning connection</div>
+              </div>
+            </div>
+            <div class="sh">Course framework application — turn by turn</div>
+            <div class="cf-ph">
+              <div class="cf-turn">Turn 1 · [Type]</div>
+              <div class="cf-row">
+                <span class="cf-name-ph">[Framework name]</span
+                ><span class="chip-ph"
+                  >[Explicit / Implicit / Not evidenced]</span
+                ><span class="cf-why-ph"
+                  >One sentence describing what was or wasn't present in the
+                  student's response for this framework — no evaluation,
+                  description only</span
+                >
+              </div>
+              <div class="cf-row">
+                <span class="cf-name-ph">[Framework name]</span
+                ><span class="chip-ph">[Level]</span
+                ><span class="cf-why-ph">One sentence of evidence</span>
+              </div>
+              <div class="cf-turn" style="margin-top: 10px">
+                Turn 2 · [Type]
+              </div>
+              <div class="cf-row">
+                <span class="cf-name-ph">[Framework name]</span
+                ><span class="chip-ph">[Level]</span
+                ><span class="cf-why-ph"
+                  >One sentence describing what appeared or didn't appear in
+                  this turn's response</span
+                >
+              </div>
+              <div class="cf-row">
+                <span class="cf-name-ph">[Framework name]</span
+                ><span class="chip-ph">[Level]</span
+                ><span class="cf-why-ph"
+                  >One sentence of evidence — references student's specific
+                  reasoning where applicable</span
+                >
+              </div>
+              <div class="cf-turn" style="margin-top: 10px">
+                Turn 3 · [Type]
+              </div>
+              <div class="cf-row">
+                <span class="cf-name-ph">[Framework name]</span
+                ><span class="chip-ph">[Level]</span
+                ><span class="cf-why-ph"
+                  >One sentence describing framework application at this
+                  turn</span
+                >
+              </div>
+              <div class="cf-row">
+                <span class="cf-name-ph">[Framework name]</span
+                ><span class="chip-ph">[Level]</span
+                ><span class="cf-why-ph"
+                  >Source: session.turns[].framework_detections[] — new engine
+                  field required per dashboard spec Section 5.1</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function toggleMG(btn) {
+        const g = document.getElementById("mgrid");
+        g.classList.toggle("open");
+        btn.textContent = g.classList.contains("open")
+          ? "Hide full framework breakdown ↑"
+          : "Show full framework breakdown ↓";
+      }
+
+      function openModal() {
+        document.getElementById("overlay").classList.add("open");
+        document.getElementById("overlay").scrollTop = 0;
+      }
+
+      function closeModal() {
+        document.getElementById("overlay").classList.remove("open");
+      }
+
+      function handleOverlayClick(e) {
+        if (e.target === document.getElementById("overlay")) closeModal();
+      }
+
+      function sw(tab, el) {
+        document
+          .querySelectorAll(".mtab")
+          .forEach((t) => t.classList.remove("active"));
+        el.classList.add("active");
+        ["chat", "debrief", "signals", "kpi"].forEach((id) => {
+          const el = document.getElementById("tab-" + id);
+          if (el) el.style.display = tab === id ? "block" : "none";
+        });
+      }
+    </script>
+  </body>
 </html>
