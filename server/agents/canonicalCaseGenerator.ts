@@ -22,6 +22,7 @@ import type {
 import { getCanonicalKPIs } from "@shared/schema";
 import { generateChatCompletion } from "../openai";
 import { POC_VERSION, STRUCTURE_LOCK_NOTICE, DEFAULT_DECISIONS, MIN_DECISIONS, MAX_DECISIONS } from "./constants";
+import { sanitizeFrameworks, mergeRegeneratedKeywords } from "./frameworkKeywordSanitizer";
 
 function buildCanonicalPrompt(stepCount: number): string {
   const durationMin = Math.round((stepCount / 3) * 20);
@@ -229,6 +230,58 @@ export interface CanonicalCaseData {
   confidence: number;
 }
 
+/**
+ * Regenerate JUST the keyword list for a set of frameworks whose previously
+ * generated keywords appeared to be in the wrong language. Returns the same
+ * frameworks with refreshed `domainKeywords`. Frameworks that fail to
+ * regenerate are returned unchanged.
+ */
+async function regenerateFrameworkKeywords(
+  frameworks: CaseFramework[],
+  language: "es" | "en"
+): Promise<CaseFramework[]> {
+  if (frameworks.length === 0) return frameworks;
+  const isEn = language === "en";
+
+  const instructions = isEn
+    ? `For each analytical framework below, produce 4-6 SHORT domain keywords that a business student would use when applying it. ALL keywords MUST be in ENGLISH (no Spanish). Each keyword must be 4 characters or longer, specific to the framework (avoid generic words like "problem", "issue", "analysis"). Return ONLY this JSON shape: {"frameworks":[{"id":"...","domainKeywords":["...","..."]}]}.`
+    : `Para cada marco analítico abajo, produce 4-6 palabras clave CORTAS y específicas que un estudiante de negocios usaría al aplicarlo. TODAS las palabras clave DEBEN estar en ESPAÑOL (sin inglés). Cada palabra debe tener 4 o más caracteres, ser específica del marco (evita términos genéricos como "problema", "tema", "análisis"). Devuelve SOLO este JSON: {"frameworks":[{"id":"...","domainKeywords":["...","..."]}]}.`;
+
+  const list = frameworks.map((f) => `- id=${f.id}: ${f.name}`).join("\n");
+
+  const response = await generateChatCompletion(
+    [
+      { role: "system", content: instructions },
+      { role: "user", content: `${isEn ? "Frameworks" : "Marcos"}:\n${list}` },
+    ],
+    { responseFormat: "json", maxTokens: 512, model: "gpt-4o-mini", agentName: "frameworkKeywordRegen" }
+  );
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(response);
+  } catch {
+    return frameworks;
+  }
+
+  const byId = new Map<string, string[]>();
+  if (Array.isArray(parsed?.frameworks)) {
+    for (const fw of parsed.frameworks) {
+      if (!fw || typeof fw.id !== "string") continue;
+      if (!Array.isArray(fw.domainKeywords)) continue;
+      const kws = fw.domainKeywords
+        .filter((k: any) => typeof k === "string" && k.trim().length > 0)
+        .map((k: string) => k.trim().toLowerCase())
+        .slice(0, 12);
+      if (kws.length >= 2) byId.set(fw.id.trim(), kws);
+    }
+  }
+
+  return frameworks.map((fw) =>
+    byId.has(fw.id) ? { ...fw, domainKeywords: byId.get(fw.id)! } : fw,
+  );
+}
+
 export async function generateCanonicalCase(
   topic: string,
   additionalContext?: string,
@@ -344,6 +397,33 @@ export async function generateCanonicalCase(
     }
   }
 
+  // Post-process: drop sub-4-char + generic stopword keywords, deduplicate across
+  // frameworks, and flag any frameworks whose keyword arrays appear to be in the
+  // wrong language (>30% wrong-language tokens). Then regenerate just the
+  // keyword lists for flagged frameworks via a focused short LLM call.
+  const effectiveLang: "es" | "en" = isEn ? "en" : "es";
+  let { frameworks: cleanedFrameworks, needsRegeneration } = sanitizeFrameworks(
+    parsedFrameworks,
+    effectiveLang,
+  );
+
+  if (needsRegeneration.length > 0) {
+    const idSet = new Set(needsRegeneration);
+    const targets = cleanedFrameworks.filter((f) => idSet.has(f.id));
+    try {
+      const regenerated = await regenerateFrameworkKeywords(targets, effectiveLang);
+      const merged = mergeRegeneratedKeywords(cleanedFrameworks, regenerated);
+      // Re-sanitize to enforce minLength / dedup / generic stopword rules on regenerated output.
+      cleanedFrameworks = sanitizeFrameworks(merged, effectiveLang).frameworks;
+    } catch (err) {
+      console.error("[canonicalCaseGenerator] Framework keyword regeneration failed:", err);
+      // Keep the original sanitized lists; downstream detection still works with what's left.
+    }
+  }
+
+  // Drop frameworks that ended up with fewer than 2 usable keywords.
+  const finalFrameworks = cleanedFrameworks.filter((f) => f.domainKeywords.length >= 2);
+
   return {
     title: parsed.title || "Caso de Negocios",
     description: parsed.description || "Un caso de simulación de negocios",
@@ -360,7 +440,7 @@ export async function generateCanonicalCase(
     timelineContext: parsed.timelineContext || "Situación urgente",
     keyConstraints: parsed.keyConstraints || ["Presupuesto limitado", "Tiempo restringido"],
     learningObjectives: parsed.learningObjectives || ["Pensamiento crítico", "Toma de decisiones"],
-    frameworks: parsedFrameworks.slice(0, 4),
+    frameworks: finalFrameworks.slice(0, 4),
     confidence: parsed.confidence || 75,
   };
 }
