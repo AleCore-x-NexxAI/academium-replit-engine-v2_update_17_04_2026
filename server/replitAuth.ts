@@ -175,6 +175,11 @@ export async function setupAuth(app: Express) {
           maxAge: 5 * 60 * 1000,
           sameSite: "lax",
         });
+      } else if (role === "admin") {
+        // Defensive: if admin role is requested without a fresh verification,
+        // clear any stale adminVerifyToken so a leftover one cannot promote
+        // the next /api/callback to admin without the user re-entering the code.
+        res.clearCookie("adminVerifyToken");
       }
     }
     
