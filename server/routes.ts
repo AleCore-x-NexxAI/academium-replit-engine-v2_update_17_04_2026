@@ -16,6 +16,47 @@ import type { AgentContext, DomainExpertOutput, CausalExplanation, DisplayKPI } 
 import { DEFAULT_DECISIONS } from "./agents/constants";
 import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts, TurnResponse, SimulationState } from "@shared/schema";
 
+/**
+ * Belt-and-suspenders helper: for reflection turns, copy any analytics fields that
+ * processReflection may have left undefined back from the prior session state.
+ * Both arguments are typed SimulationState — no unsafe casts needed.
+ */
+function mergeReflectionAnalytics(target: SimulationState, prior: SimulationState): void {
+  if (!target.decisionEvidenceLogs?.length && prior.decisionEvidenceLogs?.length) {
+    target.decisionEvidenceLogs = prior.decisionEvidenceLogs;
+  }
+  if (!target.framework_detections?.length && prior.framework_detections?.length) {
+    target.framework_detections = prior.framework_detections;
+  }
+  if (!target.dashboard_summary && prior.dashboard_summary) {
+    target.dashboard_summary = prior.dashboard_summary;
+  }
+  if (
+    (!target.indicatorAccumulation || Object.keys(target.indicatorAccumulation).length === 0) &&
+    prior.indicatorAccumulation && Object.keys(prior.indicatorAccumulation).length > 0
+  ) {
+    target.indicatorAccumulation = prior.indicatorAccumulation;
+  }
+  if (
+    (!target.nudgeCounters || Object.keys(target.nudgeCounters).length === 0) &&
+    prior.nudgeCounters && Object.keys(prior.nudgeCounters).length > 0
+  ) {
+    target.nudgeCounters = prior.nudgeCounters;
+  }
+  if (
+    (!target.hintCounters || Object.keys(target.hintCounters).length === 0) &&
+    prior.hintCounters && Object.keys(prior.hintCounters).length > 0
+  ) {
+    target.hintCounters = prior.hintCounters;
+  }
+  if (!target.integrityFlags?.length && prior.integrityFlags?.length) {
+    target.integrityFlags = prior.integrityFlags;
+  }
+  if (!target.lastTurnNarrative && prior.lastTurnNarrative) {
+    target.lastTurnNarrative = prior.lastTurnNarrative;
+  }
+}
+
 function stripProfessorFields(turnResponse: TurnResponse): TurnResponse {
   const { dashboard_debrief_question, framework_detections, ...rest } = turnResponse;
   const stripped: TurnResponse = { ...rest };
@@ -598,6 +639,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         indicatorAccumulation: session.currentState.indicatorAccumulation,
         hintCounters: session.currentState.hintCounters || {},
         framework_detections: session.currentState.framework_detections || [],
+        dashboard_summary: session.currentState.dashboard_summary,
+        lastTurnNarrative: session.currentState.lastTurnNarrative,
         scenario: {
           title: session.scenario?.title || "Business Simulation",
           domain: session.scenario?.domain || "General",
@@ -635,6 +678,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
 
         if (turnResult.turnStatus === "block") {
+          if (isReflectionStep) {
+            mergeReflectionAnalytics(turnResult.updatedState, session.currentState);
+          }
           await storage.updateSimulationSession(sessionId, {
             currentState: turnResult.updatedState,
           });
@@ -654,6 +700,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           studentInput: input,
           agentResponse: turnResult,
         });
+
+        // Belt-and-suspenders: for reflection turns, merge analytics fields from the
+        // previously-stored session state so they are never silently dropped.
+        if (isReflectionStep) {
+          mergeReflectionAnalytics(turnResult.updatedState, session.currentState);
+        }
 
         let sessionUpdate: any = {
           currentState: turnResult.updatedState,

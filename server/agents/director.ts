@@ -209,6 +209,14 @@ export async function processReflection(
         reflectionCompleted: false,
         pendingRevision: false,
         revisionAttempts: 0,
+        decisionEvidenceLogs: context.decisionEvidenceLogs,
+        framework_detections: context.framework_detections,
+        dashboard_summary: context.dashboard_summary,
+        indicatorAccumulation: context.indicatorAccumulation,
+        nudgeCounters: context.nudgeCounters,
+        hintCounters: context.hintCounters,
+        integrityFlags: context.integrityFlags,
+        lastTurnNarrative: context.lastTurnNarrative,
       },
     };
   }
@@ -234,6 +242,23 @@ export async function processReflection(
       timestamp: new Date().toISOString(),
     },
   ];
+
+  // Ensure a dashboard summary exists — generate one now if the final decision turn
+  // failed to produce it (e.g. silent generation error or game-over path).
+  let dashboardSummary = context.dashboard_summary;
+  if (!dashboardSummary && (context.decisionEvidenceLogs?.length ?? 0) > 0) {
+    try {
+      const frameworks = context.scenario.frameworks || [];
+      dashboardSummary = await generateDashboardSummary(
+        context,
+        context.decisionEvidenceLogs ?? [],
+        context.framework_detections ?? [],
+        frameworks,
+      );
+    } catch (err) {
+      console.error("[Director] Dashboard summary generation in reflection failed:", err);
+    }
+  }
   
   return {
     narrative: {
@@ -260,6 +285,14 @@ export async function processReflection(
       reflectionCompleted: true,
       pendingRevision: false,
       revisionAttempts: 0,
+      decisionEvidenceLogs: context.decisionEvidenceLogs,
+      framework_detections: context.framework_detections,
+      dashboard_summary: dashboardSummary,
+      indicatorAccumulation: context.indicatorAccumulation,
+      nudgeCounters: context.nudgeCounters,
+      hintCounters: context.hintCounters,
+      integrityFlags: context.integrityFlags,
+      lastTurnNarrative: context.lastTurnNarrative,
     },
   };
 }

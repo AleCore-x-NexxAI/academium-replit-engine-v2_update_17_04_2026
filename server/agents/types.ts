@@ -118,6 +118,8 @@ export interface AgentContext {
   indicatorAccumulation?: Record<string, IndicatorAccumulation>;
   hintCounters?: Record<number, number>;
   framework_detections?: import("@shared/schema").FrameworkDetection[][];
+  dashboard_summary?: import("@shared/schema").DashboardSummary;
+  lastTurnNarrative?: string;
   scenario: {
     title: string;
     domain: string;

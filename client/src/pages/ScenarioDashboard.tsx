@@ -41,7 +41,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -702,12 +701,12 @@ function StudentSessionModal({ sessionId, isEn, onClose }: { sessionId: string; 
 
   return (
     <div
-      className="fixed inset-0 bg-black/25 z-50 overflow-y-auto py-8 px-5"
+      className="fixed inset-0 bg-black/25 z-50 flex items-start justify-center py-8 px-5"
       onClick={(e) => e.target === e.currentTarget && onClose()}
       data-testid="modal-overlay"
     >
-      <div className="bg-card border rounded-xl w-full max-w-[700px] mx-auto" data-testid="modal-student-session">
-        <div className="p-4 border-b">
+      <div className="bg-card border rounded-xl w-full max-w-[700px] flex flex-col max-h-[90vh]" data-testid="modal-student-session">
+        <div className="p-4 border-b shrink-0">
           <div className="flex items-start justify-between mb-2.5">
             <div>
               <div className="text-[15px] font-medium" data-testid="text-modal-student-name">
@@ -743,7 +742,7 @@ function StudentSessionModal({ sessionId, isEn, onClose }: { sessionId: string; 
           </div>
         </div>
 
-        <div className="flex px-4 border-b overflow-x-auto">
+        <div className="flex px-4 border-b overflow-x-auto shrink-0">
           {modalTabs.map(tab => (
             <button
               key={tab.key}
@@ -760,14 +759,14 @@ function StudentSessionModal({ sessionId, isEn, onClose }: { sessionId: string; 
           ))}
         </div>
 
-        <ScrollArea className="max-h-[60vh]">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-4">
             {modalTab === "chat" && <ChatHistoryTab data={chatHistory} loading={chatLoading} isEn={isEn} />}
             {modalTab === "debrief" && <DebriefPrepTab data={debriefPrep} loading={debriefLoading} isEn={isEn} />}
             {modalTab === "signals" && <ReasoningSignalsTab data={reasoningSignals} loading={signalsLoading} isEn={isEn} />}
             {modalTab === "kpi" && <KpiFrameworksTab data={kpiFrameworks} loading={kpiLoading} isEn={isEn} />}
           </div>
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );
