@@ -143,6 +143,8 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [conceptTagInput, setConceptTagInput] = useState("");
   const [frameworks, setFrameworks] = useState<CaseFramework[]>([]);
   const [frameworkNameInput, setFrameworkNameInput] = useState("");
+  const [setupFrameworks, setSetupFrameworks] = useState<string[]>([]);
+  const [setupFrameworkInput, setSetupFrameworkInput] = useState("");
   const [keywordSuggestions, setKeywordSuggestions] = useState<Record<string, string[]>>({});
   const [suggestingKeywords, setSuggestingKeywords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
@@ -203,6 +205,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
   const generateMutation = useMutation({
     mutationFn: async () => {
+      const additionalContext = setupFrameworks.length > 0
+        ? (language === "es"
+            ? `Marcos teóricos que el caso debe incorporar de forma natural en el contexto, las decisiones y los thinking scaffolds: ${setupFrameworks.join(", ")}.`
+            : `Theoretical frameworks the case should naturally incorporate in the context, decisions, and thinking scaffolds: ${setupFrameworks.join(", ")}.`)
+        : undefined;
       const response = await apiRequest("POST", "/api/canonical-case/generate", {
         topic,
         discipline,
@@ -212,6 +219,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         customTradeoff: customTradeoff.trim() || undefined,
         stepCount,
         language,
+        additionalContext,
       });
       return response.json() as Promise<GenerateResponse>;
     },
@@ -225,8 +233,17 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
       } else if (data.canonicalCase?.learningObjectives?.length) {
         setConceptTags(data.canonicalCase.learningObjectives.slice(0, 5));
       }
-      if (data.scenarioData?.initialState?.frameworks?.length) {
-        setFrameworks(data.scenarioData.initialState.frameworks);
+      const aiFrameworks = data.scenarioData?.initialState?.frameworks ?? [];
+      const seededFromSetup: CaseFramework[] = setupFrameworks
+        .filter(name => !aiFrameworks.some(f => f.name.trim().toLowerCase() === name.trim().toLowerCase()))
+        .map(name => ({
+          id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          name,
+          domainKeywords: [],
+        }));
+      const merged = [...aiFrameworks, ...seededFromSetup].slice(0, 8);
+      if (merged.length > 0) {
+        setFrameworks(merged);
       }
       toast({
         title: t("canonicalCase.caseGenerated"),
@@ -440,6 +457,103 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 className="min-h-[100px] text-base"
                 data-testid="input-case-topic"
               />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="setup-frameworks" className="text-base font-semibold">{t("canonicalCase.setupFrameworks")}</Label>
+                <HelpIcon content={t("canonicalCase.setupFrameworksHelp")} />
+              </div>
+              <p className="text-sm text-muted-foreground">{t("canonicalCase.setupFrameworksHelp")}</p>
+              <div className="flex gap-2">
+                <Input
+                  id="setup-frameworks"
+                  value={setupFrameworkInput}
+                  onChange={(e) => setSetupFrameworkInput(e.target.value)}
+                  list="setup-framework-suggestions"
+                  placeholder={t("canonicalCase.setupFrameworksPlaceholder")}
+                  disabled={setupFrameworks.length >= 8}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = setupFrameworkInput.trim();
+                      if (val && !setupFrameworks.some(f => f.toLowerCase() === val.toLowerCase()) && setupFrameworks.length < 8) {
+                        setSetupFrameworks(prev => [...prev, val]);
+                        setSetupFrameworkInput("");
+                      }
+                    }
+                  }}
+                  data-testid="input-setup-framework"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={!setupFrameworkInput.trim() || setupFrameworks.some(f => f.toLowerCase() === setupFrameworkInput.trim().toLowerCase()) || setupFrameworks.length >= 8}
+                  onClick={() => {
+                    const val = setupFrameworkInput.trim();
+                    if (val && !setupFrameworks.some(f => f.toLowerCase() === val.toLowerCase()) && setupFrameworks.length < 8) {
+                      setSetupFrameworks(prev => [...prev, val]);
+                      setSetupFrameworkInput("");
+                    }
+                  }}
+                  data-testid="button-add-setup-framework"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              <datalist id="setup-framework-suggestions">
+                {[
+                  "5 Fuerzas de Porter",
+                  "FODA / SWOT",
+                  "PESTEL",
+                  "Cadena de Valor (Porter)",
+                  "Matriz BCG",
+                  "Lienzo de Modelo de Negocio (Business Model Canvas)",
+                  "Lean Startup",
+                  "Design Thinking",
+                  "Scrum",
+                  "Kanban",
+                  "OKRs",
+                  "SMART Goals",
+                  "Balanced Scorecard",
+                  "McKinsey 7S",
+                  "4P del Marketing Mix",
+                  "Blue Ocean Strategy",
+                  "Análisis de Stakeholders",
+                  "Six Sigma",
+                  "Teoría de las Restricciones (TOC)",
+                  "Pirámide de Maslow",
+                  "Modelo Kotter (Cambio)",
+                  "Matriz de Ansoff",
+                  "Modelo de Hofstede",
+                ].map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+              {setupFrameworks.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {setupFrameworks.map((fw, idx) => (
+                    <Badge
+                      key={idx}
+                      variant="secondary"
+                      className="gap-1 pr-1"
+                      data-testid={`badge-setup-framework-${idx}`}
+                    >
+                      {fw}
+                      <button
+                        type="button"
+                        onClick={() => setSetupFrameworks(prev => prev.filter((_, i) => i !== idx))}
+                        className="ml-1 rounded-full p-0.5"
+                        data-testid={`button-remove-setup-framework-${idx}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">{setupFrameworks.length}/8 · {t("canonicalCase.setupFrameworksLimit")}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -877,7 +991,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             </div>
           </EditableSection>
 
-          <EditableSection title={language === "en" ? "Hint Settings" : "Configuración de Pistas"} icon={Lightbulb} defaultExpanded={false}>
+          <EditableSection title={language === "en" ? "Hint Settings" : "Configuración de Pistas"} icon={Lightbulb} defaultExpanded={true}>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label htmlFor="hint-toggle">{language === "en" ? "Hint button" : "Botón de pista"}</Label>
