@@ -93,6 +93,22 @@ const createScenarioSchema = z.object({
     resourceConstraints: z.string().optional(),
     culturalContext: z.string().optional(),
     regulatoryEnvironment: z.string().optional(),
+    caseContext: z.string().optional(),
+    coreChallenge: z.string().optional(),
+    reflectionPrompt: z.string().optional(),
+    totalDecisions: z.number().int().min(3).max(10).optional(),
+    hintButtonEnabled: z.boolean().optional(),
+    maxHintsPerTurn: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
+    frameworks: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      domainKeywords: z.array(z.string()),
+      signalPattern: z.object({
+        requiredSignals: z.array(z.enum(["intent", "justification", "tradeoffAwareness", "stakeholderAwareness", "ethicalAwareness"])),
+        minQuality: z.enum(["WEAK", "PRESENT", "STRONG"]),
+        additionalKeywords: z.array(z.string()).optional(),
+      }).optional(),
+    })).optional(),
   }),
   rubric: z.object({
     criteria: z.array(z.object({
