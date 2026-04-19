@@ -296,6 +296,21 @@ export interface DecisionPoint {
   depthStrictness?: "lenient" | "standard" | "strict";
   tradeoffSignature?: TradeoffSignature;
   optionSignatures?: Record<string, TradeoffSignature>;
+  // Phase 5 (Apéndice C, M5): theory-anchored decision metadata. Every
+  // generated decision is tagged with the academic dimension it primarily
+  // exercises and a short rationale that explains why. `targetFrameworkIds`
+  // links the decision to the case-level frameworks it is intended to
+  // surface so the framework detector can be evaluated per-decision.
+  // `reviewCompleted` gates publish: the professor must explicitly mark
+  // each decision as reviewed before the scenario can go live.
+  // `qualityFlags` carries any quality-gate warnings raised during
+  // generation that the professor may want to address before publishing.
+  primaryDimension?: AcademicDimension;
+  secondaryDimension?: AcademicDimension;
+  dimensionRationale?: string;
+  targetFrameworkIds?: string[];
+  reviewCompleted?: boolean;
+  qualityFlags?: string[];
 }
 
 // POC Indicator - Constitution Section 9: each indicator has name, definition, directionality, and tooltip

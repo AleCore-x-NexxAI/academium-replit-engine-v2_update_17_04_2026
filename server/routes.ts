@@ -2021,47 +2021,12 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         builtContext = builtContext ? `${builtContext}\n${tradeoffSection}` : tradeoffSection;
       }
 
-      // Phase 3: prepend the professor's pedagogical intent so the canonical
-      // case generator anchors its content in the declared teaching goal,
-      // target frameworks, competencies, and reasoning constraints.
-      const intentLines: string[] = [
-        `Objetivo pedagógico del profesor: ${pedagogicalIntent.teachingGoal}`,
-      ];
-      if (pedagogicalIntent.targetFrameworks?.length) {
-        intentLines.push(
-          `Frameworks objetivo (los estudiantes deben demostrar uso de): ${pedagogicalIntent.targetFrameworks.map(f => f.name).join(", ")}`
-        );
-      }
-      if (pedagogicalIntent.targetCompetencies?.length) {
-        intentLines.push(`Competencias objetivo: ${pedagogicalIntent.targetCompetencies.join(", ")}`);
-      }
-      // Phase 3: per-decision dimensions steer how each decision should be
-      // framed by the generator (which academic dimension the decision must
-      // exercise). The generator should align decision[N].primaryDimension
-      // with the requested mapping so reasoning calibration is honored.
-      if (pedagogicalIntent.decisionDimensions?.length) {
-        const mapping = pedagogicalIntent.decisionDimensions
-          .slice()
-          .sort((a, b) => a.decisionNumber - b.decisionNumber)
-          .map(d => {
-            const sec = d.secondaryDimension ? ` (secundaria: ${d.secondaryDimension})` : "";
-            return `Decisión ${d.decisionNumber} → ${d.primaryDimension}${sec}`;
-          })
-          .join("; ");
-        intentLines.push(
-          `Mapeo de dimensiones por decisión (cada decisión debe ejercitar la dimensión indicada como primaryDimension): ${mapping}`
-        );
-      }
-      if (pedagogicalIntent.courseContext) {
-        intentLines.push(`Contexto del curso: ${pedagogicalIntent.courseContext}`);
-      }
-      if (pedagogicalIntent.reasoningConstraint) {
-        intentLines.push(`Restricción de razonamiento: ${pedagogicalIntent.reasoningConstraint}`);
-      }
-      const intentSection = `Intención pedagógica (úsala para anclar el caso):\n${intentLines.join("\n")}`;
-      builtContext = builtContext ? `${intentSection}\n\n${builtContext}` : intentSection;
-
-      const canonicalCase = await generateCanonicalCase(topic, builtContext || undefined, stepCount, caseLang);
+      // Phase 5: pedagogical intent is passed directly to the generator so
+      // the intent block (teaching goal, framework anchoring, competency
+      // weighting, decision design with per-dimension constraints, reasoning
+      // constraint, no-correct-answer lexicon) is injected by the generator
+      // itself. The route only forwards tradeoff-focus / additional context.
+      const canonicalCase = await generateCanonicalCase(topic, pedagogicalIntent, builtContext || undefined, stepCount, caseLang);
       const scenarioData = convertCanonicalToScenarioData(canonicalCase, caseLang);
       // Carry the intent forward through draft so publish can persist it.
       scenarioData.pedagogicalIntent = pedagogicalIntent;
@@ -2389,6 +2354,104 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
     }
   });
 
+  // Phase 5 (§9.3): regenerate a single decision in a draft. Re-runs the
+  // focused single-decision generator, splices the result into the draft's
+  // generatedScenario, and clears reviewCompleted on that decision.
+  app.post("/api/drafts/:id/decisions/:decisionNumber/regenerate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const draft = await storage.getScenarioDraft(req.params.id);
+      if (!draft) return res.status(404).json({ message: "Draft not found" });
+      if (draft.authorId !== userId) return res.status(403).json({ message: "Not authorized" });
+
+      const generated = draft.generatedScenario as GeneratedScenarioData | null;
+      if (!generated || !generated.initialState) {
+        return res.status(400).json({ message: "Draft has no generated scenario yet" });
+      }
+      const intent = generated.pedagogicalIntent;
+      if (!intent || !intent.teachingGoal) {
+        return res.status(400).json({ message: "Draft is missing pedagogical intent — cannot regenerate" });
+      }
+
+      const decisionNumber = parseInt(req.params.decisionNumber, 10);
+      if (!Number.isFinite(decisionNumber) || decisionNumber < 1) {
+        return res.status(400).json({ message: "Invalid decisionNumber" });
+      }
+
+      const initial = generated.initialState as any;
+      const decisions: any[] = Array.isArray(initial.decisionPoints) ? initial.decisionPoints : [];
+      if (!decisions.find((d) => d.number === decisionNumber)) {
+        return res.status(404).json({ message: `Decision ${decisionNumber} not found in draft` });
+      }
+
+      const { regenerateSingleDecision } = await import("./agents/canonicalCaseGenerator");
+      const language = (draft.language as "es" | "en") ?? "es";
+      const newDecision = await regenerateSingleDecision({
+        caseContext: initial.caseContext ?? generated.description ?? "",
+        coreChallenge: initial.coreChallenge ?? "",
+        pedagogicalIntent: intent,
+        existingDecisions: decisions,
+        decisionNumber,
+        language,
+        hint: typeof req.body?.hint === "string" ? req.body.hint : undefined,
+      });
+
+      const updatedDecisions = decisions.map((d) => (d.number === decisionNumber ? newDecision : d));
+      const nextScenario: GeneratedScenarioData = {
+        ...generated,
+        initialState: { ...initial, decisionPoints: updatedDecisions },
+      };
+
+      const updated = await storage.updateScenarioDraft(draft.id, { generatedScenario: nextScenario });
+      res.json({ draft: updated, decision: newDecision });
+    } catch (error) {
+      console.error("Error regenerating decision:", error);
+      res.status(500).json({ message: "Failed to regenerate decision" });
+    }
+  });
+
+  // Phase 5 (§9.3): mark a single decision as reviewed/approved (or revert).
+  // Used by the professor review checkpoint UI; required for publish gate.
+  app.patch("/api/drafts/:id/decisions/:decisionNumber/review", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const draft = await storage.getScenarioDraft(req.params.id);
+      if (!draft) return res.status(404).json({ message: "Draft not found" });
+      if (draft.authorId !== userId) return res.status(403).json({ message: "Not authorized" });
+
+      const generated = draft.generatedScenario as GeneratedScenarioData | null;
+      if (!generated || !generated.initialState) {
+        return res.status(400).json({ message: "Draft has no generated scenario yet" });
+      }
+      const decisionNumber = parseInt(req.params.decisionNumber, 10);
+      if (!Number.isFinite(decisionNumber) || decisionNumber < 1) {
+        return res.status(400).json({ message: "Invalid decisionNumber" });
+      }
+      const reviewCompleted = req.body?.reviewCompleted !== false; // default true
+
+      const initial = generated.initialState as any;
+      const decisions: any[] = Array.isArray(initial.decisionPoints) ? initial.decisionPoints : [];
+      let touched = false;
+      const updatedDecisions = decisions.map((d) => {
+        if (d.number !== decisionNumber) return d;
+        touched = true;
+        return { ...d, reviewCompleted };
+      });
+      if (!touched) {
+        return res.status(404).json({ message: `Decision ${decisionNumber} not found in draft` });
+      }
+      const nextScenario: GeneratedScenarioData = {
+        ...generated,
+        initialState: { ...initial, decisionPoints: updatedDecisions },
+      };
+      const updated = await storage.updateScenarioDraft(draft.id, { generatedScenario: nextScenario });
+      res.json({ draft: updated, decisionNumber, reviewCompleted });
+    } catch (error) {
+      console.error("Error updating decision review state:", error);
+      res.status(500).json({ message: "Failed to update review state" });
+    }
+  });
+
   app.post("/api/drafts/:id/publish", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -2406,6 +2469,22 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
       const generatedScenario = draft.generatedScenario as GeneratedScenarioData | null;
       if (!generatedScenario || !generatedScenario.title || !generatedScenario.initialState) {
         return res.status(400).json({ message: "No complete scenario to publish" });
+      }
+
+      // Phase 5 (§9.3 publish gate): every decision MUST be marked
+      // reviewCompleted before publication. Surface the first unreviewed
+      // numbers so the UI can navigate the professor straight to them.
+      const initialPub = generatedScenario.initialState as any;
+      const dpsPub: any[] = Array.isArray(initialPub?.decisionPoints) ? initialPub.decisionPoints : [];
+      const unreviewed = dpsPub.filter((d) => !d?.reviewCompleted).map((d) => d.number);
+      if (dpsPub.length === 0) {
+        return res.status(400).json({ message: "Scenario has no decision points" });
+      }
+      if (unreviewed.length > 0) {
+        return res.status(409).json({
+          message: "All decisions must be reviewed before publishing",
+          unreviewedDecisionNumbers: unreviewed,
+        });
       }
 
       const scenario = await storage.createScenario({

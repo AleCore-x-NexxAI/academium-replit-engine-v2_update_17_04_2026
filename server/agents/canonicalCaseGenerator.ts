@@ -17,12 +17,16 @@ import type {
   Rubric,
   DecisionPoint,
   Indicator,
-  CaseFramework
+  CaseFramework,
+  PedagogicalIntent,
+  AcademicDimension,
+  TradeoffSignature
 } from "@shared/schema";
 import { getCanonicalKPIs } from "@shared/schema";
 import { generateChatCompletion } from "../openai";
 import { POC_VERSION, STRUCTURE_LOCK_NOTICE, DEFAULT_DECISIONS, MIN_DECISIONS, MAX_DECISIONS } from "./constants";
 import { sanitizeFrameworks, mergeRegeneratedKeywords } from "./frameworkKeywordSanitizer";
+import { assignDecisionDimensions, dimensionConstraintFor, type DecisionDimension } from "./academicDimensions";
 
 /**
  * Phase 1b: lightweight language-leakage detector. Returns the share of
@@ -540,8 +544,190 @@ async function regenerateFrameworkKeywords(
   );
 }
 
+/**
+ * Phase 5 (§9.4 + §10.3): build the intent-driven prompt block injected
+ * into the user prompt. Includes teaching goal, framework anchoring,
+ * competency weighting, decision design (per-dimension constraints), and
+ * reasoning constraint blocks. Returns a pure-language string.
+ */
+function buildIntentBlock(
+  intent: PedagogicalIntent,
+  dimensions: DecisionDimension[],
+  language: "es" | "en",
+): string {
+  const lines: string[] = [];
+  if (language === "en") {
+    lines.push("=== PEDAGOGICAL INTENT (PRIMARY DRIVER) ===");
+    lines.push(`TEACHING GOAL: ${intent.teachingGoal}`);
+    if (intent.targetFrameworks?.length) {
+      lines.push("");
+      lines.push("FRAMEWORK ANCHORING — the case MUST be designed so students can apply these frameworks. Surface their core concepts in the case context, decisions, and option text:");
+      for (const fw of intent.targetFrameworks) {
+        lines.push(`  • ${fw.name} (canonicalId=${fw.canonicalId})`);
+      }
+      lines.push("Generate `frameworks` array containing entries for ALL of the above plus any additional analytical frameworks naturally surfaced by the case.");
+    }
+    if (intent.targetCompetencies?.length) {
+      lines.push("");
+      lines.push(`COMPETENCY WEIGHTING — emphasize: ${intent.targetCompetencies.join(", ")}. Decision prompts and option signatures should give these competencies the most opportunity to surface.`);
+    }
+    lines.push("");
+    lines.push("DECISION DESIGN — every decision is pre-assigned an academic dimension; the prompt MUST exercise that dimension:");
+    for (const dd of dimensions) {
+      lines.push(`  Decision ${dd.decisionNumber}: primaryDimension="${dd.primaryDimension}"${dd.secondaryDimension ? ` (secondary="${dd.secondaryDimension}")` : ""}`);
+      lines.push(`    ↳ ${dimensionConstraintFor(dd.primaryDimension, "en")}`);
+    }
+    lines.push("");
+    lines.push("Each decision in the JSON output MUST include: `primaryDimension`, `dimensionRationale` (1-2 sentences explaining why this decision exercises that dimension), and `targetFrameworkIds` (array of framework `id`s the decision should surface). Keep `tradeoffSignature` populated whenever primaryDimension is `tradeoff`.");
+    if (intent.reasoningConstraint) {
+      lines.push("");
+      lines.push(`REASONING CONSTRAINT — students will be evaluated under this rule: ${intent.reasoningConstraint}. Decision prompts must respect this constraint.`);
+    }
+    lines.push("");
+    lines.push("OUTPUT-FORMAT ADDITION — every decision in the `decisionPoints` array MUST contain these new fields: `primaryDimension`, `dimensionRationale`, `targetFrameworkIds`. Tradeoff decisions must also include `tradeoffSignature` with non-empty `dimension`, `cost`, `benefit`.");
+    lines.push("");
+    lines.push("NO-CORRECT-ANSWER LEXICON — do not use words like 'best', 'correct', 'optimal', 'wrong', 'should have', 'right answer', 'recommended approach' in any prompt, option, or focus cue.");
+    if (intent.courseContext) {
+      lines.push("");
+      lines.push(`COURSE CONTEXT: ${intent.courseContext}`);
+    }
+    return lines.join("\n");
+  }
+  // Spanish
+  lines.push("=== INTENCIÓN PEDAGÓGICA (CONDUCTOR PRIMARIO) ===");
+  lines.push(`OBJETIVO PEDAGÓGICO: ${intent.teachingGoal}`);
+  if (intent.targetFrameworks?.length) {
+    lines.push("");
+    lines.push("ANCLAJE EN FRAMEWORKS — el caso DEBE diseñarse para que los estudiantes puedan aplicar estos marcos. Haz que sus conceptos centrales aparezcan en el contexto, las decisiones y las opciones:");
+    for (const fw of intent.targetFrameworks) {
+      lines.push(`  • ${fw.name} (canonicalId=${fw.canonicalId})`);
+    }
+    lines.push("Genera el arreglo `frameworks` con entradas para TODOS los anteriores más cualquier marco adicional que surja naturalmente del caso.");
+  }
+  if (intent.targetCompetencies?.length) {
+    lines.push("");
+    lines.push(`PESO DE COMPETENCIAS — enfatiza: ${intent.targetCompetencies.join(", ")}. Los prompts y opciones deben dar a estas competencias la mayor oportunidad de manifestarse.`);
+  }
+  lines.push("");
+  lines.push("DISEÑO DE DECISIONES — cada decisión tiene una dimensión académica preasignada; el prompt DEBE ejercitar esa dimensión:");
+  for (const dd of dimensions) {
+    lines.push(`  Decisión ${dd.decisionNumber}: primaryDimension="${dd.primaryDimension}"${dd.secondaryDimension ? ` (secundaria="${dd.secondaryDimension}")` : ""}`);
+    lines.push(`    ↳ ${dimensionConstraintFor(dd.primaryDimension, "es")}`);
+  }
+  lines.push("");
+  lines.push("Cada decisión en el JSON DEBE incluir: `primaryDimension`, `dimensionRationale` (1-2 oraciones explicando por qué esta decisión ejercita esa dimensión), y `targetFrameworkIds` (arreglo de `id`s de frameworks que la decisión debe surfacear). Mantén `tradeoffSignature` poblado siempre que primaryDimension sea `tradeoff`.");
+  if (intent.reasoningConstraint) {
+    lines.push("");
+    lines.push(`RESTRICCIÓN DE RAZONAMIENTO — los estudiantes serán evaluados bajo esta regla: ${intent.reasoningConstraint}. Los prompts deben respetar esta restricción.`);
+  }
+  lines.push("");
+  lines.push("ADICIÓN AL FORMATO DE SALIDA — cada decisión en `decisionPoints` DEBE contener estos nuevos campos: `primaryDimension`, `dimensionRationale`, `targetFrameworkIds`. Las decisiones tradeoff además deben incluir `tradeoffSignature` con `dimension`, `cost`, `benefit` no vacíos.");
+  lines.push("");
+  lines.push("LÉXICO SIN-RESPUESTA-CORRECTA — no uses palabras como 'mejor', 'correcto', 'óptimo', 'incorrecto', 'debería haber', 'respuesta correcta', 'enfoque recomendado' en ningún prompt, opción o focus cue.");
+  if (intent.courseContext) {
+    lines.push("");
+    lines.push(`CONTEXTO DEL CURSO: ${intent.courseContext}`);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Phase 5 (§9.4 gate 7): no-correct-answer telegraphing scan. Returns true
+ * when the parsed case contains directive lexicon in its prompts/options.
+ */
+function detectTelegraphing(parsed: any, language: "es" | "en"): { hit: boolean; samples: string[] } {
+  const ES = ["mejor opción", "respuesta correcta", "enfoque óptimo", "deberías haber", "lo correcto es", "lo óptimo es", "la mejor decisión"];
+  const EN = ["best option", "correct answer", "optimal approach", "you should have", "the right choice", "the optimal", "the best decision"];
+  const needles = language === "en" ? EN : ES;
+  const samples: string[] = [];
+  const scan = (s: any) => {
+    if (typeof s !== "string") return;
+    const low = s.toLowerCase();
+    for (const n of needles) {
+      if (low.includes(n)) samples.push(`"${s.slice(0, 80)}"`);
+    }
+  };
+  if (Array.isArray(parsed?.decisionPoints)) {
+    for (const dp of parsed.decisionPoints) {
+      scan(dp?.prompt);
+      scan(dp?.focusCue);
+      if (Array.isArray(dp?.options)) dp.options.forEach(scan);
+    }
+  }
+  return { hit: samples.length > 0, samples: samples.slice(0, 3) };
+}
+
+/**
+ * Phase 5 (§9.4 gate 6): tradeoff realism check. For every decision whose
+ * primary dimension is `tradeoff`, the prompt must name both a cost and a
+ * benefit AND `tradeoffSignature` must be fully populated.
+ */
+function checkTradeoffRealism(
+  decisionPoints: DecisionPoint[],
+  dimensions: DecisionDimension[],
+): { ok: boolean; failingNumbers: number[] } {
+  const failing: number[] = [];
+  const dimByNum = new Map(dimensions.map((d) => [d.decisionNumber, d.primaryDimension]));
+  for (const dp of decisionPoints) {
+    if (dimByNum.get(dp.number) !== "tradeoff") continue;
+    const sig = dp.tradeoffSignature;
+    const sigOk = !!sig && !!sig.cost?.trim() && !!sig.benefit?.trim() && !!sig.dimension?.trim();
+    if (!sigOk) {
+      failing.push(dp.number);
+    }
+  }
+  return { ok: failing.length === 0, failingNumbers: failing };
+}
+
+/**
+ * Phase 5 (§9.4 gate 4): dimension coverage. Requires at least
+ * ⌈stepCount × 0.66⌉ DISTINCT primary dimensions across the case.
+ */
+function checkDimensionCoverage(
+  dimensions: DecisionDimension[],
+  stepCount: number,
+): { ok: boolean; distinctCount: number; required: number } {
+  const distinct = new Set(dimensions.map((d) => d.primaryDimension));
+  const required = Math.ceil(stepCount * 0.66);
+  return { ok: distinct.size >= required, distinctCount: distinct.size, required };
+}
+
+/**
+ * Phase 5 (§9.4 gate 5): framework coverage check via the framework
+ * detector. Runs the sync detector on each decision prompt and verifies
+ * that at least one decision yields a non-`not_evidenced` detection for
+ * one of the case's tracked frameworks. Lightweight — keyword tier only.
+ */
+async function checkFrameworkCoverage(
+  decisionPoints: DecisionPoint[],
+  frameworks: CaseFramework[],
+  language: "es" | "en",
+): Promise<{ ok: boolean }> {
+  if (frameworks.length === 0) return { ok: true }; // no frameworks → no coverage required
+  try {
+    const { detectFrameworksSync } = await import("./frameworkDetector");
+    for (const dp of decisionPoints) {
+      const text = `${dp.prompt}\n${(dp.options ?? []).join("\n")}\n${dp.focusCue ?? ""}`;
+      const emptySignals: any = {
+        intent: { quality: "WEAK", detected: false, evidence: "" },
+        justification: { quality: "WEAK", detected: false, evidence: "" },
+        tradeoffAwareness: { quality: "WEAK", detected: false, evidence: "" },
+        stakeholderAwareness: { quality: "WEAK", detected: false, evidence: "" },
+        ethicalAwareness: { quality: "WEAK", detected: false, evidence: "" },
+      };
+      const detections = detectFrameworksSync(text, emptySignals, frameworks, language);
+      if (detections.some((d: any) => d.level !== "not_evidenced")) return { ok: true };
+    }
+    return { ok: false };
+  } catch (err) {
+    console.warn("[canonicalCaseGenerator] checkFrameworkCoverage skipped due to error:", err);
+    return { ok: true };
+  }
+}
+
 export async function generateCanonicalCase(
   topic: string,
+  pedagogicalIntent: PedagogicalIntent,
   additionalContext?: string,
   stepCount?: number,
   language?: "es" | "en"
@@ -550,6 +736,11 @@ export async function generateCanonicalCase(
   const durationMin = Math.round((effectiveSteps / 3) * 20);
   const durationMax = Math.round((effectiveSteps / 3) * 25);
   const isEn = language === "en";
+
+  // Phase 5 (§10.2): pre-assign per-decision academic dimensions before the
+  // LLM call so the prompt can communicate them as hard constraints.
+  const dimensions = assignDecisionDimensions(pedagogicalIntent, effectiveSteps);
+  const intentBlock = buildIntentBlock(pedagogicalIntent, dimensions, isEn ? "en" : "es");
 
   const contextAddition = additionalContext
     ? (isEn
@@ -563,14 +754,14 @@ export async function generateCanonicalCase(
     ? buildCanonicalPromptEn(effectiveSteps)
     : buildCanonicalPromptEs(effectiveSteps);
 
-  const userPrompt = isEn
-    ? `Create a canonical business case based on this topic/industry:\n\nTOPIC: ${topic}${contextAddition}\n\nGenerate a COMPLETE business case following the canonical structure, ALL in English.\nCase duration: ${durationMin}-${durationMax} minutes.\nRemember: exactly ${effectiveSteps} decision points, no preferred answer, mentoring tone.`
-    : `Crea un caso de negocios canónico basado en este tema/industria:\n\nTEMA: ${topic}${contextAddition}\n\nGenera un caso de negocios COMPLETO siguiendo la estructura canónica, TODO en español latinoamericano.\nEl caso debe durar ${durationMin}-${durationMax} minutos para completar.\nRecuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuesta preferida, tono de mentoría.`;
+  const baseUserPrompt = isEn
+    ? `${intentBlock}\n\nCreate a canonical business case based on this topic/industry:\n\nTOPIC: ${topic}${contextAddition}\n\nGenerate a COMPLETE business case following the canonical structure, ALL in English.\nCase duration: ${durationMin}-${durationMax} minutes.\nRemember: exactly ${effectiveSteps} decision points, no preferred answer, mentoring tone. The pedagogical-intent block above OVERRIDES any conflicting default instructions in the system prompt.`
+    : `${intentBlock}\n\nCrea un caso de negocios canónico basado en este tema/industria:\n\nTEMA: ${topic}${contextAddition}\n\nGenera un caso de negocios COMPLETO siguiendo la estructura canónica, TODO en español latinoamericano.\nEl caso debe durar ${durationMin}-${durationMax} minutos para completar.\nRecuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuesta preferida, tono de mentoría. El bloque de intención pedagógica anterior SOBREESCRIBE cualquier instrucción por defecto en conflicto del system prompt.`;
 
-  const callLLM = async () => generateChatCompletion(
+  const callLLM = async (extraHint?: string) => generateChatCompletion(
     [
       { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
+      { role: "user", content: extraHint ? `${baseUserPrompt}\n\n${extraHint}` : baseUserPrompt },
     ],
     { responseFormat: "json", maxTokens: 4096 + (effectiveSteps > 3 ? (effectiveSteps - 3) * 512 : 0), agentName: "canonicalCaseGenerator" }
   );
@@ -627,19 +818,45 @@ export async function generateCanonicalCase(
     ? ["Key stakeholders", "Main trade-offs", "Future consequences"]
     : ["Stakeholders clave", "Trade-offs principales", "Consecuencias futuras"];
 
-  const decisionPoints: DecisionPoint[] = (parsed.decisionPoints || []).map((dp: any, index: number) => ({
-    number: dp.number || index + 1,
-    format: dp.format || (index === 0 ? "multiple_choice" : "written"),
-    prompt: dp.prompt || decisionPromptFallback(index + 1),
-    options: dp.options || undefined,
-    requiresJustification: dp.requiresJustification ?? (index > 0),
-    includesReflection: dp.includesReflection ?? false,
-    focusCue: dp.focusCue || defaultFocusCues[index % defaultFocusCues.length],
-    thinkingScaffold: Array.isArray(dp.thinkingScaffold) ? dp.thinkingScaffold : undefined,
-  }));
+  // Phase 5: stamp the pre-assigned dimension onto every decision so the
+  // server-side metadata is authoritative even if the LLM omits/overrides it.
+  const dimByNumber = new Map(dimensions.map((d) => [d.decisionNumber, d]));
+  const decisionPoints: DecisionPoint[] = (parsed.decisionPoints || []).map((dp: any, index: number) => {
+    const number = dp.number || index + 1;
+    const dim = dimByNumber.get(number);
+    const ts = dp.tradeoffSignature && typeof dp.tradeoffSignature === "object"
+      ? {
+          dimension: String(dp.tradeoffSignature.dimension ?? "").trim(),
+          cost: String(dp.tradeoffSignature.cost ?? "").trim(),
+          benefit: String(dp.tradeoffSignature.benefit ?? "").trim(),
+        } as TradeoffSignature
+      : undefined;
+    return {
+      number,
+      format: dp.format || (index === 0 ? "multiple_choice" : "written"),
+      prompt: dp.prompt || decisionPromptFallback(number),
+      options: dp.options || undefined,
+      requiresJustification: dp.requiresJustification ?? (index > 0),
+      includesReflection: dp.includesReflection ?? false,
+      focusCue: dp.focusCue || defaultFocusCues[index % defaultFocusCues.length],
+      thinkingScaffold: Array.isArray(dp.thinkingScaffold) ? dp.thinkingScaffold : undefined,
+      tradeoffSignature: ts && (ts.cost || ts.benefit || ts.dimension) ? ts : undefined,
+      primaryDimension: dim?.primaryDimension,
+      secondaryDimension: dim?.secondaryDimension,
+      dimensionRationale: typeof dp.dimensionRationale === "string" && dp.dimensionRationale.trim()
+        ? dp.dimensionRationale.trim()
+        : undefined,
+      targetFrameworkIds: Array.isArray(dp.targetFrameworkIds)
+        ? dp.targetFrameworkIds.filter((s: any) => typeof s === "string" && s.trim()).map((s: string) => s.trim())
+        : undefined,
+      reviewCompleted: false,
+      qualityFlags: [],
+    };
+  });
 
   while (decisionPoints.length < effectiveSteps) {
     const num = decisionPoints.length + 1;
+    const dim = dimByNumber.get(num);
     decisionPoints.push({
       number: num,
       format: num === 1 ? "multiple_choice" : "written",
@@ -649,6 +866,10 @@ export async function generateCanonicalCase(
       includesReflection: false,
       focusCue: defaultFocusCues[(num - 1) % defaultFocusCues.length],
       thinkingScaffold: scaffoldFallback,
+      primaryDimension: dim?.primaryDimension,
+      secondaryDimension: dim?.secondaryDimension,
+      reviewCompleted: false,
+      qualityFlags: ["fallback_decision_point"],
     });
   }
 
@@ -781,6 +1002,43 @@ export async function generateCanonicalCase(
   // Drop frameworks that ended up with fewer than 2 usable keywords.
   const finalFrameworks = cleanedFrameworks.filter((f) => f.domainKeywords.length >= 2);
 
+  // Phase 5 (§9.4): post-generation quality gates. Each gate either passes
+  // silently or attaches a qualityFlag to the affected decision(s). The
+  // language gate already ran upstream; framework dedup/field completeness
+  // already ran during framework parsing. Remaining gates (4–7) below.
+
+  // Gate 4: dimension coverage
+  const covG = checkDimensionCoverage(dimensions, effectiveSteps);
+  if (!covG.ok) {
+    console.warn(`[canonicalCaseGenerator] Gate4 dimension coverage failed: ${covG.distinctCount}/${covG.required} distinct dimensions`);
+    decisionPoints[0].qualityFlags = [...(decisionPoints[0].qualityFlags ?? []), `dimension_coverage_low_${covG.distinctCount}_of_${covG.required}`];
+  }
+
+  // Gate 5: framework coverage (lightweight detector pass)
+  const frG = await checkFrameworkCoverage(decisionPoints, finalFrameworks, effectiveLang);
+  if (!frG.ok) {
+    console.warn("[canonicalCaseGenerator] Gate5 framework coverage failed: no decision surfaced any tracked framework");
+    decisionPoints[0].qualityFlags = [...(decisionPoints[0].qualityFlags ?? []), "framework_coverage_zero"];
+  }
+
+  // Gate 6: tradeoff realism — flag every tradeoff decision missing cost/benefit
+  const trG = checkTradeoffRealism(decisionPoints, dimensions);
+  if (!trG.ok) {
+    console.warn(`[canonicalCaseGenerator] Gate6 tradeoff realism failed for decisions: ${trG.failingNumbers.join(", ")}`);
+    for (const dp of decisionPoints) {
+      if (trG.failingNumbers.includes(dp.number)) {
+        dp.qualityFlags = [...(dp.qualityFlags ?? []), "tradeoff_signature_incomplete"];
+      }
+    }
+  }
+
+  // Gate 7: no-correct-answer telegraphing — scan prompts/options/focusCue
+  const tel = detectTelegraphing({ decisionPoints }, effectiveLang);
+  if (tel.hit) {
+    console.warn(`[canonicalCaseGenerator] Gate7 telegraphing detected: ${tel.samples.join(" | ")}`);
+    decisionPoints[0].qualityFlags = [...(decisionPoints[0].qualityFlags ?? []), "telegraphing_detected"];
+  }
+
   const isEnFallback = effectiveLang === "en";
   return {
     title: parsed.title || (isEnFallback ? "Business Case" : "Caso de Negocios"),
@@ -800,6 +1058,79 @@ export async function generateCanonicalCase(
     learningObjectives: parsed.learningObjectives || (isEnFallback ? ["Critical thinking", "Decision making"] : ["Pensamiento crítico", "Toma de decisiones"]),
     frameworks: finalFrameworks.slice(0, 4),
     confidence: parsed.confidence || 75,
+  };
+}
+
+/**
+ * Phase 5: regenerate a single decision point in an existing case while
+ * keeping all other decisions intact. Builds a focused prompt anchored on
+ * the case context, the target dimension, and any per-dimension constraint.
+ * Returns the new decision point ready to splice into the case.
+ */
+export async function regenerateSingleDecision(args: {
+  caseContext: string;
+  coreChallenge: string;
+  pedagogicalIntent: PedagogicalIntent;
+  existingDecisions: DecisionPoint[];
+  decisionNumber: number;
+  language: "es" | "en";
+  hint?: string;
+}): Promise<DecisionPoint> {
+  const { caseContext, coreChallenge, pedagogicalIntent, existingDecisions, decisionNumber, language, hint } = args;
+  const isEn = language === "en";
+  const dimensions = assignDecisionDimensions(pedagogicalIntent, existingDecisions.length);
+  const target = dimensions.find((d) => d.decisionNumber === decisionNumber) ?? dimensions[Math.max(0, decisionNumber - 1)];
+  const dim = target?.primaryDimension ?? "strategic";
+  const others = existingDecisions
+    .filter((d) => d.number !== decisionNumber)
+    .map((d) => `Decision ${d.number} (${d.primaryDimension ?? "?"}): ${d.prompt.slice(0, 200)}`)
+    .join("\n");
+
+  const sys = isEn
+    ? `You regenerate a SINGLE decision in an existing canonical business case. Keep continuity with the case context and the other decisions. Output JSON for ONE decision only.`
+    : `Regeneras UNA SOLA decisión dentro de un caso canónico de negocios existente. Mantén la continuidad con el contexto y las otras decisiones. Devuelve JSON para UNA SOLA decisión.`;
+
+  const usr = isEn
+    ? `CASE CONTEXT:\n${caseContext}\n\nCORE CHALLENGE:\n${coreChallenge}\n\nTEACHING GOAL: ${pedagogicalIntent.teachingGoal}\n\nOTHER DECISIONS (do not duplicate):\n${others}\n\nREGENERATE Decision ${decisionNumber} with primaryDimension="${dim}".\n${dimensionConstraintFor(dim, "en")}\n${hint ? `\nADDITIONAL GUIDANCE: ${hint}` : ""}\n\nReturn JSON: {"number": ${decisionNumber}, "format": "written" | "multiple_choice", "prompt": "...", "options": ["..."]?, "requiresJustification": true | false, "focusCue": "...", "thinkingScaffold": ["..."], "dimensionRationale": "...", "targetFrameworkIds": ["..."], "tradeoffSignature": {"dimension":"...","cost":"...","benefit":"..."}?}`
+    : `CONTEXTO DEL CASO:\n${caseContext}\n\nDESAFÍO CENTRAL:\n${coreChallenge}\n\nOBJETIVO PEDAGÓGICO: ${pedagogicalIntent.teachingGoal}\n\nOTRAS DECISIONES (no duplicar):\n${others}\n\nREGENERA la Decisión ${decisionNumber} con primaryDimension="${dim}".\n${dimensionConstraintFor(dim, "es")}\n${hint ? `\nGUÍA ADICIONAL: ${hint}` : ""}\n\nDevuelve JSON: {"number": ${decisionNumber}, "format": "written" | "multiple_choice", "prompt": "...", "options": ["..."]?, "requiresJustification": true | false, "focusCue": "...", "thinkingScaffold": ["..."], "dimensionRationale": "...", "targetFrameworkIds": ["..."], "tradeoffSignature": {"dimension":"...","cost":"...","benefit":"..."}?}`;
+
+  const response = await generateChatCompletion(
+    [
+      { role: "system", content: sys },
+      { role: "user", content: usr },
+    ],
+    { responseFormat: "json", maxTokens: 1024, agentName: "regenerateSingleDecision" }
+  );
+
+  const parsed = JSON.parse(response);
+  const ts = parsed.tradeoffSignature && typeof parsed.tradeoffSignature === "object"
+    ? {
+        dimension: String(parsed.tradeoffSignature.dimension ?? "").trim(),
+        cost: String(parsed.tradeoffSignature.cost ?? "").trim(),
+        benefit: String(parsed.tradeoffSignature.benefit ?? "").trim(),
+      } as TradeoffSignature
+    : undefined;
+  const previous = existingDecisions.find((d) => d.number === decisionNumber);
+  return {
+    number: decisionNumber,
+    format: parsed.format === "multiple_choice" ? "multiple_choice" : (previous?.format ?? "written"),
+    prompt: typeof parsed.prompt === "string" && parsed.prompt.trim() ? parsed.prompt.trim() : (previous?.prompt ?? ""),
+    options: Array.isArray(parsed.options) ? parsed.options.filter((o: any) => typeof o === "string") : previous?.options,
+    requiresJustification: parsed.requiresJustification ?? (previous?.requiresJustification ?? true),
+    includesReflection: previous?.includesReflection ?? false,
+    focusCue: typeof parsed.focusCue === "string" ? parsed.focusCue : previous?.focusCue,
+    thinkingScaffold: Array.isArray(parsed.thinkingScaffold) ? parsed.thinkingScaffold : previous?.thinkingScaffold,
+    tradeoffSignature: ts && (ts.cost || ts.benefit || ts.dimension) ? ts : previous?.tradeoffSignature,
+    primaryDimension: dim,
+    secondaryDimension: target?.secondaryDimension ?? previous?.secondaryDimension,
+    dimensionRationale: typeof parsed.dimensionRationale === "string" && parsed.dimensionRationale.trim()
+      ? parsed.dimensionRationale.trim()
+      : previous?.dimensionRationale,
+    targetFrameworkIds: Array.isArray(parsed.targetFrameworkIds)
+      ? parsed.targetFrameworkIds.filter((s: any) => typeof s === "string")
+      : previous?.targetFrameworkIds,
+    reviewCompleted: false, // regenerated → reset review state
+    qualityFlags: [],
   };
 }
 
