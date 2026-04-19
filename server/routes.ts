@@ -83,6 +83,68 @@ function mergeReflectionAnalytics(target: SimulationState, prior: SimulationStat
   }
 }
 
+// Phase 1c (Section 6.4): inline assertion guard for mergeReflectionAnalytics.
+// Runs once at module load in non-production envs. Verifies the new
+// framework_summary optional fields survive a partial reflection merge.
+// Not a full unit-test framework, but proves the merge contract end-to-end.
+function _assertMergeReflectionAnalyticsContract(): void {
+  if (process.env.NODE_ENV === "production") return;
+  try {
+    const prior = {
+      decisionEvidenceLogs: [{ rds_band: "ENGAGED" }],
+      framework_detections: [[{ framework_id: "fw1", framework_name: "FW1", level: "explicit", evidence: "" }]],
+      dashboard_summary: {
+        session_headline: "prior",
+        signal_averages: { analytical: 0, strategic: 0, tradeoff: 0, stakeholder: 0, ethical: 0 },
+        framework_summary: [{
+          framework_id: "fw1",
+          best_level: "explicit",
+          turn_of_best_application: 1,
+          explicit_turns: 2,
+          implicit_turns: 1,
+          not_evidenced_turns: 0,
+          framework_name: "FW1",
+          canonicalId: "fw1",
+          provenance: "course_target",
+          detection_method_distribution: { keyword: 3 },
+        }],
+      },
+    } as unknown as SimulationState;
+    const target = {
+      decisionEvidenceLogs: [],
+      framework_detections: [],
+      dashboard_summary: {
+        session_headline: "new",
+        signal_averages: { analytical: 0, strategic: 0, tradeoff: 0, stakeholder: 0, ethical: 0 },
+        framework_summary: [{
+          framework_id: "fw1",
+          best_level: "implicit",
+          turn_of_best_application: 1,
+        }],
+      },
+    } as unknown as SimulationState;
+    mergeReflectionAnalytics(target, prior);
+    const merged = target.dashboard_summary?.framework_summary?.[0] as any;
+    const ok =
+      merged &&
+      merged.best_level === "implicit" &&
+      merged.explicit_turns === 2 &&
+      merged.implicit_turns === 1 &&
+      merged.framework_name === "FW1" &&
+      merged.canonicalId === "fw1" &&
+      merged.provenance === "course_target" &&
+      merged.detection_method_distribution?.keyword === 3 &&
+      target.decisionEvidenceLogs?.length === 1 &&
+      target.framework_detections?.length === 1;
+    if (!ok) {
+      console.error("[mergeReflectionAnalytics] CONTRACT ASSERTION FAILED:", merged);
+    }
+  } catch (err) {
+    console.error("[mergeReflectionAnalytics] contract self-test threw:", err);
+  }
+}
+_assertMergeReflectionAnalyticsContract();
+
 function stripProfessorFields(turnResponse: TurnResponse): TurnResponse {
   const { dashboard_debrief_question, framework_detections, ...rest } = turnResponse;
   const stripped: TurnResponse = { ...rest };

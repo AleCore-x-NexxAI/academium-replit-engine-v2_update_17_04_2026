@@ -1,5 +1,4 @@
 {
-  "$schema": "./compatibility-manifest.schema.json",
   "version": "v3.0-phase-1c",
   "description": "Compatibility manifest binding dashboard UI surfaces to engine endpoints, state fields, and writers. Phase 1c first draft. Each later phase extends this file as new fields are added. Validate via `npx tsx scripts/validate-manifest.ts`.",
   "notes": [
