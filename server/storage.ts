@@ -69,6 +69,7 @@ export interface IStorage {
   createScenario(scenario: InsertScenario): Promise<Scenario>;
   updateScenario(id: string, data: Partial<InsertScenario>): Promise<Scenario | undefined>;
   deleteScenario(id: string): Promise<void>;
+  countScenarioSessions(scenarioId: string): Promise<number>;
 
   getSimulationSession(id: string): Promise<SimulationSession | undefined>;
   getSimulationSessionWithScenario(id: string): Promise<(SimulationSession & { scenario?: Scenario }) | undefined>;

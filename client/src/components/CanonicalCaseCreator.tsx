@@ -934,6 +934,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               setTeachingGoal("");
               setIntentFrameworks([]);
               setIntentCompetencies([]);
+              setIntentDimensions([]);
               setCourseContext("");
               setReasoningConstraint("");
               setIsEditing(false);
