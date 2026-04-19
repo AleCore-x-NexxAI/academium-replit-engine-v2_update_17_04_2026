@@ -11,11 +11,25 @@
 // be opted in by the professor through the FrameworkEditor before runtime
 // detection sees them. Hard cap of 3 inferred frameworks at all times.
 
-import type { CaseFramework, PedagogicalIntent } from "@shared/schema";
+import { createHash } from "node:crypto";
+import type { CaseFramework, FrameworkPrimaryDimension, PedagogicalIntent } from "@shared/schema";
 import { FRAMEWORK_REGISTRY, type FrameworkRegistryEntry } from "./frameworkRegistry";
 import { generateChatCompletion } from "../openai";
 
 const MAX_INFERRED = 3;
+const VALID_DIMENSIONS: FrameworkPrimaryDimension[] = [
+  "analytical", "strategic", "tradeoff", "stakeholder", "ethical",
+];
+
+// Phase 4 v3.0 §7: when registry doesn't fit, fallback to LLM-generated custom
+// framework with canonicalId = `custom_<sha1(name)[:10]>`. The hash is over
+// the lowercased trimmed name so the same name maps to the same id (and
+// matches the resolver guard in routes.ts canonicalizeIntentFrameworks).
+function customCanonicalIdFromName(name: string): string {
+  const norm = name.trim().toLowerCase();
+  const hash = createHash("sha1").update(norm).digest("hex").slice(0, 10);
+  return `custom_${hash}`;
+}
 
 // Mirrors the prohibited-language guard in frameworkDetector. The
 // inference_reason copy is shown to professors and must avoid evaluative
@@ -66,8 +80,17 @@ interface ScenarioContext {
   domain?: string;
 }
 
+interface LLMCustomFramework {
+  name: string;
+  dimension: FrameworkPrimaryDimension;
+  description: string;
+  coreConcepts: string[];
+  signalKeywords: string[];
+}
+
 interface LLMSuggestion {
-  canonicalId: string;
+  canonicalId?: string;
+  custom?: LLMCustomFramework;
   reason: string;
 }
 
@@ -106,8 +129,22 @@ async function askLLMForFrameworkPicks(args: {
     : `Tema del escenario: ${scenarioContext.topic || "(desconocido)"}\nDominio: ${scenarioContext.domain || "(desconocido)"}\nContexto del caso: ${(scenarioContext.caseContext || "").slice(0, 600)}`;
 
   const instructions = language === "en"
-    ? `You are helping a business professor expand the set of analytical frameworks tracked in a simulation. Pick at most ${limit} frameworks from the catalogue below that best complement the professor's intent. Do NOT propose any framework whose canonicalId is in the exclusion list. For each pick, provide a one-sentence neutral reason describing what reasoning shape it would surface — avoid words like "correct", "should", or "optimal".`
-    : `Estás ayudando a un profesor de negocios a ampliar el conjunto de marcos analíticos rastreados en una simulación. Elige como máximo ${limit} marcos del catálogo a continuación que mejor complementen la intención del profesor. NO propongas ningún marco cuyo canonicalId esté en la lista de exclusión. Para cada elección, proporciona una razón neutra de una oración que describa qué forma de razonamiento haría visible — evita palabras como "correcto", "debe" u "óptimo".`;
+    ? `You are helping a business professor expand the set of analytical frameworks tracked in a simulation. Pick at most ${limit} frameworks that best complement the professor's intent.
+
+PREFER frameworks from the catalogue below (use \`canonicalId\`).
+ONLY IF no catalogue entry truly fits the case, you may propose a CUSTOM framework with a real, recognized name (e.g. "Jobs-to-be-Done", "OODA Loop"). Do NOT invent novel framework names.
+
+Do NOT propose any framework whose canonicalId is in the exclusion list. For each pick, provide a one-sentence neutral reason describing what reasoning shape it would surface — avoid words like "correct", "should", or "optimal".
+
+Valid dimensions: ${VALID_DIMENSIONS.join(", ")}.`
+    : `Estás ayudando a un profesor de negocios a ampliar el conjunto de marcos analíticos rastreados en una simulación. Elige como máximo ${limit} marcos que mejor complementen la intención del profesor.
+
+PREFIERE marcos del catálogo a continuación (usa \`canonicalId\`).
+SOLO SI ningún marco del catálogo encaja realmente con el caso, puedes proponer un marco PERSONALIZADO con un nombre real y reconocido (ej. "Jobs-to-be-Done", "OODA Loop"). NO inventes nombres novedosos.
+
+NO propongas ningún marco cuyo canonicalId esté en la lista de exclusión. Para cada elección, proporciona una razón neutra de una oración que describa qué forma de razonamiento haría visible — evita palabras como "correcto", "debe" u "óptimo".
+
+Dimensiones válidas: ${VALID_DIMENSIONS.join(", ")}.`;
 
   const prompt = `${instructions}
 
@@ -122,8 +159,11 @@ ${catalogue}
 
 Excluded canonicalIds (do not pick): ${Array.from(excludedIds).join(", ") || "(none)"}
 
-Respond with JSON only:
-{"suggestions":[{"canonicalId":"...","reason":"..."}]}`;
+Respond with JSON only. Each suggestion must have EITHER a \`canonicalId\` from the catalogue OR a \`custom\` object — never both:
+{"suggestions":[
+  {"canonicalId":"...","reason":"..."},
+  {"custom":{"name":"...","dimension":"strategic","description":"...","coreConcepts":["..."],"signalKeywords":["..."]},"reason":"..."}
+]}`;
 
   let raw: string;
   try {
@@ -147,18 +187,75 @@ Respond with JSON only:
   if (!Array.isArray(list)) return [];
 
   const out: LLMSuggestion[] = [];
+  const seenIds = new Set<string>();
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
     const obj = item as Record<string, unknown>;
-    const canonicalId = typeof obj.canonicalId === "string" ? obj.canonicalId : "";
     const reason = typeof obj.reason === "string" ? obj.reason : "";
-    if (!canonicalId || excludedIds.has(canonicalId)) continue;
-    if (!FRAMEWORK_REGISTRY.some((e) => e.canonicalId === canonicalId)) continue;
-    if (out.some((s) => s.canonicalId === canonicalId)) continue;
-    out.push({ canonicalId, reason });
-    if (out.length >= limit) break;
+
+    // Catalogue pick.
+    if (typeof obj.canonicalId === "string" && obj.canonicalId) {
+      const canonicalId = obj.canonicalId;
+      if (excludedIds.has(canonicalId)) continue;
+      if (!FRAMEWORK_REGISTRY.some((e) => e.canonicalId === canonicalId)) continue;
+      if (seenIds.has(canonicalId)) continue;
+      seenIds.add(canonicalId);
+      out.push({ canonicalId, reason });
+      if (out.length >= limit) break;
+      continue;
+    }
+
+    // Custom-fallback pick.
+    if (obj.custom && typeof obj.custom === "object") {
+      const c = obj.custom as Record<string, unknown>;
+      const name = typeof c.name === "string" ? c.name.trim() : "";
+      const dimension = c.dimension as FrameworkPrimaryDimension;
+      const description = typeof c.description === "string" ? c.description : "";
+      const coreConcepts = Array.isArray(c.coreConcepts)
+        ? (c.coreConcepts.filter((x) => typeof x === "string") as string[])
+        : [];
+      const signalKeywords = Array.isArray(c.signalKeywords)
+        ? (c.signalKeywords.filter((x) => typeof x === "string") as string[])
+        : [];
+      if (!name || name.length < 3) continue;
+      if (!VALID_DIMENSIONS.includes(dimension)) continue;
+      if (!description) continue;
+      const cid = customCanonicalIdFromName(name);
+      if (excludedIds.has(cid)) continue;
+      if (seenIds.has(cid)) continue;
+      seenIds.add(cid);
+      out.push({
+        custom: { name, dimension, description, coreConcepts, signalKeywords },
+        reason,
+      });
+      if (out.length >= limit) break;
+    }
   }
   return out;
+}
+
+function toFrameworkFromCustom(
+  c: LLMCustomFramework,
+  language: "es" | "en",
+  reason: string,
+  provenance: "inferred_from_anchor" | "inferred_from_context",
+): CaseFramework {
+  const canonicalId = customCanonicalIdFromName(c.name);
+  return {
+    id: `fw_inf_${canonicalId}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    name: c.name,
+    domainKeywords: (c.signalKeywords || []).map((k) => k.toLowerCase()).slice(0, 8),
+    canonicalId,
+    aliases: [],
+    coreConcepts: c.coreConcepts.slice(0, 6),
+    conceptualDescription: sanitizeReason(c.description),
+    recognitionSignals: c.signalKeywords.slice(0, 6),
+    primaryDimension: c.dimension,
+    signalPattern: undefined,
+    provenance,
+    inference_reason: sanitizeReason(reason),
+    accepted_by_professor: false,
+  };
 }
 
 /**
@@ -214,16 +311,30 @@ export async function inferFrameworks(
   const result: CaseFramework[] = [];
   const seen = new Set<string>();
   for (const pick of picks) {
-    if (seen.has(pick.canonicalId)) continue;
-    const entry = FRAMEWORK_REGISTRY.find((e) => e.canonicalId === pick.canonicalId);
-    if (!entry) continue;
-    // Tier B server-side complementarity guard: never return a framework
-    // whose primaryDimension matches the anchor's. The LLM is instructed to
-    // do this in the prompt, but we cannot trust it — enforce here.
-    if (anchorEntry && entry.primaryDimension === anchorEntry.primaryDimension) continue;
-    seen.add(pick.canonicalId);
-    result.push(toFrameworkFromRegistry(entry, language, pick.reason, provenance));
-    if (result.length >= remaining) break;
+    // Catalogue branch.
+    if (pick.canonicalId) {
+      if (seen.has(pick.canonicalId)) continue;
+      const entry = FRAMEWORK_REGISTRY.find((e) => e.canonicalId === pick.canonicalId);
+      if (!entry) continue;
+      // Tier B server-side complementarity guard: never return a framework
+      // whose primaryDimension matches the anchor's. The LLM is instructed
+      // to do this in the prompt, but we cannot trust it — enforce here.
+      if (anchorEntry && entry.primaryDimension === anchorEntry.primaryDimension) continue;
+      seen.add(pick.canonicalId);
+      result.push(toFrameworkFromRegistry(entry, language, pick.reason, provenance));
+      if (result.length >= remaining) break;
+      continue;
+    }
+    // Custom-fallback branch (no registry entry fits).
+    if (pick.custom) {
+      const cid = customCanonicalIdFromName(pick.custom.name);
+      if (seen.has(cid)) continue;
+      // Same Tier B complementarity guard for custom dimensions.
+      if (anchorEntry && pick.custom.dimension === anchorEntry.primaryDimension) continue;
+      seen.add(cid);
+      result.push(toFrameworkFromCustom(pick.custom, language, pick.reason, provenance));
+      if (result.length >= remaining) break;
+    }
   }
   return result;
 }
