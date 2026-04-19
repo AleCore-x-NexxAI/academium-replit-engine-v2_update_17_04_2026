@@ -842,9 +842,7 @@ function ChatHistoryTab({ data, loading, isEn }: { data: { turns: ChatTurn[] } |
   return (
     <div>
       <div className="text-[12px] text-muted-foreground/70 leading-relaxed mb-4 p-2.5 bg-muted/30 rounded-lg border border-dashed border-border/50 italic">
-        {isEn
-          ? "The full conversation exactly as it happened — every decision prompt and every word the student wrote, in sequence."
-          : "La conversación completa tal como ocurrió — cada pregunta y cada palabra que el estudiante escribió, en secuencia."}
+        {t("scenarioDashboard.chatHistoryExplainer")}
       </div>
       {turns.map((turn) => (
         <div key={turn.number} className="mb-3 border border-dashed border-border rounded-xl overflow-hidden" data-testid={`turn-card-chat-${turn.number}`}>
@@ -886,9 +884,7 @@ function DebriefPrepTab({ data, loading, isEn }: { data: { turns: DebriefTurn[] 
   return (
     <div>
       <div className="text-[12px] text-muted-foreground/70 leading-relaxed mb-4 p-2.5 bg-muted/30 rounded-lg border border-dashed border-border/50 italic">
-        {isEn
-          ? "One card per turn. Shows what the student decided, KPI movements produced, and one specific question to ask in debrief."
-          : "Una tarjeta por turno. Muestra la decisión del estudiante, movimientos de KPI producidos, y una pregunta específica para el debrief."}
+        {t("scenarioDashboard.debriefPrepExplainer")}
       </div>
       {turns.map((turn) => (
         <div key={turn.number} className="mb-3 border border-dashed border-border rounded-xl overflow-hidden" data-testid={`turn-card-debrief-${turn.number}`}>

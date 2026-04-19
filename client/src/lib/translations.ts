@@ -198,6 +198,8 @@ const translations = {
     summaryGenerationDidNotComplete: { es: "La generación del resumen no se completó para esta sesión. Haz clic en Regenerar para intentarlo de nuevo.", en: "Summary generation did not complete for this session. Click Regenerate to try again." },
     kpiTrajectoryExplainer: { es: "La trayectoria de KPI muestra qué indicadores se movieron en cada turno. La aplicación de marcos muestra cómo aparecieron los marcos.", en: "KPI trajectory shows which indicators moved at each turn. Course framework application shows how frameworks appeared in each turn." },
     radarChartExplainer: { es: "El gráfico radar muestra la forma visual del perfil de señales. La tabla muestra las cinco señales en cada turno.", en: "Radar chart shows the visual shape of the signal profile. Table below shows all five signals across every turn." },
+    chatHistoryExplainer: { es: "La conversación completa tal como ocurrió — cada pregunta y cada palabra que el estudiante escribió, en secuencia.", en: "The full conversation exactly as it happened — every decision prompt and every word the student wrote, in sequence." },
+    debriefPrepExplainer: { es: "Una tarjeta por turno. Muestra la decisión del estudiante, movimientos de KPI producidos, y una pregunta específica para el debrief.", en: "One card per turn. Shows what the student decided, KPI movements produced, and one specific question to ask in debrief." },
     depthSurface: { es: "Superficial", en: "Surface" },
     depthEngaged: { es: "Comprometido", en: "Engaged" },
     depthIntegrated: { es: "Integrado", en: "Integrated" },
