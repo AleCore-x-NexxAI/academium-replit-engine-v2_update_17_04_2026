@@ -84,32 +84,60 @@ function getPorter(detections: FrameworkDetection[]): FrameworkDetection {
   return d;
 }
 
-test("(a) Porter-implicit: focus-strategy reasoning without naming Porter → implicit / medium+ / semantic", async () => {
-  requireOpenAIKey();
-
-  // Focus-strategy logic in plain language: narrowing scope to a specific
-  // segment, rejecting the broad market, accepting trade-off of breadth for
-  // fit. Carefully avoids every Porter keyword/alias/name so the keyword tier
-  // cannot fire — the semantic tier must do the work.
-  const studentInput =
-    "We can't beat the big chains on price across the whole market, so we should " +
+// Section 14.2 verbatim: "Porter must be detected implicit with confidence
+// medium or high on AT LEAST 2 OF 3 applicable turns." We submit three
+// distinct turns of focus-strategy reasoning that carefully avoid every Porter
+// keyword/alias/name so the keyword tier cannot fire — the semantic tier
+// must carry the verdict.
+const PORTER_IMPLICIT_TURNS = [
+  // Turn 1 — narrow-segment positioning vs. broad market.
+  "We can't beat the big chains on price across the whole market, so we should " +
     "pick one specific group of customers — independent boutique cafés in coastal " +
     "towns — and tailor our beans, roast profile, and delivery cadence entirely to " +
-    "what they need. Trying to serve everyone would stretch us thin and we'd end up " +
-    "average everywhere instead of indispensable somewhere.";
+    "what they need. Trying to serve everyone would stretch us thin and we'd end " +
+    "up average everywhere instead of indispensable somewhere.",
+  // Turn 2 — uniqueness/premium tradeoff vs. lowest-price commodity play.
+  "Going head-to-head with the warehouse roasters on price is a losing fight. " +
+    "Our shot is to charge more by making something the supermarket bag can't " +
+    "match — single-origin beans with a story, hand-packed within 48 hours of " +
+    "roasting, sold to customers who'll pay extra precisely because no one else " +
+    "offers it that way.",
+  // Turn 3 — concentrate on one buyer type with a tailored offer.
+  "Instead of chasing every café in the country, we should concentrate everything " +
+    "on serving Michelin-listed restaurants. Their needs are unusual — small " +
+    "frequent deliveries, custom roast curves, training their baristas — and if " +
+    "we build the whole operation around them we become the obvious choice for " +
+    "that buyer type, even if we're invisible to everyone else.",
+];
 
-  const detections = await detectFrameworks(studentInput, absentSignals, [porter], "en");
-  const d = getPorter(detections);
+test("(a) Porter-implicit: focus-strategy reasoning without naming Porter → implicit / medium+ / semantic on ≥2 of 3 turns (§14.2)", async () => {
+  requireOpenAIKey();
 
-  assert.equal(d.level, "implicit", `expected implicit, got ${d.level} (${d.reasoning})`);
-  assert.ok(
-    d.confidence === "medium" || d.confidence === "high",
-    `expected confidence medium|high, got ${d.confidence}`,
+  const verdicts: { idx: number; d: FrameworkDetection }[] = [];
+  for (let i = 0; i < PORTER_IMPLICIT_TURNS.length; i++) {
+    const detections = await detectFrameworks(
+      PORTER_IMPLICIT_TURNS[i],
+      absentSignals,
+      [porter],
+      "en",
+    );
+    verdicts.push({ idx: i, d: getPorter(detections) });
+  }
+
+  const passing = verdicts.filter(
+    ({ d }) =>
+      d.level === "implicit" &&
+      (d.confidence === "medium" || d.confidence === "high") &&
+      d.detection_method === "semantic",
   );
-  assert.equal(
-    d.detection_method,
-    "semantic",
-    `expected detection_method=semantic, got ${d.detection_method}`,
+
+  const summary = verdicts
+    .map(({ idx, d }) => `T${idx + 1}: ${d.level}/${d.confidence}/${d.detection_method}`)
+    .join("  |  ");
+
+  assert.ok(
+    passing.length >= 2,
+    `Section 14.2 requires implicit+medium/high+semantic on ≥2 of 3 turns. Got ${passing.length}/3.\n  ${summary}`,
   );
 });
 
