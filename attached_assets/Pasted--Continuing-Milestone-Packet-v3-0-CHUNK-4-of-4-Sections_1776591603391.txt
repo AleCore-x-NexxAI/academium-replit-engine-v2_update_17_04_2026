@@ -1,0 +1,483 @@
+[Continuing Milestone Packet v3.0 — CHUNK 4 of 4 (Sections 14-15 + Appendices)]
+
+Section 15 — Instructions for Replit
+15.1 Read order
+Read Section 1 and confirm you can describe the milestone.
+Read Section 2 and confirm you can describe the state of the repo after T-002.
+Read Sections 3 through 11 and describe the nine priorities.
+Read Section 12 — the Cohesion Architecture. This is not optional.
+Read Section 13 and confirm you understand the six phases and the gates between them.
+Read Appendix A and propose a schema migration plan before Phase 2.
+15.2 Must not do
+Do not rename existing functions, types, or endpoints.
+Do not modify PASS / NUDGE / BLOCK classification.
+Do not remove the five canonical KPIs.
+Do not reorder the seven-step pipeline.
+Do not skip the professor review checkpoint.
+Do not implement grading. POC remains non-graded.
+Do not add dashboard panels beyond Sections 6, 7, 11.5.
+Do not cache dashboard data in ways that could diverge from session state beyond the 60-second TTL.
+Do not demote framework detections in the consistency check. Only promote.
+15.3 When to stop and ask
+A line number in this packet has shifted after another change.
+Two instructions in this packet appear to conflict.
+A fix requires deleting code that serves a purpose not covered by this packet.
+A schema change would break existing session state. Propose a migration path.
+The framework registry (Section 5.2) needs to be seeded with a framework not in the initial list.
+15.4 Required artifacts on completion
+A pull request per phase. Commits organized by subsection.
+Updated shared/schema.ts with every new field. One-line comments per field pointing to packet section.
+New files: server/agents/frameworkRegistry.ts, server/agents/frameworkInference.ts, server/agents/academicDimensions.ts (if helper logic warrants). Updated canonicalCaseGenerator.ts, frameworkDetector.ts, narrator.ts, signalExtractor.ts, director.ts.
+Compatibility manifest file in repo, validated on CI.
+Unit tests: cache invalidation, mergeReflectionAnalytics, narrator fidelity, framework inference cap, framework canonicalization, semantic detection regression on T-002 path, consistency check promotion, dimension coverage quality gate, per-dimension prompt constraint enforcement.
+End-to-end test script covering Section 14.10.
+CHANGELOG entry per phase pointing to this packet.
+15.5 First five tasks — in order
+Read Engine Packet v2.0 consolidated reference end to end.
+Read this milestone packet end to end. Confirm you can describe the nine priorities, the six phases, and the Cohesion Architecture.
+Propose a schema migration plan covering: pedagogical_intent column, CaseFramework extensions, FrameworkDetection extensions, DashboardSummary.framework_summary extensions, DecisionPoint dimension fields, signalExtractor output extensions.
+Propose the compatibility manifest structure and the first draft of its entries for existing dashboard surfaces. Do not begin Phase 1 until the migration plan and manifest draft are approved.
+Begin Phase 1. Report gate completion with the acceptance checklist items ticked.
+Appendix A — File-and-Line Change Index
+Pull-request checklist. Every change in this packet appears below.
+File
+Line(s)
+Change
+Section
+server/routes.ts
+3321, 3513
+Lower cache TTL to 60s; invalidateDashboardCache helper.
+3.1
+server/routes.ts
+747, 769
+Invalidate cache on status transition to completed.
+3.1
+server/routes.ts
+4017+
+Add POST /api/sessions/:id/regenerate-summary.
+3.2
+server/routes.ts
+4137
+Remove non-MCQ filter from reasoning-signals.
+3.5
+server/routes.ts
+3741, 3848, all gen-text endpoints
+Pass scenario.language explicitly, add language assertion.
+3.3
+server/agents/director.ts
+248–260
+Surface reflection-fallback errors. Deterministic fallback.
+3.2
+server/agents/director.ts
+1376
+Remove non-MCQ filter from signal_averages.
+3.5
+server/agents/director.ts
+1418, 1423
+Add superlative bans to session_headline prompt.
+3.4
+server/agents/narrator.ts
+51–57
+studentWords-aware getRDSWordRange.
+3.4
+server/agents/narrator.ts
+125+
+Post-gen fidelity + 6-word verbatim check.
+3.4
+server/agents/canonicalCaseGenerator.ts
+100–220
+Split buildCanonicalPrompt into Es and En.
+3.3
+server/agents/canonicalCaseGenerator.ts
+285–320
+Remove langDirective append.
+3.3
+server/agents/canonicalCaseGenerator.ts
+post-gen
+Language-consistency assertion.
+3.3
+client/src/pages/ScenarioDashboard.tsx
+725
+Split fallback: in-progress vs summary-failed-with-retry.
+3.2
+client/src/lib/translations.ts + all components
+audit
+Route hardcoded strings through translations.
+3.3
+shared/schema.ts
+331–347
+Extend CaseFramework with canonicalId, aliases, coreConcepts, conceptualDescription, recognitionSignals.
+4.5
+shared/schema.ts
+342–347
+Extend FrameworkDetection with confidence, detection_method, reasoning.
+4.6
+shared/schema.ts
+349–363
+Extend framework_summary with counts, canonicalId, detection_method_distribution.
+6.1
+shared/schema.ts
+signalExtractor output type
+Extend with confidence and marginal evidence.
+6.5
+server/agents/frameworkRegistry.ts
+NEW FILE
+Canonical registry with 12 seed frameworks, bilingual.
+5.1, 5.2
+server/agents/frameworkDetector.ts
+REWRITE
+Three-tier detection: explicit keyword, semantic LLM, signal-pattern fallback.
+4.3, 4.4
+server/agents/frameworkDetector.ts
+6–12
+Filter to accepted_by_professor.
+7.5
+server/routes.ts
+NEW endpoint
+POST /api/scenarios/resolve-framework-name.
+5.3
+server/routes.ts
+suggest-framework-keywords
+Extend response with coreConcepts, conceptualDescription, recognitionSignals.
+4.7
+server/routes.ts
+boot-time migration
+Legacy dedup by canonicalId + populate semantic fields.
+5.4.3, Phase 2
+server/agents/director.ts
+after parallel agents
+Add checkConsistency call. Log disagreement events.
+12.3
+server/agents/director.ts
+1391
+Compute explicit_turns, implicit_turns, not_evidenced_turns, detection_method_distribution.
+6.1
+client/src/components/FrameworkEditor.tsx
+update
+Registry resolver call at entry, dedup by canonicalId, expose semantic fields.
+5.3, 5.4, 4.7
+server/routes.ts
+3617, 4169
+Consume new framework_summary shape.
+6.1
+client/src/pages/ScenarioDashboard.tsx
+447
+Render distribution and detection_method_distribution.
+6.1
+client/src/pages/ScenarioDashboard.tsx
+KpiFrameworksTab
+Render dashboard_reasoning_link.
+6.3
+server/routes.ts
+24
+Extend mergeReflectionAnalytics.
+6.4
+REPO ROOT
+compatibility-manifest.json
+First draft of compatibility manifest.
+12.6
+shared/schema.ts
+NEW types
+PedagogicalIntent, AcademicDimension, DIMENSION_TO_SIGNAL, DIMENSION_TO_COMPETENCY.
+8.1
+shared/schema.ts
+scenarios table
+Add pedagogical_intent JSON column.
+8.2
+server/routes.ts
+scenarios endpoints
+GET and PATCH for pedagogical intent. Lock after sessions.
+8.2
+client/src/pages/Studio.tsx or wizard
+new step
+Teaching Intent page before case generation.
+8.3
+client/src/pages/ScenarioEdit.tsx
+top panel
+Teaching Intent panel with lock behavior.
+8.5
+client/src/pages/ScenarioDashboard.tsx
+case header
+Echo teachingGoal and targetFrameworks.
+8.5
+shared/schema.ts
+CaseFramework
+Add provenance, inference_reason, accepted_by_professor, accepted_at.
+7 (from v2.0)
+server/agents/frameworkInference.ts
+NEW FILE
+Implement inferFrameworks for Tier B and Tier C.
+7.3
+server/routes.ts
+scenario creation
+Wire Tier A/B/C inference. Pass pedagogicalIntent.
+7.3
+server/routes.ts
+3566
+appliedCourseTheory uses accepted_by_professor only.
+7.5
+client/src/components/FrameworkEditor.tsx
+update
+Provenance pill, inference_reason tooltip, opt-in, 3-inferred cap, lock banner.
+7.4
+shared/schema.ts
+DecisionPoint
+Add primaryDimension, secondaryDimension, dimensionRationale, targetFrameworkIds.
+9.3
+server/agents/canonicalCaseGenerator.ts
+signature + prompt
+Accept pedagogicalIntent. Intent-driven prompt blocks. Populate framework semantic fields.
+9.1, 9.2, 4.7
+server/agents/canonicalCaseGenerator.ts
+post-gen gates
+Dimension, framework coverage, dedup by canonicalId, language, field completeness.
+9.4
+server/agents/canonicalCaseGenerator.ts
+per-decision prompt
+Per-dimension constraints (Section 10.3).
+10.3
+server/agents/academicDimensions.ts
+NEW (optional)
+Auto-assignment rules.
+10.2
+client/src/pages/Studio.tsx
+review page
+Extended professor review checkpoint with regenerate-single-decision.
+9.5
+server/routes.ts
+scenario publish
+Block publish until review_completed flag is set per decision.
+9.5
+server/agents/narrator.ts
+125+
+frameworkResponseDirective block with 3 variants.
+11.1
+server/agents/signalExtractor.ts
+main
+Dimension-aware promotion from WEAK to PRESENT.
+11.2
+server/agents/director.ts
+1288
+generateDebriefQuestion accepts primaryDimension, targetFrameworkIds.
+11.3
+server/agents/director.ts
+1363
+generateDashboardSummary accepts pedagogicalIntent.
+11.4
+server/routes.ts
+3593
+Separate target frameworks from inferred in module-health response.
+11.5
+client/src/pages/ScenarioDashboard.tsx
+Module Health
+Target top section, inferred secondary. Show detection_method_distribution.
+11.5
+Appendix B — Full Testing Log Traceability
+Every finding from T-001, T-001A, T-002, and T-002A is mapped to a fix in this packet.
+T-001 (2026-04-17)
+Finding
+Root Cause
+Fix
+Case reads as general strategy, not framework-linked.
+No pedagogical intent, no theory-anchored generation.
+Sections 8, 9, 10
+Narratives more polished than student wording.
+narrator.ts:51–57 fixed word range.
+3.4
+Spanish bullets in English UI.
+canonicalCaseGenerator.ts Spanish prompt + English suffix.
+3.3
+Drift to generic business judgment in later decisions.
+No decision-design rules.
+Section 10
+Engine favors executive reasoning over framework application.
+No reasoning environment calibration.
+Section 11
+T-001A (2026-04-17)
+Finding
+Root Cause
+Fix
+Dashboard 0 completed after student finished.
+routes.ts:3321 cache never invalidated on completion.
+3.1
+"Summary available when complete" shown after completion.
+ScenarioDashboard.tsx:725 + director.ts silent fallback.
+3.2
+Reasoning depth analytics empty.
+Same cache staleness.
+3.1
+Reasoning arc and key pattern blank.
+routes.ts:3944/3968 gated on cache-stale data.
+3.1, 3.2
+Module health empty state weak.
+No frameworks configured. Symptom of missing inference.
+Section 7
+Applied course theory blank.
+routes.ts:3562–3577 only computes when frameworks > 0.
+Section 7
+T-002 (2026-04-18)
+Finding
+Root Cause
+Fix
+Duplicate SWOT and SWOT Analysis entries.
+No canonical framework identity.
+Section 5
+Consequence summary verbose relative to short student action.
+narrator.ts:51–57 fixed word range (repeat of T-001).
+3.4
+SWOT under-expressed compared to Porter in generated case.
+No per-decision dimension enforcement, no framework coverage gate.
+Sections 9.4, 10
+Results page marks Porter as Not Evidenced despite Porter-aligned logic.
+frameworkDetector.ts keyword-anchored implicit path.
+Section 4 (THE CENTRAL FIX)
+Framework detection looks weak or incorrect on results.
+Same root cause — keyword dependence, no semantic check.
+Section 4
+Reflection prompt fairly generic.
+Generator's reflection prompt is not intent-aware.
+Section 9
+T-002A (2026-04-18)
+Finding
+Root Cause
+Fix
+Completion-state sync still broken at class-dashboard level.
+routes.ts:3321 cache not invalidated on completion (unchanged since T-001A).
+3.1
+Framework detection unreliable — Porter absent on turns where clearly applied.
+frameworkDetector.ts:37–65 implicit path requires keyword co-occurrence.
+Section 4
+Framework analytics disconnected from decision-chain logic engine preserved.
+Signal extractor and framework detector are loosely coupled, no reconciliation.
+Section 12.3 consistency check
+Duplicate SWOT entries create framework noise.
+No canonical framework identity.
+Section 5
+Spanish labels in English analytics modal.
+Pre-seeded strings hardcoded in components, analytics endpoints don't propagate language consistently.
+3.3
+Internal contradiction: dashboard recognizes strategic reasoning but framework layer says no Porter evidence.
+Same as framework detection issue — two subsystems running independently.
+Sections 4, 12
+Detector overly keyword-dependent, not wired to infer from paraphrased reasoning.
+Confirmed by code audit of frameworkDetector.ts.
+Section 4 (semantic detection)
+Appendix C — Pedagogical Intent Schema Reference
+Full type reference. Add at top of shared/schema.ts types.
+/**
+* PedagogicalIntent — what the professor wants students to learn.
+* Distinct from case content. Intent is the INPUT driving case
+* generation, framework inference, and runtime calibration.
+* Stored on scenarios.pedagogical_intent. Editable only when
+* scenario has zero sessions.
+*/
+export interface PedagogicalIntent {
+teachingGoal: string;
+targetFrameworks: Array<{
+canonicalId: string | null;
+name: string;
+}>;
+targetCompetencies: Array<"C1"|"C2"|"C3"|"C4"|"C5">;
+decisionDimensions?: Array<{
+decisionNumber: number;
+primaryDimension: AcademicDimension;
+secondaryDimension?: AcademicDimension;
+}>;
+courseContext?: string;
+reasoningConstraint?: string;
+}
+export type AcademicDimension =
+| "analytical" | "strategic" | "stakeholder"
+| "ethical" | "tradeoff";
+export const DIMENSION_TO_SIGNAL: Record<AcademicDimension, string> = {
+analytical: "justification",
+strategic: "intent",
+stakeholder: "stakeholderAwareness",
+ethical: "ethicalAwareness",
+tradeoff: "tradeoffAwareness",
+};
+export const DIMENSION_TO_COMPETENCY: Record<AcademicDimension, "C1"|"C2"|"C3"|"C4"|"C5"> = {
+analytical: "C1",
+strategic: "C2",
+stakeholder: "C3",
+ethical: "C4",
+tradeoff: "C5",
+};
+Appendix D — Semantic Framework Detection Schema and Algorithm
+D.1 Extended CaseFramework
+export interface CaseFramework {
+id: string;
+canonicalId: string;
+name: string;
+aliases?: string[];
+domainKeywords: string[];
+signalPattern?: {
+requiredSignals: Array<"intent"|"justification"|"tradeoffAwareness"|
+"stakeholderAwareness"|"ethicalAwareness">;
+minQuality: "WEAK" | "PRESENT" | "STRONG";
+additionalKeywords?: string[];
+};
+coreConcepts: string[];
+conceptualDescription: string;
+recognitionSignals: string[];
+provenance: "explicit" | "inferred_from_anchor" | "inferred_from_context";
+inference_reason?: string;
+accepted_by_professor: boolean;
+accepted_at?: string;
+}
+D.2 Extended FrameworkDetection
+export interface FrameworkDetection {
+framework_id: string;
+canonicalId: string;
+framework_name: string;
+level: "explicit" | "implicit" | "not_evidenced";
+evidence: string;
+confidence: "high" | "medium" | "low";
+detection_method: "keyword" | "semantic" | "signal_pattern" | "none" | "consistency_promoted";
+reasoning: string;
+}
+D.3 Semantic check output
+interface SemanticCheckResult {
+applied: boolean;
+confidence: "high" | "medium" | "low";
+quotedReasoning: string;    // must be substring of student text
+explanation: string;         // one sentence, no prohibited language
+}
+D.4 Registry entry shape
+interface RegistryFramework {
+canonicalId: string;
+canonicalName_en: string;
+canonicalName_es: string;
+aliases: string[];
+coreConcepts: string[];
+conceptualDescription_en: string;
+conceptualDescription_es: string;
+recognitionSignals_en: string[];
+recognitionSignals_es: string[];
+suggestedDomainKeywords_en: string[];
+suggestedDomainKeywords_es: string[];
+suggestedSignalPattern?: CaseFramework["signalPattern"];
+primaryDimension: AcademicDimension;
+}
+Appendix E — Explicitly Out of Scope
+Item
+Disposition
+Institutional / admin dashboard
+Separate packet. Program directors, accreditation, AACSB cohort-level competency evidence.
+Grading layer
+Separate packet. Sits atop competency evidence when professor opts in. Core engine remains non-graded.
+Expanded framework registry beyond 12 seeds
+Initial 12 frameworks shipped with this packet. Registry expands in later releases as needed.
+Multi-case management
+POC single-case per scenario. Cross-case analytics is future work.
+Student-facing post-simulation learning journey
+Current results page remains. Deeper student analytics future.
+Non-English, non-Spanish languages
+es and en only. Other languages require separate prompt engineering.
+Automated framework teaching content
+Academium surfaces application, does not teach the framework itself.
+Real-time collaborative case editing
+Not in scope. Single-professor authoring.
+End of Packet
+Academium — Milestone Packet v3.0
+The first full product.

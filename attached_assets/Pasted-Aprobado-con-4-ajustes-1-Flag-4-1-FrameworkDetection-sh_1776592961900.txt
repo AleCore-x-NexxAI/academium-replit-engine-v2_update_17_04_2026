@@ -1,0 +1,13 @@
+Aprobado con 4 ajustes:
+1. Flag 4.1 — FrameworkDetection shape. Acepto D.2 como autoritativo (8 campos, 5 valores de detection_method incluyendo "consistency_promoted"). M3 usa D.2.
+2. Flag 4.1 — 13 frameworks seed. Correcto, seed con 13 canonicalIds. M8 queda así.
+3. Flag 4.1 — Appendix A línea 5. Correcto, v2.0 no fue implementado. M2 bundles semantic + provenance como una sola migración.
+4. Flag 4.3 — Consistency check en scenarios legacy (IMPORTANTE). Ajusta la regla §12.3 para Phase 2: si pedagogicalIntent.targetFrameworks no existe (scenarios pre-Phase-3), el consistency check puede promover cualquier framework cuyo provenance === "explicit" como candidato elegible. Esto garantiza que el fix de T-002A Porter aterriza al final de P2, no depende de P3. En Phase 6 cuando el intent ya está poblado, la regla vuelve a su forma estricta (solo promover los targetFrameworks). Documenta esto explícitamente en las tasks P2 y P6.
+Ajustes menores:
+
+Flag 4.2 reasoning-arc / key-pattern (routes.ts:3944/3968 en packet vs reality): recheck en P1 durante manifest validation. Si los endpoints no están separados hoy, manten el endpoint único y documenta en el manifest como-is. No splits solo para matchear el packet.
+M5 backfill con single targetCompetency forzando consecutive same-dimension: la excepción está explícitamente permitida en §10.2. Acepta y documenta.
+
+Una última adición al manifest: añade una décima-primera entrada para el endpoint de regenerate-summary que vas a crear en P1 §3.2 (POST /api/sessions/:sessionId/regenerate-summary). Su writtenBy es server/routes.ts (nuevo), session_state field es currentState.dashboard_summary, y su gate lo cubre el acceptance 14.1 punto 2.
+Procede con bulkCreateProjectTasks para Phase 1: madre + 3 sub-tasks paralelas como definiste. Las madres P2–P6 pueden quedar encoladas con sus dependencias pero sin sub-tasks expandidas todavía — mejor desglosarlas cuando se acerque su turno, para que los line-refs estén frescos.
+Cuando termines de crear las tasks, muéstrame el árbol con IDs y dependencias y pasamos a build mode.

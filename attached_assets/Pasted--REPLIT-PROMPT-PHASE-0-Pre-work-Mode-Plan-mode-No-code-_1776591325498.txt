@@ -1,0 +1,47 @@
+# REPLIT PROMPT — PHASE 0 (Pre-work)
+
+**Mode:** Plan mode. No code changes yet. Single agent.
+
+---
+
+## Context
+
+You are working on Academium (repo: `academium-replit-engine-v2_update_17_04_2026`). I am about to send you the Milestone Packet v3.0, a 1,357-line specification document that defines a 6-phase build. Your job in this session is to read it, confirm you understand it, and propose a schema migration plan before any code is written. This is exactly what Section 15.5 of the packet requires as Replit's first five tasks.
+
+## Do not yet
+
+- Do not modify any files.
+- Do not begin Phase 1.
+- Do not propose code changes.
+
+## Do this, in order
+
+1. Read the packet I will paste after this message end-to-end.
+2. Confirm you can describe in your own words: (a) the 9 priorities, (b) the 6 phases and what each contains, (c) the Cohesion Architecture from Section 12, (d) the central T-002A finding and why Section 4 fixes it.
+3. Propose a schema migration plan covering every schema change the packet specifies:
+   - `pedagogical_intent` column on `scenarios`
+   - `CaseFramework` extensions (`canonicalId`, `aliases`, `coreConcepts`, `conceptualDescription`, `recognitionSignals`, and v2.0 provenance fields if not already present)
+   - `FrameworkDetection` extensions (`confidence`, `detection_method`, `reasoning`)
+   - `DashboardSummary.framework_summary` extensions (counts, canonicalId, detection_method_distribution)
+   - `DecisionPoint` dimension fields (`primaryDimension`, `secondaryDimension`, `dimensionRationale`, `targetFrameworkIds`)
+   - `signalExtractor` output extensions (`confidence`, marginal evidence)
+   - `PedagogicalIntent`, `AcademicDimension`, `DIMENSION_TO_SIGNAL`, `DIMENSION_TO_COMPETENCY` from Appendix C
+   
+   For each: say whether it is a new table, a new column, a new interface, or an extension to an existing interface. Flag any place where an existing session's state would need a data migration (not just a schema addition).
+
+4. Propose the compatibility manifest structure per Section 12.6. Give the JSON shape and the first 8–10 entries for the dashboard elements that already exist today (module-health, depth-trajectory, class-patterns, class-stats, students-summary, session-summary, chat-history, debrief-prep, reasoning-signals, kpi-frameworks). Do not wire up CI enforcement — only create the file and a `npm run validate-manifest` script that I can run manually. CI is a later decision.
+
+5. Stop. Wait for my approval on the migration plan and the manifest draft before beginning Phase 1.
+
+## Quality bar for your response
+
+- Back-and-forth brief. No code yet.
+- If any line reference in the packet has shifted since the packet was written, flag it — do not silently adjust.
+- If any two instructions appear to conflict, flag it.
+- If the initial framework registry (Section 5.2) needs seeding with a framework I haven't mentioned, flag it.
+
+Now I will paste the packet.
+
+---
+
+[PASTE THE FULL PACKET HERE — all 15 sections + appendices A–E]

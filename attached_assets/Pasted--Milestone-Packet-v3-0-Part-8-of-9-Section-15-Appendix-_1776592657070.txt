@@ -1,0 +1,236 @@
+[Milestone Packet v3.0 — Part 8 of 9 — Section 15 + Appendix A]
+
+Appendix A — File-and-Line Change Index
+Pull-request checklist. Every change in this packet appears below.
+File
+Line(s)
+Change
+Section
+server/routes.ts
+3321, 3513
+Lower cache TTL to 60s; invalidateDashboardCache helper.
+3.1
+server/routes.ts
+747, 769
+Invalidate cache on status transition to completed.
+3.1
+server/routes.ts
+4017+
+Add POST /api/sessions/:id/regenerate-summary.
+3.2
+server/routes.ts
+4137
+Remove non-MCQ filter from reasoning-signals.
+3.5
+server/routes.ts
+3741, 3848, all gen-text endpoints
+Pass scenario.language explicitly, add language assertion.
+3.3
+server/agents/director.ts
+248–260
+Surface reflection-fallback errors. Deterministic fallback.
+3.2
+server/agents/director.ts
+1376
+Remove non-MCQ filter from signal_averages.
+3.5
+server/agents/director.ts
+1418, 1423
+Add superlative bans to session_headline prompt.
+3.4
+server/agents/narrator.ts
+51–57
+studentWords-aware getRDSWordRange.
+3.4
+server/agents/narrator.ts
+125+
+Post-gen fidelity + 6-word verbatim check.
+3.4
+server/agents/canonicalCaseGenerator.ts
+100–220
+Split buildCanonicalPrompt into Es and En.
+3.3
+server/agents/canonicalCaseGenerator.ts
+285–320
+Remove langDirective append.
+3.3
+server/agents/canonicalCaseGenerator.ts
+post-gen
+Language-consistency assertion.
+3.3
+client/src/pages/ScenarioDashboard.tsx
+725
+Split fallback: in-progress vs summary-failed-with-retry.
+3.2
+client/src/lib/translations.ts + all components
+audit
+Route hardcoded strings through translations.
+3.3
+shared/schema.ts
+331–347
+Extend CaseFramework with canonicalId, aliases, coreConcepts, conceptualDescription, recognitionSignals.
+4.5
+shared/schema.ts
+342–347
+Extend FrameworkDetection with confidence, detection_method, reasoning.
+4.6
+shared/schema.ts
+349–363
+Extend framework_summary with counts, canonicalId, detection_method_distribution.
+6.1
+shared/schema.ts
+signalExtractor output type
+Extend with confidence and marginal evidence.
+6.5
+server/agents/frameworkRegistry.ts
+NEW FILE
+Canonical registry with 12 seed frameworks, bilingual.
+5.1, 5.2
+server/agents/frameworkDetector.ts
+REWRITE
+Three-tier detection: explicit keyword, semantic LLM, signal-pattern fallback.
+4.3, 4.4
+server/agents/frameworkDetector.ts
+6–12
+Filter to accepted_by_professor.
+7.5
+server/routes.ts
+NEW endpoint
+POST /api/scenarios/resolve-framework-name.
+5.3
+server/routes.ts
+suggest-framework-keywords
+Extend response with coreConcepts, conceptualDescription, recognitionSignals.
+4.7
+server/routes.ts
+boot-time migration
+Legacy dedup by canonicalId + populate semantic fields.
+5.4.3, Phase 2
+server/agents/director.ts
+after parallel agents
+Add checkConsistency call. Log disagreement events.
+12.3
+server/agents/director.ts
+1391
+Compute explicit_turns, implicit_turns, not_evidenced_turns, detection_method_distribution.
+6.1
+client/src/components/FrameworkEditor.tsx
+update
+Registry resolver call at entry, dedup by canonicalId, expose semantic fields.
+5.3, 5.4, 4.7
+server/routes.ts
+3617, 4169
+Consume new framework_summary shape.
+6.1
+client/src/pages/ScenarioDashboard.tsx
+447
+Render distribution and detection_method_distribution.
+6.1
+client/src/pages/ScenarioDashboard.tsx
+KpiFrameworksTab
+Render dashboard_reasoning_link.
+6.3
+server/routes.ts
+24
+Extend mergeReflectionAnalytics.
+6.4
+REPO ROOT
+compatibility-manifest.json
+First draft of compatibility manifest.
+12.6
+shared/schema.ts
+NEW types
+PedagogicalIntent, AcademicDimension, DIMENSION_TO_SIGNAL, DIMENSION_TO_COMPETENCY.
+8.1
+shared/schema.ts
+scenarios table
+Add pedagogical_intent JSON column.
+8.2
+server/routes.ts
+scenarios endpoints
+GET and PATCH for pedagogical intent. Lock after sessions.
+8.2
+client/src/pages/Studio.tsx or wizard
+new step
+Teaching Intent page before case generation.
+8.3
+client/src/pages/ScenarioEdit.tsx
+top panel
+Teaching Intent panel with lock behavior.
+8.5
+client/src/pages/ScenarioDashboard.tsx
+case header
+Echo teachingGoal and targetFrameworks.
+8.5
+shared/schema.ts
+CaseFramework
+Add provenance, inference_reason, accepted_by_professor, accepted_at.
+7 (from v2.0)
+server/agents/frameworkInference.ts
+NEW FILE
+Implement inferFrameworks for Tier B and Tier C.
+7.3
+server/routes.ts
+scenario creation
+Wire Tier A/B/C inference. Pass pedagogicalIntent.
+7.3
+server/routes.ts
+3566
+appliedCourseTheory uses accepted_by_professor only.
+7.5
+client/src/components/FrameworkEditor.tsx
+update
+Provenance pill, inference_reason tooltip, opt-in, 3-inferred cap, lock banner.
+7.4
+shared/schema.ts
+DecisionPoint
+Add primaryDimension, secondaryDimension, dimensionRationale, targetFrameworkIds.
+9.3
+server/agents/canonicalCaseGenerator.ts
+signature + prompt
+Accept pedagogicalIntent. Intent-driven prompt blocks. Populate framework semantic fields.
+9.1, 9.2, 4.7
+server/agents/canonicalCaseGenerator.ts
+post-gen gates
+Dimension, framework coverage, dedup by canonicalId, language, field completeness.
+9.4
+server/agents/canonicalCaseGenerator.ts
+per-decision prompt
+Per-dimension constraints (Section 10.3).
+10.3
+server/agents/academicDimensions.ts
+NEW (optional)
+Auto-assignment rules.
+10.2
+client/src/pages/Studio.tsx
+review page
+Extended professor review checkpoint with regenerate-single-decision.
+9.5
+server/routes.ts
+scenario publish
+Block publish until review_completed flag is set per decision.
+9.5
+server/agents/narrator.ts
+125+
+frameworkResponseDirective block with 3 variants.
+11.1
+server/agents/signalExtractor.ts
+main
+Dimension-aware promotion from WEAK to PRESENT.
+11.2
+server/agents/director.ts
+1288
+generateDebriefQuestion accepts primaryDimension, targetFrameworkIds.
+11.3
+server/agents/director.ts
+1363
+generateDashboardSummary accepts pedagogicalIntent.
+11.4
+server/routes.ts
+3593
+Separate target frameworks from inferred in module-health response.
+11.5
+client/src/pages/ScenarioDashboard.tsx
+Module Health
+Target top section, inferred secondary. Show detection_method_distribution.
+11.5

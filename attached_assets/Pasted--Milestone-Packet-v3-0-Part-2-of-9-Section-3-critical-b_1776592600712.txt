@@ -1,0 +1,51 @@
+[Milestone Packet v3.0 — Part 2 of 9 — Section 3 (critical bugs)]
+
+Section 3 — Priority 1: Critical Unfixed Bugs
+Every item here persisted from T-001A through T-002A. All three must ship before the next professor demo.
+3.1 Completion-state sync
+Testing log references
+T-001A issues 1, 3, 4. T-002A issue 1. Both tests show dashboard reports 0 Completed / 1 In Progress after student has completed.
+Root cause
+routes.ts:3321 dashboardCache has 5-minute TTL. Only invalidated in backfill at line 3513. Session completion at line 747 sets status: "completed" but does not invalidate cache.
+Fix
+Create invalidateDashboardCache(scenarioId: string) helper in routes.ts mirroring the logic at line 3513.
+Call it after every storage.updateSimulationSession where sessionUpdate.status === "completed" (specifically after line 769).
+Call it on scenario reset, publish, and unpublish.
+Reduce cache TTL from 5 minutes to 60 seconds.
+Add a cache-invalidation-on-completion unit test that fails before the fix and passes after.
+3.2 Session summary stays as placeholder after completion
+Testing log references
+T-001A issue 2. Largely resolved by T-002A (summary now renders), but the class-dashboard cards (Completed / In Progress / Biggest drop / Applied course theory) still show stale zeros. Same cache root cause.
+Fix
+Apply 3.1.
+In director.ts processReflection (line 248 onward), remove the silent try/catch on dashboard summary regeneration. Promote errors to visible logs. If regeneration fails, fall back to a deterministic non-placeholder string derived from evidence logs. Never return null.
+In ScenarioDashboard.tsx:725, split the fallback into two distinct states. First: "Session still in progress" (when status is active). Second: "Summary generation failed — retry available" (when status is completed but summary is null). In the second case render a retry button.
+Add POST /api/sessions/:id/regenerate-summary. Invokes generateDashboardSummary using stored evidence logs, writes the result back to session state, and invalidates the dashboard cache.
+3.3 Language consistency in case generation AND analytics
+Testing log references
+T-001: Spanish indicator bullet text in English UI. T-002A: "Some reasoning-signal rows still contain Spanish labels/messages inside an otherwise English analytics experience." The issue has now migrated beyond case generation into analytics rendering.
+Root cause in case generation
+canonicalCaseGenerator.ts builds the system prompt entirely in Spanish, including JSON example values, then appends an English override at line 300–302. The model regresses to Spanish examples.
+Root cause in analytics
+The analytics endpoints read scenario.language at routes.ts:3741 and 3848 to select Spanish vs English for generated descriptions. But the stored descriptions were generated at session-time using the language active then. When a professor changes scenario language after sessions exist, or when the fallback path in director.ts runs in a different language context, stored strings can mix.
+Fix — case generation
+Split buildCanonicalPrompt into buildCanonicalPromptEs and buildCanonicalPromptEn. Each variant is monolingual from start to finish.
+generateCanonicalCase selects the variant by language parameter. Remove the langDirective append pattern.
+Add post-generation language-consistency assertion. Walk every indicator.description, decisionPoint.prompt, decisionPoint.focusCue, decisionPoint.thinkingScaffold element, frameworks[].name, frameworks[].domainKeywords, frameworks[].conceptualDescription (new, see Section 4.5). Use SPANISH_DIACRITICS / SPANISH_SUFFIX / ENGLISH_SUFFIX heuristics from frameworkKeywordSanitizer.ts. If wrong-language token ratio exceeds 10% on any field, regenerate only that field.
+Fix — analytics
+Every analytics endpoint that generates text (module-health descriptions, class-patterns descriptions, depth-trajectory annotations, session headlines) must read session.scenario.language as the authoritative source and pass it explicitly to the generation call.
+Do not infer from the UI toggle. Do not fall back to a default.
+Add a second language-consistency assertion on the endpoint response: scan generated descriptions and regenerate if wrong-language ratio exceeds 10%.
+Pre-seeded strings (status labels, column headers, badges) must come from i18n translation tables, not from generation output. Audit all client components for hardcoded strings in one language and route through translations.ts.
+3.4 Narrator fidelity rule
+Testing log reference
+T-001 and T-002 both describe narrative output as inflated relative to short student answers.
+Fix
+Compute studentWords = context.studentInput.trim().split(/\s+/).length.
+Compute maxNarrativeWords = min(RDSRange.max, max(RDSRange.min, studentWords * 4)).
+Update getRDSWordRange to take studentWords and return the adjusted range.
+Post-generation quality gate: if narrator output exceeds maxNarrativeWords by more than 20%, regenerate once with explicit "Keep output under X words" directive. If still over on retry, truncate at last complete sentence.
+Second quality gate: narrator may not quote the student's input verbatim for more than 6 consecutive words.
+Apply superlative bans to generateDashboardSummary prompt at director.ts:1418 and 1423 — add "impressive, remarkable, sophisticated, thoughtful, thorough, deep, nuanced" to prohibitions.
+3.5 Signal averages must span all turns
+director.ts:1376 and routes.ts:4137 filter to non-MCQ before computing. Remove the filter. Compute across all turns. If the team wants to distinguish MCQ, compute both signal_averages_all and signal_averages_free_response and surface both.

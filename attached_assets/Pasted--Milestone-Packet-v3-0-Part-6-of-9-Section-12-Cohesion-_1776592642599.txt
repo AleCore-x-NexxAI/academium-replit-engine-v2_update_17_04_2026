@@ -1,0 +1,90 @@
+[Milestone Packet v3.0 — Part 6 of 9 — Section 12 (Cohesion)]
+
+Section 12 — The Cohesion Architecture
+This section defines how the engine, the dashboard, the data layer, and the pedagogical intent flow agree with each other. The central T-002A finding is that they currently do not — the signal extractor says the student reasoned strategically, the framework detector says no framework was evidenced, and the dashboard renders the contradiction. This section closes that gap.
+12.1 The single data contract
+There is exactly one data contract between the engine and the dashboard: the session state object as defined in shared/schema.ts. The engine writes. The dashboard reads. Nothing else communicates. No side channels. No cached facts. No implicit assumptions about state.
+Every dashboard element traces to a named session state field. This was stated in v1.0. It is restated here because v3.0 enforces it structurally through the compatibility manifest (Section 12.6).
+12.2 The chain of reasoning
+Every piece of professor-visible insight traces through this chain:
+Professor pedagogical intent
+↓
+Case generation (intent-driven prompt)
+↓
+Generated case (decisions tagged with primaryDimension, frameworks with semantic fields)
+↓
+Student turn submitted
+↓
+Classification (PASS / NUDGE / BLOCK)
+↓
+Signal extraction (weighted by primaryDimension)
+↓
+Framework detection (semantic, using framework.conceptualDescription)
+↓
+Consistency check (Section 12.3)
+↓
+Narrator + Evaluator + Domain Expert (receive detection result)
+↓
+Causal explainer (dashboard_reasoning_link)
+↓
+Session state write
+↓
+Cache invalidation on completion
+↓
+Dashboard read → aggregate → display
+Every arrow in this chain is a defined interface. When any subsystem is updated, its output contract is enforced at the boundary so the next subsystem cannot silently consume malformed data.
+12.3 The consistency check
+After signal extraction and framework detection run for a turn, a new consistency check reconciles them. Add in director.ts, between the parallel agent calls and the result assembly.
+async function checkConsistency(
+signals: SignalExtractionResult,
+detections: FrameworkDetection[],
+frameworks: CaseFramework[],
+decisionPrimaryDimension: AcademicDimension | undefined
+): Promise<FrameworkDetection[]>
+Rules
+For each framework, if the signal mapped to its primary domain (per DIMENSION_TO_SIGNAL from Appendix C) is at PRESENT or STRONG, AND the detection returned not_evidenced, log a disagreement event via storage.createTurnEvent.
+If the decision's primaryDimension maps to a signal that is PRESENT or STRONG, AND the framework most closely associated with that dimension is not_evidenced, promote that framework's detection to implicit with confidence: low. Add reasoning: "Signal extraction indicated <dimension> reasoning at <level>; framework promoted as safety net."
+If multiple frameworks map to the same dimension and signals indicate reasoning in that dimension, promote only the one flagged in pedagogicalIntent.targetFrameworks. If none targeted, promote none (no false positives).
+Never demote. The check only promotes detections, never downgrades them.
+The goal is that a student who clearly reasons strategically never sees all their tracked frameworks marked Not Evidenced.
+12.4 Subsystem output contracts
+Each subsystem's output is validated at the boundary before the next consumes it. Invalid outputs trigger regeneration or fallback, never silent acceptance.
+Subsystem
+Output Contract Enforced
+signalExtractor
+All five signals present with quality 0–3. Non-empty extracted_text when quality ≥ 1.
+frameworkDetector
+One detection per tracked framework. level, confidence, detection_method, evidence, reasoning all populated.
+narrator
+Word count within fidelity rule. No verbatim student quotes > 6 words. No prohibited language.
+causalExplainer
+dashboardReasoningLink ≤ 15 words, no prohibited language, no exclamation.
+debriefQuestionGenerator
+Single question ≤ 1 sentence. Grounded in student text. No prohibited language.
+generateDashboardSummary
+session_headline non-empty, signal_averages all 5 signals present, framework_summary covers every tracked framework.
+canonicalCaseGenerator
+All decisions tagged with primaryDimension, dimensionRationale. All frameworks have canonicalId, coreConcepts, conceptualDescription, recognitionSignals.
+frameworkInference
+At most 3 suggestions. Each has inference_reason. All resolved through registry or tagged custom.
+12.5 The professor-facing explainability guarantee
+For every piece of information the professor sees on the dashboard, the system can answer four questions:
+Where did this come from? — the exact session state field.
+How was it computed? — the engine rule that wrote it.
+What inputs produced it? — student text, signals, framework, or all three.
+How confident are we? — high / medium / low, tied to detection_method.
+This is the professor-facing guarantee. When a professor or dean asks "how did the AI decide Porter was applied implicitly here?" the answer is: "Semantic framework detection evaluated the student's reasoning on this turn (session_state.turns[1].framework_detections[0]) with confidence medium. The quoted student reasoning that triggered detection is <quote>. The framework's conceptual description the check matched against is <description>." Not a black box. Fully explainable.
+12.6 Compatibility manifest
+A compatibility manifest file lives in the repo. It lists every dashboard element, the endpoint that feeds it, the session state field the endpoint reads, the engine rule that writes the field, and the expected type.
+The manifest validates on every CI build. When any engine change modifies a field the dashboard consumes, the build fails until the manifest is updated. This prevents silent drift.
+First draft of the manifest is a deliverable of Phase 1. Maintained going forward.
+12.7 Cohesion in practice — reading one dashboard value
+To illustrate: when the professor sees "Porter: Implicit — Medium confidence — applied on Turn 2" in the Module Health card, the chain is:
+UI element: ScenarioDashboard.tsx ModuleHealthCard.
+Data source: GET /api/scenarios/:id/module-health response.frameworks[fwIdx].
+Endpoint reads: session_state.turns[*].framework_detections[fwIdx].
+Field written by: frameworkDetector.detectOneFramework, semantic path.
+Input: session_state.turns[1].student_input + session_state.turns[1].signals_detected + scenario.initialState.frameworks[fwIdx].
+Engine rule: LLM semantic check prompt defined in Section 4.4.1 with the framework's conceptualDescription.
+Confidence source: the semantic check's confidence output. Explanation source: the semantic check's explanation output, echoed into FrameworkDetection.reasoning.
+Any of the seven links can be inspected. None of them are hidden. That is cohesion.

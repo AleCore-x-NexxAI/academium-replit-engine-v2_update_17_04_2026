@@ -1,0 +1,211 @@
+[Milestone Packet v3.0 — Part 9 of 9 — Appendices B, C, D, E]
+
+Appendix B — Full Testing Log Traceability
+Every finding from T-001, T-001A, T-002, and T-002A is mapped to a fix in this packet.
+T-001 (2026-04-17)
+Finding
+Root Cause
+Fix
+Case reads as general strategy, not framework-linked.
+No pedagogical intent, no theory-anchored generation.
+Sections 8, 9, 10
+Narratives more polished than student wording.
+narrator.ts:51–57 fixed word range.
+3.4
+Spanish bullets in English UI.
+canonicalCaseGenerator.ts Spanish prompt + English suffix.
+3.3
+Drift to generic business judgment in later decisions.
+No decision-design rules.
+Section 10
+Engine favors executive reasoning over framework application.
+No reasoning environment calibration.
+Section 11
+T-001A (2026-04-17)
+Finding
+Root Cause
+Fix
+Dashboard 0 completed after student finished.
+routes.ts:3321 cache never invalidated on completion.
+3.1
+"Summary available when complete" shown after completion.
+ScenarioDashboard.tsx:725 + director.ts silent fallback.
+3.2
+Reasoning depth analytics empty.
+Same cache staleness.
+3.1
+Reasoning arc and key pattern blank.
+routes.ts:3944/3968 gated on cache-stale data.
+3.1, 3.2
+Module health empty state weak.
+No frameworks configured. Symptom of missing inference.
+Section 7
+Applied course theory blank.
+routes.ts:3562–3577 only computes when frameworks > 0.
+Section 7
+T-002 (2026-04-18)
+Finding
+Root Cause
+Fix
+Duplicate SWOT and SWOT Analysis entries.
+No canonical framework identity.
+Section 5
+Consequence summary verbose relative to short student action.
+narrator.ts:51–57 fixed word range (repeat of T-001).
+3.4
+SWOT under-expressed compared to Porter in generated case.
+No per-decision dimension enforcement, no framework coverage gate.
+Sections 9.4, 10
+Results page marks Porter as Not Evidenced despite Porter-aligned logic.
+frameworkDetector.ts keyword-anchored implicit path.
+Section 4 (THE CENTRAL FIX)
+Framework detection looks weak or incorrect on results.
+Same root cause — keyword dependence, no semantic check.
+Section 4
+Reflection prompt fairly generic.
+Generator's reflection prompt is not intent-aware.
+Section 9
+T-002A (2026-04-18)
+Finding
+Root Cause
+Fix
+Completion-state sync still broken at class-dashboard level.
+routes.ts:3321 cache not invalidated on completion (unchanged since T-001A).
+3.1
+Framework detection unreliable — Porter absent on turns where clearly applied.
+frameworkDetector.ts:37–65 implicit path requires keyword co-occurrence.
+Section 4
+Framework analytics disconnected from decision-chain logic engine preserved.
+Signal extractor and framework detector are loosely coupled, no reconciliation.
+Section 12.3 consistency check
+Duplicate SWOT entries create framework noise.
+No canonical framework identity.
+Section 5
+Spanish labels in English analytics modal.
+Pre-seeded strings hardcoded in components, analytics endpoints don't propagate language consistently.
+3.3
+Internal contradiction: dashboard recognizes strategic reasoning but framework layer says no Porter evidence.
+Same as framework detection issue — two subsystems running independently.
+Sections 4, 12
+Detector overly keyword-dependent, not wired to infer from paraphrased reasoning.
+Confirmed by code audit of frameworkDetector.ts.
+Section 4 (semantic detection)
+Appendix C — Pedagogical Intent Schema Reference
+Full type reference. Add at top of shared/schema.ts types.
+/**
+* PedagogicalIntent — what the professor wants students to learn.
+* Distinct from case content. Intent is the INPUT driving case
+* generation, framework inference, and runtime calibration.
+* Stored on scenarios.pedagogical_intent. Editable only when
+* scenario has zero sessions.
+*/
+export interface PedagogicalIntent {
+teachingGoal: string;
+targetFrameworks: Array<{
+canonicalId: string | null;
+name: string;
+}>;
+targetCompetencies: Array<"C1"|"C2"|"C3"|"C4"|"C5">;
+decisionDimensions?: Array<{
+decisionNumber: number;
+primaryDimension: AcademicDimension;
+secondaryDimension?: AcademicDimension;
+}>;
+courseContext?: string;
+reasoningConstraint?: string;
+}
+export type AcademicDimension =
+| "analytical" | "strategic" | "stakeholder"
+| "ethical" | "tradeoff";
+export const DIMENSION_TO_SIGNAL: Record<AcademicDimension, string> = {
+analytical: "justification",
+strategic: "intent",
+stakeholder: "stakeholderAwareness",
+ethical: "ethicalAwareness",
+tradeoff: "tradeoffAwareness",
+};
+export const DIMENSION_TO_COMPETENCY: Record<AcademicDimension, "C1"|"C2"|"C3"|"C4"|"C5"> = {
+analytical: "C1",
+strategic: "C2",
+stakeholder: "C3",
+ethical: "C4",
+tradeoff: "C5",
+};
+Appendix D — Semantic Framework Detection Schema and Algorithm
+D.1 Extended CaseFramework
+export interface CaseFramework {
+id: string;
+canonicalId: string;
+name: string;
+aliases?: string[];
+domainKeywords: string[];
+signalPattern?: {
+requiredSignals: Array<"intent"|"justification"|"tradeoffAwareness"|
+"stakeholderAwareness"|"ethicalAwareness">;
+minQuality: "WEAK" | "PRESENT" | "STRONG";
+additionalKeywords?: string[];
+};
+coreConcepts: string[];
+conceptualDescription: string;
+recognitionSignals: string[];
+provenance: "explicit" | "inferred_from_anchor" | "inferred_from_context";
+inference_reason?: string;
+accepted_by_professor: boolean;
+accepted_at?: string;
+}
+D.2 Extended FrameworkDetection
+export interface FrameworkDetection {
+framework_id: string;
+canonicalId: string;
+framework_name: string;
+level: "explicit" | "implicit" | "not_evidenced";
+evidence: string;
+confidence: "high" | "medium" | "low";
+detection_method: "keyword" | "semantic" | "signal_pattern" | "none" | "consistency_promoted";
+reasoning: string;
+}
+D.3 Semantic check output
+interface SemanticCheckResult {
+applied: boolean;
+confidence: "high" | "medium" | "low";
+quotedReasoning: string;    // must be substring of student text
+explanation: string;         // one sentence, no prohibited language
+}
+D.4 Registry entry shape
+interface RegistryFramework {
+canonicalId: string;
+canonicalName_en: string;
+canonicalName_es: string;
+aliases: string[];
+coreConcepts: string[];
+conceptualDescription_en: string;
+conceptualDescription_es: string;
+recognitionSignals_en: string[];
+recognitionSignals_es: string[];
+suggestedDomainKeywords_en: string[];
+suggestedDomainKeywords_es: string[];
+suggestedSignalPattern?: CaseFramework["signalPattern"];
+primaryDimension: AcademicDimension;
+}
+Appendix E — Explicitly Out of Scope
+Item
+Disposition
+Institutional / admin dashboard
+Separate packet. Program directors, accreditation, AACSB cohort-level competency evidence.
+Grading layer
+Separate packet. Sits atop competency evidence when professor opts in. Core engine remains non-graded.
+Expanded framework registry beyond 12 seeds
+Initial 12 frameworks shipped with this packet. Registry expands in later releases as needed.
+Multi-case management
+POC single-case per scenario. Cross-case analytics is future work.
+Student-facing post-simulation learning journey
+Current results page remains. Deeper student analytics future.
+Non-English, non-Spanish languages
+es and en only. Other languages require separate prompt engineering.
+Automated framework teaching content
+Academium surfaces application, does not teach the framework itself.
+Real-time collaborative case editing
+Not in scope. Single-professor authoring.
+End of Packet
+Academium — Milestone Packet v3.0
+The first full product.

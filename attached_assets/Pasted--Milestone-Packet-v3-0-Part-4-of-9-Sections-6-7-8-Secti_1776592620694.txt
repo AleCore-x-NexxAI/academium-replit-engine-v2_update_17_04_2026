@@ -1,0 +1,146 @@
+[Milestone Packet v3.0 — Part 4 of 9 — Sections 6, 7, 8]
+
+Section 6 — Priority 4: Schema and Spec Alignment
+These fixes reconcile drift between the live schema, runtime behavior, and prior packets. None are blockers individually. All are required for a coherent codebase.
+6.1 framework_summary — distribution not best-level only
+shared/schema.ts line 358 — extend DashboardSummary.framework_summary:
+framework_summary: Array<{
+framework_id: string;
+canonicalId: string;                             // NEW
+framework_name: string;                          // NEW
+best_level: "explicit" | "implicit" | "not_evidenced";
+turn_of_best_application: number | null;
+explicit_turns: number;                          // NEW
+implicit_turns: number;                          // NEW
+not_evidenced_turns: number;                     // NEW
+provenance: "explicit" | "inferred_from_anchor" | "inferred_from_context";
+detection_method_distribution: {                 // NEW
+keyword: number;
+semantic: number;
+signal_pattern: number;
+};
+}>
+Files to change: schema.ts, director.ts:1391, routes.ts:3617 and 4169, ScenarioDashboard.tsx:447.
+6.2 Standardize terminology
+Use not_evidenced everywhere (not not_detected). Nine places in code already. This packet uses not_evidenced.
+6.3 dashboard_reasoning_link renders in KpiFrameworksTab
+Chain works end-to-end in the engine (causalExplainer.ts to director.ts to routes.ts). UI rendering is missing. In ScenarioDashboard.tsx KpiFrameworksTab, render reasoningLink under each KPI movement. Small text, gray, italic, one line per KPI.
+6.4 mergeReflectionAnalytics covers all new fields
+routes.ts:24 — extend to copy framework_detections (with new confidence / detection_method / reasoning fields), dashboard_summary (with new framework_summary shape), and any other analytics fields introduced by this packet. Add unit test: empty reflection state, all analytics survive merge.
+6.5 Signal extractor returns structured output
+signalExtractor.ts currently returns { quality, extracted_text } per signal. Extend to also return confidence and the marginal evidence used. This enables the semantic detector and the cohesion consistency check (Section 12.3) to reason about signals with more than a scalar score.
+Section 7 — Priority 5: Framework Inference Subsystem
+Carries forward from v2.0 Section 5 with integration to canonicalization (Section 5) and semantic detection (Section 4).
+7.1 Three tiers of professor input
+Tier
+Professor Input
+System Behavior
+A
+Two or more frameworks
+Track exactly those. No inference. All provenance = explicit.
+B
+Exactly one framework
+Track the explicit one. Propose up to 3 complementary frameworks tagged inferred_from_anchor. Professor opts in per framework.
+C
+None
+Propose up to 3 frameworks inferred from case metadata and pedagogical intent. Tagged inferred_from_context. Professor opts in per framework.
+7.2 Hard constraints
+Total inferred frameworks never exceeds 3, regardless of tier.
+Every inferred framework carries a human-readable inference_reason.
+Opt-in mandatory. accepted_by_professor = false → engine ignores entirely.
+Professor may remove or replace any framework before the case goes live.
+Once the scenario has any session in status active or completed, framework configuration is locked.
+7.3 Implementation
+Create server/agents/frameworkInference.ts. Called once per scenario, at case-creation time, after canonical generation.
+export interface InferenceInput {
+caseContext: string;
+domain: string;
+industry?: string;
+language: "es" | "en";
+anchorFramework?: CaseFramework;      // Tier B
+pedagogicalIntent?: PedagogicalIntent; // from Section 8
+courseTitle?: string;
+}
+export async function inferFrameworks(input: InferenceInput): Promise<{
+suggestions: Array<{
+canonicalId: string;               // resolved from registry when possible
+name: string;
+domainKeywords: string[];
+coreConcepts: string[];
+conceptualDescription: string;
+recognitionSignals: string[];
+signalPattern?: CaseFramework["signalPattern"];
+provenance: "inferred_from_anchor" | "inferred_from_context";
+inference_reason: string;
+}>;
+}>
+Rules
+If anchorFramework present: prompt for 2–3 complementary frameworks. Resolve each against the registry. For registry-known frameworks, pull all semantic fields from registry. Tag inferred_from_anchor.
+If absent: prompt for 3 frameworks most likely relevant to case + pedagogical intent. Same registry resolution. Tag inferred_from_context.
+Use gpt-4o-mini, responseFormat: json, maxTokens: 768.
+Post-process through frameworkKeywordSanitizer and the language-consistency assertion from Section 3.3.
+Truncate to 3 if model over-produces.
+Deduplicate against explicit frameworks by canonicalId.
+7.4 UI changes in FrameworkEditor
+Render provenance pill next to each framework name.
+Explicit frameworks render as today.
+Inferred frameworks render muted, with "Suggested" pill, inference_reason as tooltip, and "Add to tracking" button.
+Clicking Add sets accepted_by_professor: true, accepted_at: new Date().toISOString(), pill becomes "Added".
+Enforce 3-inferred cap at UI level.
+Read-only lock banner when any session exists for the scenario.
+Expose coreConcepts, conceptualDescription, recognitionSignals as an expandable review section per framework.
+7.5 Runtime enforcement
+In frameworkDetector.ts:6 (detectFrameworks entry), filter:
+const tracked = frameworks.filter(fw => fw.accepted_by_professor === true);
+if (tracked.length === 0) return [];
+Inferred frameworks with accepted_by_professor: false never appear in framework_detections.
+Section 8 — Priority 6: The Pedagogical Intent Layer
+The framework field added between T-001 and T-002 is a good first step but is not enough. The professor still cannot say what they want students to TEST versus what they want to EXPLORE. Pedagogical Intent is the structured input channel that closes this gap. Carries forward from v2.0 Section 6.
+8.1 The PedagogicalIntent object
+Add to shared/schema.ts:
+export interface PedagogicalIntent {
+// Required. The one-sentence teaching goal.
+teachingGoal: string;
+// Optional. Canonical framework IDs the case should exercise.
+// Resolved via the registry (Section 5). Raw names also accepted
+// for custom frameworks.
+targetFrameworks: Array<{
+canonicalId: string | null;          // null = custom
+name: string;
+}>;
+// Optional. Which of C1..C5 to emphasize in case design
+// and in runtime calibration.
+targetCompetencies: Array<"C1" | "C2" | "C3" | "C4" | "C5">;
+// Optional. Per-decision dimension assignment.
+decisionDimensions?: Array<{
+decisionNumber: number;
+primaryDimension: AcademicDimension;
+secondaryDimension?: AcademicDimension;
+}>;
+// Optional.
+courseContext?: string;
+reasoningConstraint?: string;           // e.g. "time pressure"
+}
+export type AcademicDimension =
+| "analytical" | "strategic" | "stakeholder"
+| "ethical" | "tradeoff";
+8.2 Storage
+Add pedagogical_intent JSON column on the scenarios table. Include in every scenario read. Expose via GET /api/scenarios/:id. Editable via PATCH /api/scenarios/:id/pedagogical-intent but only when the scenario has zero sessions.
+8.3 UI — Teaching Intent page
+Add a new step in the scenario creation wizard, BEFORE case generation. Fields:
+Teaching goal (required). Single text input. Placeholder: "Students should apply stakeholder analysis to operational decisions under time pressure."
+Target frameworks (optional, 0–4). Reuse the FrameworkEditor at this stage. Each entry runs through the registry resolver.
+Target competencies (optional, 0–5). Checkbox list of C1–C5 with human-readable labels.
+Per-decision dimension (optional, advanced). Expandable per-decision section.
+Course context (optional). Text input.
+Reasoning constraint (optional). Text input.
+8.4 Required vs optional
+Only teachingGoal is required. Fallbacks for everything else:
+targetFrameworks empty → Framework Inference Subsystem runs at Tier C using pedagogicalIntent as input.
+targetCompetencies empty → all five weighted equally.
+decisionDimensions empty → Section 10 rules auto-assign.
+8.5 UI surfaces for intent
+Scenario creation wizard: Teaching Intent page.
+Scenario edit page: Teaching Intent panel at top, read-only after lock.
+Dashboard case header: echo teachingGoal and targetFrameworks.
+Module Health: tracked frameworks labeled "Target" (from intent) vs "Suggested" (from inference).

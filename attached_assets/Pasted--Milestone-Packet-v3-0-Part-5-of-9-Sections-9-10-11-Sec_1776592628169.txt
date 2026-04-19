@@ -1,0 +1,131 @@
+[Milestone Packet v3.0 — Part 5 of 9 — Sections 9, 10, 11]
+
+Section 9 — Priority 7: Theory-Anchored Case Generation
+Pedagogical intent becomes the primary input to case generation. The generator produces cases structurally built around intent, not generic business prose with loosely-referenced frameworks. Carries forward from v2.0 Section 7.
+9.1 Signature change
+canonicalCaseGenerator.ts — extend generateCanonicalCase:
+export async function generateCanonicalCase(
+topic: string,
+pedagogicalIntent: PedagogicalIntent,   // NEW — required
+additionalContext?: string,
+stepCount?: number,
+language?: "es" | "en"
+): Promise<CanonicalCaseData>
+9.2 Prompt construction
+The language-split prompts from Section 3.3 get intent-driven blocks inserted:
+System role.
+Teaching goal block: "This case is designed to teach: <teachingGoal>. Every decision and every consequence must serve this goal."
+Framework anchoring block: for each targetFramework, inject "Framework to be exercised: <name>. Design the case so applying this framework is the natural path to a defensible decision — but never the only defensible path. Core concepts to surface: <coreConcepts>."
+Competency weighting block: targetCompetencies mapped to decision design emphasis.
+Decision design block: per-decision dimensions (from Section 10 defaults if intent is blank).
+Reasoning constraint block: if present, "The case must create realistic <constraint>. Every decision is made under this constraint."
+Tradeoff realism block (existing).
+Output format block (updated — see 9.3).
+9.3 New DecisionPoint fields
+Extend DecisionPoint in shared/schema.ts:
+interface DecisionPoint {
+// ... existing ...
+primaryDimension: AcademicDimension;       // NEW
+secondaryDimension?: AcademicDimension;    // NEW
+dimensionRationale: string;                 // NEW
+targetFrameworkIds?: string[];             // NEW
+}
+9.4 Quality gates after generation
+Language consistency (Section 3.3).
+Framework field completeness — every framework in generated output has coreConcepts, conceptualDescription, recognitionSignals populated. If missing, regenerate the framework block.
+Framework deduplication — canonicalId dedupe (Section 5.4).
+Dimension coverage — primaryDimension union covers at least ⌈stepCount × 0.66⌉ distinct dimensions.
+Framework coverage — at least one decision's prompt text yields semantic detection of the primary targetFramework when run through frameworkDetector. If not detected, regenerate.
+Tradeoff realism — every written decisionPoint has tradeoffSignature populated.
+No correct-answer telegraphing — prompts and focusCues scanned for prohibited patterns.
+9.5 Professor review checkpoint
+This feature partially exists as of T-002 (edit-before-publish). Extend it:
+Case header — title, domain, language.
+Teaching goal echo — from pedagogicalIntent.
+Each decision: dimension, rationale, target frameworks, tradeoff signature.
+Tracked frameworks with provenance badges AND the semantic fields (collapsed by default).
+One-click regenerate per decision — regenerates that single decision keeping the rest intact.
+Publish button — enabled only when the professor clicks "Reviewed" on each decision.
+Section 10 — Priority 8: Decision-Design Rules
+Each decision must surface a specific academic dimension. This section defines the taxonomy, auto-assignment rules, and per-dimension design constraints. Carries forward from v2.0 Section 8.
+10.1 The five academic dimensions
+Dimension
+Surfaces Signal
+Design Requirement
+analytical
+justification (C1)
+Must require reasoning from data or from a causal chain. Options or prompt must force the student to explain why.
+strategic
+intent (C2)
+Must require prioritization across multiple defensible paths. Long-horizon consequences implied.
+stakeholder
+stakeholderAwareness (C3)
+Must affect at least two stakeholders with different interests. Options or prompt forces the student to acknowledge at least one.
+ethical
+ethicalAwareness (C4)
+Must carry a value tension — two legitimate goods in conflict. Not villain vs victim.
+tradeoff
+tradeoffAwareness (C5)
+Must have named cost and named benefit pulling in opposite directions. tradeoffSignature populated.
+10.2 Default auto-assignment
+3-decision case: [stakeholder, tradeoff, strategic].
+4-decision case: [analytical, stakeholder, tradeoff, strategic].
+5-decision case: [analytical, stakeholder, ethical, tradeoff, strategic].
+If targetCompetencies present, promote corresponding dimensions. Example: targetCompetencies = [C3, C5] → 3-decision default becomes [stakeholder, tradeoff, stakeholder].
+Never assign the same primary dimension to consecutive decisions unless the professor explicitly specifies it or targetCompetencies has only one value.
+Decision 1 is the entry point. For MCQ Decision 1, the dimension must be observable in the option set.
+10.3 Per-dimension prompt constraints
+Analytical
+At least one numeric data point or causal claim in the prompt.
+Student invited to explain reasoning.
+focusCue: "What does the data actually tell you?"
+Strategic
+At least two defensible paths, ideally three.
+Second-order consequences implied.
+focusCue: "How does this choice shape the path ahead?"
+Stakeholder
+At least two named stakeholders with distinct interests (must exist in scenario.initialState.stakeholders).
+Student invited to consider impact on at least one named party.
+focusCue: "Who is affected and how differently?"
+Ethical
+Tension between two legitimate goods, not good vs evil.
+No moralizing in prompt itself.
+focusCue: "What values are in tension here?"
+Tradeoff
+tradeoffSignature fully populated: dimension, cost, benefit.
+Both cost and benefit named in-prompt (no post-submission surprises).
+focusCue: "What are you willing to give up to get what?"
+10.4 Engine-side usage of primaryDimension
+Signal extraction weighting — extractSignals receives primaryDimension and applies modest scoring adjustment (Section 11.2).
+Debrief question generator — grounds questions in the primary dimension when that signal is weak (Section 11.3).
+Module Health dashboard — shows reasoning depth per turn labeled with the decision's primaryDimension.
+10.5 Quality gates
+primaryDimension required on every decisionPoint.
+dimensionRationale non-empty and references case context specifically.
+Dimension coverage check from Section 9.4.
+No two consecutive decisions share primaryDimension unless explicitly specified.
+Section 11 — Priority 9: Reasoning Environment Calibration
+With intent-driven generation and semantic framework detection, the engine itself needs to reward framework application. This section defines calibration changes to narrator, signal extractor, debrief generator, summary, and module health.
+11.1 Narrator — Framework-Responsive Consequences
+Current behavior
+narrator.ts generates consequence narratives based on student input and RDS band. It does not differentiate between students who applied the targeted framework and students who winged it.
+Target behavior
+The narrator receives framework detection results. Narrative composition differs by detection state:
+Explicit or implicit with confidence ≥ medium: narrator produces coherent consequence chains. Stakeholder reactions plausibly connect to the applied reasoning. The system acknowledges the thinking without naming the framework (never names it to avoid telegraphing).
+Not evidenced or implicit with confidence low: narrator still produces a coherent consequence, but includes one piece of information that surfaces the dimension the student did not engage with. Teaching through consequence, not lecturing.
+Implementation
+In director.ts, pass frameworkDetections and decisionPoint.primaryDimension to generateNarrative.
+In narrator.ts, add frameworkResponseDirective block with three variants based on detection state.
+Never punish, shame, or correct. Difference is in what information the consequence surfaces, not in tone.
+11.2 Signal Extractor — Dimension-Weighted
+When decision has a known primaryDimension, apply modest scoring boost to the corresponding signal for that turn. Mapping: analytical→justification, strategic→intent, stakeholder→stakeholderAwareness, ethical→ethicalAwareness, tradeoff→tradeoffAwareness.
+Rule: if raw extracted quality is 1 (WEAK), check for marginal evidence (targetFrameworks domainKeywords, stakeholder references for stakeholder decisions, etc.). If marginal evidence exists, promote to 2 (PRESENT). Never promote above 2. Non-mapped signals scored unchanged.
+11.3 Debrief Question Generator — Intent-Anchored
+director.ts:1288 — when primaryDimension-mapped signal is at 0 or 1, prompt directs the LLM to ground the question in that framework or dimension specifically: "The student's decision did not visibly consider <dimension>. Generate a question that invites them to consider <dimension> through something they did write." Prohibited-language rules still apply. Fallback (all strong signals): existing logic unchanged.
+11.4 Dashboard Summary — Intent-Aware
+director.ts:1363 — when pedagogicalIntent.targetCompetencies is present, weight session_headline toward those competencies. If professor targeted C3 (stakeholder consideration) and student showed stakeholder awareness at Engaged throughout, headline reflects that specifically.
+11.5 Module Health — Target-First Rendering
+routes.ts:3593 — module-health endpoint separates frameworks by provenance:
+Target frameworks (provenance: explicit AND from pedagogicalIntent.targetFrameworks) render in top section.
+Inferred frameworks render in secondary section.
+Each section shows the distribution (explicit_turns, implicit_turns, not_evidenced_turns from Section 6.1) plus detection_method_distribution so the professor can see how much of the detection was semantic vs keyword-based.

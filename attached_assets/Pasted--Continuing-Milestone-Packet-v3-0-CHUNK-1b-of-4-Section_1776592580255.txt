@@ -1,0 +1,208 @@
+[Continuing Milestone Packet v3.0 — CHUNK 1b of 4 (Sections 4-5)]
+
+Section 4 — Priority 2: Semantic Framework Detection
+This is the single most important addition in v3.0. It addresses the central new finding from T-002A: the framework detector marks frameworks as Not Evidenced even when the student has clearly applied the underlying concept. This section defines the new detector architecture that fixes it.
+4.1 The core principle
+A framework is applied when the student's reasoning follows its analytical pattern — whether or not they name it, whether or not they use canonical vocabulary. The detector's job is to recognize the concept in action, not to match strings. Keyword matching is a shortcut for high-confidence explicit detection only. Every other detection path must be semantic.
+4.2 The three detection tiers
+Tier
+Method
+Rule
+Explicit
+Name match OR strong keyword match
+Student uses the framework name OR vocabulary that is distinctive to the framework (multi-word or canonical-only terms). Keyword-based. Fast. High-confidence.
+Implicit (semantic)
+LLM conceptual analysis
+Student's reasoning demonstrates the framework's analytical pattern without naming it. The LLM evaluates reasoning structure, not vocabulary. This is the new path. PRIMARY path for T-002 style cases.
+Signal-pattern
+Heuristic fallback
+Existing allSignalsMet + keyword path. Used only when the semantic LLM check is unavailable. Tagged confidence: low.
+4.3 Detection algorithm
+In server/agents/frameworkDetector.ts, rewrite detectFrameworks to follow this flow per framework:
+async function detectOneFramework(studentInput, signals, framework, language) {
+// Tier 1 — Explicit
+const nameMatch = regexNameMatch(framework.name, studentInput);
+const strongKw = strongKeywordMatch(framework.domainKeywords, studentInput);
+if (nameMatch || strongKw) {
+return {
+level: "explicit",
+confidence: "high",
+evidence_snippet: extractSnippet(studentInput, matched),
+detection_method: "keyword",
+reasoning: "Named the framework or used canonical vocabulary."
+};
+}
+// Tier 2 — Semantic Implicit (PRIMARY path)
+const semantic = await semanticFrameworkCheck({
+studentText: studentInput,
+signals,
+framework,
+language
+});
+if (semantic.applied) {
+return {
+level: "implicit",
+confidence: semantic.confidence,
+evidence_snippet: semantic.quotedReasoning,
+detection_method: "semantic",
+reasoning: semantic.explanation
+};
+}
+// Tier 3 — Signal-pattern fallback (unchanged, low-confidence)
+if (framework.signalPattern && signalPatternMatches(framework, signals)) {
+return {
+level: "implicit",
+confidence: "low",
+evidence_snippet: extractStudentQuote(studentInput),
+detection_method: "signal_pattern",
+reasoning: "Signal pattern matches."
+};
+}
+return {
+level: "not_evidenced",
+confidence: "high",
+evidence_snippet: null,
+detection_method: "none",
+reasoning: "No conceptual or keyword evidence detected."
+};
+}
+4.4 The semantic check
+semanticFrameworkCheck is a new LLM call. Input: student text, extracted signals, framework definition. Output: applied / not, confidence, quoted reasoning from student, one-sentence explanation.
+4.4.1 Prompt structure
+System prompt (bilingual, Es and En variants):
+You are analyzing whether a student's business reasoning shows
+application of a specific analytical framework, even when they
+do not name it.
+Framework name: <name>
+Framework core concepts: <coreConcepts>
+What applying this framework looks like: <conceptualDescription>
+Recognition signals: <recognitionSignals>
+Student's response:
+"<studentText>"
+Signals extracted from the student's reasoning:
+- Intent: quality <X>, evidence "<Y>"
+- Justification: quality <X>, evidence "<Y>"
+- Tradeoff awareness: quality <X>, evidence "<Y>"
+- Stakeholder awareness: quality <X>, evidence "<Y>"
+- Ethical awareness: quality <X>, evidence "<Y>"
+Evaluate:
+1. Did their reasoning follow this framework's analytical pattern?
+2. Did they consider the dimensions this framework highlights?
+3. Did they reach their conclusion through this framework's logic?
+Return JSON only:
+{
+"applied": true | false,
+"confidence": "high" | "medium" | "low",
+"quotedReasoning": "exact phrase or passage from student's text",
+"explanation": "one sentence on how (or why not) they applied it"
+}
+4.4.2 Decision rules
+applied must be false unless the quoted reasoning contains actual student words (not summary).
+confidence is high only when at least two of the three evaluation questions are affirmatively met.
+confidence is low when the application is partial — e.g., one dimension engaged, others absent.
+The explanation may not use prohibited evaluation language (correct, wrong, optimal, should have, etc.).
+4.4.3 Model choice
+Use gpt-4o-mini with responseFormat: json and maxTokens: 256. The call is made once per framework per turn. For a case with 3 tracked frameworks and 3 turns, that is 9 semantic checks per session. At gpt-4o-mini pricing and token count, this is negligible cost.
+4.4.4 Batching for performance
+If multiple frameworks are tracked on the same turn, the semantic check can be batched: one LLM call evaluating all frameworks against the same student text. This reduces latency and cost.
+4.5 Schema extensions for semantic detection
+Semantic detection requires the framework definition to include conceptual information, not just keywords. Extend CaseFramework in shared/schema.ts:
+export interface CaseFramework {
+id: string;
+canonicalId: string;                    // NEW — see Section 5
+name: string;                           // display name
+aliases?: string[];                     // NEW — alternate names
+domainKeywords: string[];
+signalPattern?: { ... };
+// Fields for semantic detection
+coreConcepts: string[];                 // NEW — e.g. ["cost leadership",
+//              "differentiation",
+//              "focus strategy"]
+conceptualDescription: string;          // NEW — 2-3 sentences
+recognitionSignals: string[];           // NEW — reasoning
+//       patterns to look
+//       for
+// From v2.0
+provenance: "explicit" | "inferred_from_anchor" | "inferred_from_context";
+inference_reason?: string;
+accepted_by_professor: boolean;
+accepted_at?: string;
+}
+4.6 FrameworkDetection output extensions
+shared/schema.ts line 342 — extend FrameworkDetection:
+export interface FrameworkDetection {
+framework_id: string;
+framework_name: string;
+level: "explicit" | "implicit" | "not_evidenced";
+evidence: string;                       // evidence_snippet
+confidence: "high" | "medium" | "low"; // NEW
+detection_method: "keyword" | "semantic" | "signal_pattern" | "none"; // NEW
+reasoning: string;                      // NEW — one-sentence explanation
+}
+4.7 Populating the new framework fields
+Three paths populate coreConcepts, conceptualDescription, and recognitionSignals:
+Case-generator-populated. When the canonical generator produces frameworks as part of the case output (canonicalCaseGenerator.ts), the generator's prompt is extended to also produce these fields. Added to the JSON schema in the system prompt. Validated post-generation — if any field is empty, regenerate.
+Suggest-framework-keywords endpoint. routes.ts already has /api/scenarios/suggest-framework-keywords. Extend to also return coreConcepts, conceptualDescription, recognitionSignals. The FrameworkEditor populates them automatically after the professor enters a framework name.
+Professor manual edit. The FrameworkEditor UI exposes these fields (collapsible section) so the professor can review and edit before activation.
+4.8 Per-turn detection pipeline
+In director.ts, the detection flow per turn becomes:
+Run classification (PASS/NUDGE/BLOCK).
+Run signal extraction.
+Run framework detection across all tracked frameworks. In parallel with Evaluator, Domain Expert, Narrator.
+Run consistency check (Section 12.3). If signal extraction shows strong dimension X and framework detection shows not_evidenced for a framework primarily mapped to dimension X, log a disagreement event and promote the detection to implicit low-confidence as a safety net.
+Proceed with the rest of the pipeline.
+Section 5 — Priority 3: Framework Canonicalization and Deduplication
+T-002 surfaced this: "both SWOT Analysis and a separate SWOT entry appear, which may create duplicate detection or noisy analytics if both are kept." This section defines canonical framework identity so that entering "SWOT" and entering "SWOT Analysis" resolves to the same framework.
+5.1 The framework registry
+Create a new file server/agents/frameworkRegistry.ts. It exports a canonical registry of well-known business frameworks, each with a canonicalId, a display name, and a list of aliases. Initial registry includes the frameworks most common in business education:
+export const FRAMEWORK_REGISTRY = [{
+canonicalId: "porters_generic_strategies",
+canonicalName_en: "Porter's Generic Strategies",
+canonicalName_es: "Estrategias Genéricas de Porter",
+aliases: ["Porter", "Generic Strategies", "Porter's Strategies",
+"Porter Generic", "Estrategias de Porter"],
+coreConcepts: ["cost leadership", "differentiation", "focus strategy"],
+conceptualDescription_en: "...",
+conceptualDescription_es: "...",
+recognitionSignals_en: ["..."],
+recognitionSignals_es: ["..."]
+}, {
+canonicalId: "swot_analysis",
+canonicalName_en: "SWOT Analysis",
+canonicalName_es: "Análisis FODA",
+aliases: ["SWOT", "FODA", "S.W.O.T.", "SWOT Matrix", "Matriz FODA"],
+// ...
+}, ...];
+5.2 Initial registry scope
+Seed the registry with at least the following 12 frameworks. This is not exhaustive — the system must also support frameworks not in the registry. The registry exists to canonicalize common cases. The full implicit-detection rule table referenced in v2.0 is the long-term extension of this registry.
+Porter's Generic Strategies / Porter's Five Forces — two separate entries
+SWOT Analysis
+PESTEL Analysis
+BCG Matrix
+Value Chain Analysis
+Resource-Based View
+Stakeholder Analysis
+Cost-Benefit Analysis
+BATNA (negotiation)
+Blue Ocean Strategy
+Ansoff Matrix
+Balanced Scorecard
+5.3 Resolution at entry time
+When the professor types a framework name in the FrameworkEditor:
+The client calls a new endpoint POST /api/scenarios/resolve-framework-name. Payload: { name: string, language: "es" | "en" }.
+Server checks the registry: case-insensitive match against canonicalName and all aliases (both languages).
+If match found, response contains the canonical framework with all fields (canonicalId, canonicalName in the requested language, coreConcepts, conceptualDescription, recognitionSignals, suggested domainKeywords, suggested signalPattern).
+If no match, response returns canonicalId: null and the client falls back to the existing suggest-framework-keywords flow, which generates canonicalId as "custom_<hash>" and fills the semantic fields via the LLM.
+Client renders a confirmation: "Matched to <canonicalName>" with an option to override if the professor intended a different framework.
+5.4 Deduplication at entry and generation
+5.4.1 At manual entry
+In FrameworkEditor.tsx, after a framework is resolved, check whether the current scenario already has a framework with the same canonicalId. If yes, reject the addition with a toast: "This framework is already added (entered as <existing_name>)." Do not allow duplicates at the UI level.
+5.4.2 At generation time
+When canonicalCaseGenerator.ts produces frameworks as part of the case output, post-process the frameworks array to deduplicate by canonicalId. For duplicates, merge domainKeywords and keep the first entry's other fields.
+5.4.3 Legacy data
+For scenarios that already have duplicate frameworks (e.g., SWOT and SWOT Analysis as T-002 observed), add a one-time migration script that runs on server boot: resolve each framework's canonicalId, merge duplicates, keep the newest. Log before-and-after for audit.
+5.5 Benefits beyond deduplication
+The professor sees a clean resolved name immediately, not the raw typed input.
+Analytics cross-scenario become possible: all scenarios using Porter's Generic Strategies share a canonicalId and can be aggregated.
+The registry-provided conceptualDescription and recognitionSignals give the semantic detector strong, consistent data. Custom frameworks still work, but registry frameworks work better.
+Common typos are absorbed. "Porter's Generic" and "Porter Generic Strategies" and "Porter" all resolve to the same framework.

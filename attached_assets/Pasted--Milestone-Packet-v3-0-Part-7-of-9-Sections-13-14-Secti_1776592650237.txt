@@ -1,0 +1,177 @@
+[Milestone Packet v3.0 — Part 7 of 9 — Sections 13, 14]
+
+Section 13 — Implementation Sequence (Phased Build Plan)
+Do not reorder. Each phase has an acceptance gate.
+Phase 1 — Foundation
+Scope
+All of Section 3 (Priority 1 — critical unfixed bugs).
+All of Section 6 (Priority 4 — schema alignment).
+First draft of compatibility manifest (Section 12.6).
+Why first
+The environment must tell the truth before anything else. Cache sync, language, narrator fidelity, schema drift. Manifest established as the cohesion enforcer going forward.
+Gate
+Section 14.1 (Priority 1) and 14.4 (Priority 4) items pass.
+Compatibility manifest validates on CI build.
+Phase 2 — Framework Canonicalization and Semantic Detection
+Scope
+Section 5 (Framework Canonicalization and Deduplication) — registry, resolver endpoint, entry-time and generation-time dedup, legacy migration.
+Section 4 (Semantic Framework Detection) — rewrite detectFrameworks, add semanticFrameworkCheck, add schema fields for coreConcepts/conceptualDescription/recognitionSignals, extend FrameworkDetection output.
+Populate semantic fields on all existing scenarios via a one-time migration (if canonicalId resolves, pull from registry; if not, generate via LLM).
+Why second
+This is the single most impactful change for T-002A. It makes framework detection trustworthy. It must come before pedagogical intent because intent references frameworks by canonicalId.
+Gate
+Section 14.2 (Priority 2) items pass.
+Section 14.3 (Priority 3) items pass.
+Regression test: rerun the T-002 student path. Porter must now be detected implicit with confidence medium or high on the decisions where T-002 showed it was applied but marked not_evidenced.
+Phase 3 — Pedagogical Intent Infrastructure
+Scope
+All of Section 8 — PedagogicalIntent schema, pedagogical_intent column, GET and PATCH endpoints, Teaching Intent UI page, intent echo surfaces.
+Gate
+Section 14.6 (Priority 6) items pass.
+Phase 4 — Framework Inference Subsystem
+Scope
+All of Section 7 — inferFrameworks, wiring into scenario creation, FrameworkEditor UI updates, runtime enforcement.
+Why after Phase 3
+Inference consumes pedagogical intent. Must come after intent exists.
+Gate
+Section 14.5 (Priority 5) items pass.
+Phase 5 — Theory-Anchored Case Generation
+Scope
+All of Sections 9 and 10 — generator signature extension, intent-driven prompts, DecisionPoint dimension fields, quality gates, professor review checkpoint extension, decision-design rules and auto-assignment.
+Gate
+Section 14.7 (Priority 7) and 14.8 (Priority 8) items pass.
+Two scenarios with different teaching goals produce visibly different cases in structure, decision design, and framework emphasis.
+Phase 6 — Reasoning Environment Calibration
+Scope
+All of Section 11 — narrator framework-responsive, signal extractor dimension-weighted, debrief generator intent-anchored, summary intent-aware, module health target-first.
+Gate
+Section 14.9 (Priority 9) items pass.
+End-to-end milestone test (Section 14.10) passes.
+Section 14 — Acceptance Checklist
+14.1 Priority 1 — Critical unfixed bugs
+Student completes a session. Dashboard completion count updates within 60 seconds without hard refresh.
+Completed student modal: session summary shows dashboard_summary.session_headline, never a placeholder.
+Reasoning arc renders all turn dots with correct bands. Key pattern populated.
+Generate English case. Every indicator description, decision prompt, focus cue, thinking scaffold element, framework field, analytics response in English. Zero Spanish tokens.
+Generate Spanish case. Inverse check.
+12-word student answer. Narrator output ≤ 48 words.
+40-word student answer at Integrated band. Narrator output proportional, ≤ 160 words.
+No narrator output quotes the student verbatim for more than 6 consecutive words.
+No banned superlatives in session_headline across 10 test sessions.
+signal_averages computed across all turns OR both signal_averages_all and signal_averages_free_response populated.
+14.2 Priority 2 — Semantic framework detection
+Regression against T-002: rerun the BrewBold or equivalent Porter-shaped scenario with a student response that uses focus-strategy logic without naming Porter. Porter must be detected implicit with confidence medium or high on at least 2 of 3 applicable turns.
+Regression against explicit naming: same scenario with a student who names Porter. Must detect explicit with confidence high.
+Regression against unrelated reasoning: same scenario with a student whose reasoning is generic business management with no framework logic. Must detect not_evidenced.
+Every FrameworkDetection output includes level, confidence, detection_method, evidence, reasoning. No nulls.
+Semantic check prompt never produces the word "correct," "wrong," "should," "optimal," or any other prohibited term in its reasoning output.
+Latency: semantic check adds no more than 1.5 seconds of additional turn latency when batched across tracked frameworks.
+Consistency check (Section 12.3): when signal extractor returns strategic at STRONG but framework detector returns Porter as not_evidenced, the check promotes to implicit low and logs a disagreement event.
+14.3 Priority 3 — Canonicalization and deduplication
+Professor types "SWOT". Resolver matches to SWOT Analysis. Display confirms match.
+Professor types "SWOT Analysis" on the same scenario. UI rejects with "already added" toast.
+Professor types "Porter". Resolver matches to Porter's Generic Strategies OR Porter's Five Forces. UI presents a disambiguation if ambiguous.
+Professor types an unknown framework name. Resolver returns canonicalId: null. Client falls back to suggest-framework-keywords. Framework is saved as custom.
+Legacy scenarios with duplicate SWOT entries are deduplicated by the one-time migration. Log shows before and after.
+All registry frameworks have coreConcepts, conceptualDescription, recognitionSignals in both Spanish and English.
+14.4 Priority 4 — Schema alignment
+framework_summary includes explicit_turns, implicit_turns, not_evidenced_turns, framework_name, canonicalId, provenance, detection_method_distribution for every framework in every completed session.
+FrameworkDetection includes confidence, detection_method, reasoning on every turn output.
+dashboard_reasoning_link renders in KpiFrameworksTab for every KPI movement.
+mergeReflectionAnalytics unit test passes for all new fields.
+Signal extractor returns confidence and marginal evidence alongside quality and extracted_text.
+14.5 Priority 5 — Framework Inference Subsystem
+Scenario with no target frameworks. FrameworkEditor surfaces up to 3 inferred frameworks with Suggested badges and inference_reason tooltips. Each has semantic fields populated.
+Click Add on one. Moves to accepted list. Engine tracks it when student runs.
+Never more than 3 inferred displayed.
+Scenario with one target framework. System adds up to 3 complementary inferred_from_anchor frameworks.
+Scenario with two or more target frameworks. No inference runs.
+Session in active/completed state → FrameworkEditor read-only with lock banner.
+Frameworks with accepted_by_professor: false never appear in framework_detections.
+14.6 Priority 6 — Pedagogical Intent
+Teaching Intent page required before case generation. Skipping returns an error.
+Teaching goal only. Case generates with sensible defaults.
+Teaching goal + targetFrameworks. Generated case visibly exercises them — framework names appear in caseContext or coreChallenge. At least one decision is structurally anchored.
+Per-decision dimensions specified. Each decision's primaryDimension matches input.
+Different teaching goals produce visibly different cases. Manually verify for 3 goal pairs.
+Editing pedagogical intent is blocked once any session exists.
+14.7 Priority 7 — Theory-Anchored Generation
+DecisionPoint includes primaryDimension, dimensionRationale, targetFrameworkIds on every decision.
+Dimension coverage check passes — at least ⌈stepCount × 0.66⌉ distinct dimensions across decisions.
+Framework coverage check passes — at least one decision prompt yields semantic detection of primary targetFramework.
+No two consecutive decisions share primaryDimension unless specified.
+Framework field completeness — all frameworks in generated output have coreConcepts, conceptualDescription, recognitionSignals.
+Professor review checkpoint appears. Regenerate-single-decision works. Publish blocked until review is complete.
+14.8 Priority 8 — Decision-Design Rules
+Stakeholder decision: options or prompt names at least two stakeholders with distinct interests.
+Tradeoff decision: tradeoffSignature fully populated. Prompt names both cost and benefit.
+Analytical decision: prompt contains at least one data point or causal claim.
+Strategic decision: prompt presents at least two defensible paths.
+Ethical decision: prompt frames tension between two legitimate goods.
+14.9 Priority 9 — Calibration
+Student applies framework. Narrator produces coherent consequence chain. No naming of framework.
+Student does not apply framework. Narrator still coherent, surfaces one missed dimension, no shaming.
+Signal extractor promotes primary-dimension signal from WEAK to PRESENT on marginal evidence. Never above.
+Debrief question grounds in primary dimension when that signal is weak.
+Dashboard summary weighted toward targetCompetencies when present.
+Module Health: target frameworks top section, inferred secondary section, detection_method_distribution visible.
+14.10 End-to-end milestone test
+All phases complete. This is the final pass:
+Professor logs in. Creates scenario. Teaching goal: "Students should apply Porter's Generic Strategies to a competitive-positioning decision under budget pressure." Target framework: "Porter" (resolver matches to Porter's Generic Strategies). Target competency: C2 and C5. No per-decision dimensions specified.
+System generates a 3-decision case. Decisions tagged [strategic, tradeoff, strategic]. Porter is explicit in the frameworks list with all semantic fields populated.
+Framework inference surfaces 2 complementary frameworks (e.g., SWOT Analysis, Cost-Benefit Analysis), both requiring opt-in.
+Professor opts into SWOT Analysis. Removes Cost-Benefit. Reviews each decision. Publishes.
+Student starts session. Decision 1 forces strategic positioning. Decision 2 forces tradeoff. Decision 3 forces integrative strategic reasoning.
+Student submits 15–30 word answers using focus-strategy logic WITHOUT naming Porter. Narrator responses proportional (≤ 120 words each). No verbatim quoting beyond 6 words. No banned superlatives.
+After each turn, frameworkDetector runs semantic check. Porter detected implicit with confidence medium on at least 2 of 3 decisions.
+Consistency check fires on Decision 2 where signals show strategic STRONG but initial detection showed not_evidenced — promoted to implicit low. Disagreement event logged.
+Student completes. Dashboard reflects completion within 60 seconds. No hard refresh.
+Professor opens student modal. Session summary is intent-aware, mentions Porter-aligned reasoning. Reasoning arc populated. Debrief question for each turn grounded in student text.
+Module Health: Porter in top target section showing 2 implicit / 1 not_evidenced or 3 implicit. Detection method distribution shows 0 keyword, 2 or 3 semantic, 0 signal_pattern. SWOT in secondary inferred section.
+Professor regenerates summary via retry button (simulated failure). New summary appears without page reload.
+Second student runs the same case. Both students appear in class view with distinct reasoning arcs. Class-level Module Health aggregates both.
+14.11 Regression — do not break what works
+PASS / NUDGE / BLOCK logic unchanged.
+Five behavioral invariants respected end-to-end.
+Prohibited-language gates pass on narrator, debrief, summary, module health descriptions, framework inference reasons, semantic check explanations.
+Student text preserved verbatim across PASS, NUDGE, BLOCK.
+Compatibility manifest validates on every CI build.
+T-002 features still work: framework entry field, theory-shaped generation, decision continuity, edit-before-publish, reasoning arc rendering, session summary, debrief prep cards, KPI trajectory.
+Section 15 — Instructions for Replit
+15.1 Read order
+Read Section 1 and confirm you can describe the milestone.
+Read Section 2 and confirm you can describe the state of the repo after T-002.
+Read Sections 3 through 11 and describe the nine priorities.
+Read Section 12 — the Cohesion Architecture. This is not optional.
+Read Section 13 and confirm you understand the six phases and the gates between them.
+Read Appendix A and propose a schema migration plan before Phase 2.
+15.2 Must not do
+Do not rename existing functions, types, or endpoints.
+Do not modify PASS / NUDGE / BLOCK classification.
+Do not remove the five canonical KPIs.
+Do not reorder the seven-step pipeline.
+Do not skip the professor review checkpoint.
+Do not implement grading. POC remains non-graded.
+Do not add dashboard panels beyond Sections 6, 7, 11.5.
+Do not cache dashboard data in ways that could diverge from session state beyond the 60-second TTL.
+Do not demote framework detections in the consistency check. Only promote.
+15.3 When to stop and ask
+A line number in this packet has shifted after another change.
+Two instructions in this packet appear to conflict.
+A fix requires deleting code that serves a purpose not covered by this packet.
+A schema change would break existing session state. Propose a migration path.
+The framework registry (Section 5.2) needs to be seeded with a framework not in the initial list.
+15.4 Required artifacts on completion
+A pull request per phase. Commits organized by subsection.
+Updated shared/schema.ts with every new field. One-line comments per field pointing to packet section.
+New files: server/agents/frameworkRegistry.ts, server/agents/frameworkInference.ts, server/agents/academicDimensions.ts (if helper logic warrants). Updated canonicalCaseGenerator.ts, frameworkDetector.ts, narrator.ts, signalExtractor.ts, director.ts.
+Compatibility manifest file in repo, validated on CI.
+Unit tests: cache invalidation, mergeReflectionAnalytics, narrator fidelity, framework inference cap, framework canonicalization, semantic detection regression on T-002 path, consistency check promotion, dimension coverage quality gate, per-dimension prompt constraint enforcement.
+End-to-end test script covering Section 14.10.
+CHANGELOG entry per phase pointing to this packet.
+15.5 First five tasks — in order
+Read Engine Packet v2.0 consolidated reference end to end.
+Read this milestone packet end to end. Confirm you can describe the nine priorities, the six phases, and the Cohesion Architecture.
+Propose a schema migration plan covering: pedagogical_intent column, CaseFramework extensions, FrameworkDetection extensions, DashboardSummary.framework_summary extensions, DecisionPoint dimension fields, signalExtractor output extensions.
+Propose the compatibility manifest structure and the first draft of its entries for existing dashboard surfaces. Do not begin Phase 1 until the migration plan and manifest draft are approved.
+Begin Phase 1. Report gate completion with the acceptance checklist items ticked.
