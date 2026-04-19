@@ -1139,6 +1139,25 @@ export async function generateCanonicalCase(
     effectiveLang,
   );
 
+  // Phase 5: normalize each decision's targetFrameworkIds against the FINAL
+  // framework list. The fallback path seeded these from intent.canonicalId
+  // values (and the LLM may also emit canonicalIds), but downstream review
+  // and detection use the framework's real `id`. Map canonicalId → id when
+  // possible, drop ids that don't resolve to any final framework.
+  const idsByCanonical = new Map<string, string>();
+  const idsById = new Set<string>();
+  for (const fw of finalFrameworks) {
+    idsById.add(fw.id);
+    if (fw.canonicalId) idsByCanonical.set(fw.canonicalId, fw.id);
+  }
+  for (const dp of decisionPoints) {
+    const raw = Array.isArray(dp.targetFrameworkIds) ? dp.targetFrameworkIds : [];
+    const normalized = raw
+      .map((v) => (idsById.has(v) ? v : idsByCanonical.get(v)))
+      .filter((v): v is string => typeof v === "string" && v.length > 0);
+    dp.targetFrameworkIds = Array.from(new Set(normalized));
+  }
+
   // Phase 5 (§9.4): post-generation quality gates. Each gate either passes
   // silently or attaches a qualityFlag to the affected decision(s). The
   // language gate already ran upstream; framework dedup/field completeness
@@ -1429,6 +1448,7 @@ ${canonical.coreChallenge}`;
     keyConstraints: canonical.keyConstraints,
     learningObjectives: canonical.learningObjectives,
     difficultyLevel: "intermediate",
+    language,
     // Canonical Case Structure (Harvard Business School style)
     caseContext: canonical.caseContext,
     coreChallenge: canonical.coreChallenge,

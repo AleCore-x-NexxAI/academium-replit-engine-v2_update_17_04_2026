@@ -362,6 +362,10 @@ export interface InitialState {
   role: string;
   objective: string;
   caseStudyUrl?: string;
+  // Phase 5: persisted case language so per-decision regeneration in
+  // /api/drafts/:id/decisions/:n/regenerate can derive language from the
+  // case itself, not the professor's account language.
+  language?: "es" | "en";
   
   // Canonical Case Structure (Harvard Business School style)
   caseContext?: string; // 120-180 word professional case context
@@ -686,6 +690,9 @@ export interface GeneratedScenarioData {
   courseConcepts?: string[];
   // Phase 3 (Apéndice C): pedagogical intent forwarded from generation through publish.
   pedagogicalIntent?: PedagogicalIntent;
+  // Phase 5: persisted case language so per-decision regeneration uses the
+  // case's own language, not the professor's account language.
+  language?: "es" | "en";
 }
 
 export interface DraftConversationMessage {
