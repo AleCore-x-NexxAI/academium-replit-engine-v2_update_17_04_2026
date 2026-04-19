@@ -326,6 +326,10 @@ export interface InitialState {
   hintButtonEnabled?: boolean;
   maxHintsPerTurn?: 1 | 2 | 3 | 4 | 5;
   frameworks?: CaseFramework[];
+  // Phase 2 (§4.5) one-time migration guard. When true, the canonical
+  // framework migration has already processed this scenario and we skip it
+  // in O(1) on subsequent boots.
+  _phase2MigrationDone?: boolean;
 }
 
 export type FrameworkPrimaryDimension =

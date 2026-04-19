@@ -26,7 +26,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
-import type { CaseFramework } from "@shared/schema";
+import type { CaseFramework, FrameworkPrimaryDimension } from "@shared/schema";
 
 import {
   Dialog,
@@ -34,6 +34,34 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+interface ResolverResponse {
+  canonicalId: string | null;
+  ambiguous?: boolean;
+  candidates?: Array<{ canonicalId: string; name: string }>;
+  name?: string;
+  coreConcepts?: string[];
+  conceptualDescription?: string;
+  recognitionSignals?: string[];
+  primaryDimension?: FrameworkPrimaryDimension;
+  suggestedDomainKeywords?: string[];
+  suggestedSignalPattern?: NonNullable<CaseFramework["signalPattern"]>;
+  aliases?: string[];
+}
+
+// Browser-friendly stable hash for unresolved framework names. Mirrors the
+// server-side customCanonicalId() result format ("custom_" + 10-hex). Uses a
+// FNV-1a 32-bit hash hex-padded — collisions are acceptable here because the
+// same name will always produce the same id within a single scenario.
+function clientCustomCanonicalId(name: string): string {
+  const norm = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  let h = 0x811c9dc5;
+  for (let i = 0; i < norm.length; i++) {
+    h ^= norm.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return `custom_${h.toString(16).padStart(8, "0")}00`;
+}
 
 interface FrameworkEditorProps {
   value: CaseFramework[];
@@ -101,54 +129,56 @@ export function FrameworkEditor({
     }
   };
 
+  const buildFramework = (
+    nameToAdd: string,
+    canonicalId: string,
+    resolved: ResolverResponse | null,
+  ): CaseFramework => ({
+    id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    name: resolved?.name || nameToAdd,
+    domainKeywords: Array.isArray(resolved?.suggestedDomainKeywords)
+      ? resolved.suggestedDomainKeywords.map((k) => k.toLowerCase())
+      : [],
+    canonicalId,
+    aliases: resolved?.aliases,
+    coreConcepts: resolved?.coreConcepts,
+    conceptualDescription: resolved?.conceptualDescription,
+    recognitionSignals: resolved?.recognitionSignals,
+    primaryDimension: resolved?.primaryDimension,
+    provenance: "explicit",
+    accepted_by_professor: true,
+    signalPattern: resolved?.suggestedSignalPattern,
+  });
+
   const addByCanonical = async (
     nameToAdd: string,
-    canonicalId: string | null,
+    canonicalId: string,
+    prefetched: ResolverResponse | null,
   ): Promise<CaseFramework | null> => {
-    // Dedup by canonicalId when known, otherwise by case-insensitive name.
-    if (canonicalId && value.some((f) => f.canonicalId === canonicalId)) {
+    // Dedup by canonicalId — canonicalId is now always present (registry id
+    // for resolved names, custom_<hash> for unresolved).
+    if (value.some((f) => f.canonicalId === canonicalId)) {
       toast({
         title: t("manualCase.frameworkAlreadyAdded"),
         description: t("manualCase.frameworkAlreadyAddedDesc"),
       });
       return null;
     }
-    if (!canonicalId && value.some((f) => f.name.toLowerCase() === nameToAdd.toLowerCase())) {
-      return null;
-    }
 
-    let resolved: any = null;
-    if (canonicalId) {
+    let resolved: ResolverResponse | null = prefetched;
+    if (!resolved && canonicalId.startsWith("custom_") === false) {
       try {
         const res = await apiRequest("POST", "/api/scenarios/resolve-framework-name", {
-          name: canonicalId.replace(/_/g, " "),
+          name: nameToAdd,
           language,
         });
-        resolved = await res.json();
-        if (resolved?.canonicalId !== canonicalId) {
-          // Re-attempt by passing the actual canonical id back
-          resolved = { ...resolved, canonicalId };
-        }
+        resolved = (await res.json()) as ResolverResponse;
       } catch {
         // ignore — fall through with name only
       }
     }
 
-    const fw: CaseFramework = {
-      id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      name: resolved?.name || nameToAdd,
-      domainKeywords: Array.isArray(resolved?.suggestedDomainKeywords)
-        ? resolved.suggestedDomainKeywords.map((k: string) => k.toLowerCase())
-        : [],
-      canonicalId: canonicalId || undefined,
-      aliases: Array.isArray(resolved?.aliases) ? resolved.aliases : undefined,
-      coreConcepts: Array.isArray(resolved?.coreConcepts) ? resolved.coreConcepts : undefined,
-      conceptualDescription: typeof resolved?.conceptualDescription === "string" ? resolved.conceptualDescription : undefined,
-      recognitionSignals: Array.isArray(resolved?.recognitionSignals) ? resolved.recognitionSignals : undefined,
-      primaryDimension: resolved?.primaryDimension,
-      provenance: canonicalId ? "explicit" : "explicit",
-      signalPattern: resolved?.suggestedSignalPattern,
-    };
+    const fw = buildFramework(nameToAdd, canonicalId, resolved);
     update([...value, fw]);
     return fw;
   };
@@ -162,28 +192,27 @@ export function FrameworkEditor({
         name,
         language,
       });
-      const data = await res.json();
-      if (data?.ambiguous && Array.isArray(data?.candidates)) {
+      const data = (await res.json()) as ResolverResponse;
+      if (data?.ambiguous && Array.isArray(data.candidates) && data.candidates.length > 0) {
         setDisambig({ candidates: data.candidates });
         return;
       }
-      const canonicalId: string | null = data?.canonicalId || null;
-      const finalName = data?.name || name;
-      const added = await addByCanonical(finalName, canonicalId);
-      setNameInput("");
-      // If we did not have a canonical match, fall back to AI-suggested keywords.
-      if (added && !canonicalId) {
-        void fetchKeywords(added.id, finalName);
+      if (data?.canonicalId) {
+        const finalName = data.name || name;
+        await addByCanonical(finalName, data.canonicalId, data);
+        setNameInput("");
+      } else {
+        // Unresolved — assign stable custom_<hash> canonicalId and AI-fill keywords.
+        const customId = clientCustomCanonicalId(name);
+        const added = await addByCanonical(name, customId, null);
+        setNameInput("");
+        if (added) void fetchKeywords(added.id, name);
       }
     } catch {
-      // Network failure — fall back to legacy behavior.
-      if (!value.some((f) => f.name.toLowerCase() === name.toLowerCase())) {
-        const fw: CaseFramework = {
-          id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          name,
-          domainKeywords: [],
-          provenance: "explicit",
-        };
+      // Network failure — still assign a custom canonical id so dedup works.
+      const customId = clientCustomCanonicalId(name);
+      if (!value.some((f) => f.canonicalId === customId)) {
+        const fw = buildFramework(name, customId, null);
         update([...value, fw]);
         setNameInput("");
         void fetchKeywords(fw.id, name);
@@ -195,7 +224,7 @@ export function FrameworkEditor({
 
   const pickDisambig = async (canonicalId: string, displayName: string) => {
     setDisambig(null);
-    await addByCanonical(displayName, canonicalId);
+    await addByCanonical(displayName, canonicalId, null);
     setNameInput("");
   };
 

@@ -677,71 +677,82 @@ export async function generateCanonicalCase(
       }))
     : defaultIndicators;
 
-  // Phase 2: dedup generated frameworks by canonicalId; merge keywords from
-  // duplicates. Resolver maps aliases (e.g. "5 Forces" + "Five Forces") to the
-  // same canonical entry, so we only emit one CaseFramework per canonical.
+  // Phase 2: every generated framework gets a canonicalId. Resolver maps
+  // aliases (e.g. "5 Forces" + "Five Forces") to the same canonical entry;
+  // unresolved names get a stable custom_<hash> id derived from the name.
+  // We dedup by canonicalId, preferring the entry with more semantic fields
+  // (e.g. registry-resolved over LLM-only) and merging keyword arrays.
   const { resolveFrameworkName } = await import("./frameworkRegistry");
+  const { customCanonicalId } = await import("./frameworkBootMigration");
   const effectiveLangForResolver: "es" | "en" = isEn ? "en" : "es";
-  const parsedFrameworks: CaseFramework[] = [];
+
+  const semanticScore = (fw: CaseFramework): number => {
+    let s = 0;
+    if (fw.coreConcepts && fw.coreConcepts.length > 0) s += 2;
+    if (fw.conceptualDescription && fw.conceptualDescription.trim().length > 0) s += 2;
+    if (fw.recognitionSignals && fw.recognitionSignals.length > 0) s += 2;
+    if (fw.primaryDimension) s += 1;
+    if (fw.aliases && fw.aliases.length > 0) s += 1;
+    return s;
+  };
+
   const byCanonical = new Map<string, CaseFramework>();
   if (Array.isArray(parsed.frameworks)) {
     for (const fw of parsed.frameworks) {
       if (!fw || typeof fw.name !== "string" || !fw.name.trim()) continue;
       if (!Array.isArray(fw.domainKeywords) || fw.domainKeywords.length < 2) continue;
-      const keywords = fw.domainKeywords
-        .filter((k: any) => typeof k === "string" && k.trim().length > 0)
-        .map((k: string) => k.trim().toLowerCase())
+      const keywords = (fw.domainKeywords as unknown[])
+        .filter((k): k is string => typeof k === "string" && k.trim().length > 0)
+        .map((k) => k.trim().toLowerCase())
         .slice(0, 12);
       if (keywords.length < 2) continue;
 
-      const resolved = resolveFrameworkName(fw.name.trim(), effectiveLangForResolver);
-      if (resolved) {
-        const existing = byCanonical.get(resolved.canonicalId);
-        if (existing) {
-          // Merge into the canonical entry already added.
-          const merged = Array.from(new Set([...existing.domainKeywords, ...keywords])).slice(0, 12);
-          existing.domainKeywords = merged;
-          continue;
-        }
-        const fwId = typeof fw.id === "string" && fw.id.trim()
-          ? fw.id.trim()
-          : `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-        const mergedKeywords = Array.from(
-          new Set([...resolved.suggestedDomainKeywords.map((k) => k.toLowerCase()), ...keywords]),
-        ).slice(0, 12);
-        const next: CaseFramework = {
-          id: fwId,
-          name: resolved.canonicalName,
-          domainKeywords: mergedKeywords,
-          canonicalId: resolved.canonicalId,
-          aliases: resolved.aliases,
-          coreConcepts: resolved.coreConcepts,
-          conceptualDescription: resolved.conceptualDescription,
-          recognitionSignals: resolved.recognitionSignals,
-          primaryDimension: resolved.primaryDimension,
-          provenance: "explicit",
-          signalPattern: resolved.suggestedSignalPattern,
-        };
-        byCanonical.set(resolved.canonicalId, next);
-        parsedFrameworks.push(next);
-        continue;
-      }
+      const trimmedName = fw.name.trim();
+      const resolved = resolveFrameworkName(trimmedName, effectiveLangForResolver);
 
-      // Unresolved name → keep as a custom framework, but still dedup by name.
-      if (parsedFrameworks.some((p) => !p.canonicalId && p.name.toLowerCase() === fw.name.trim().toLowerCase())) {
-        continue;
-      }
       const fwId = typeof fw.id === "string" && fw.id.trim()
         ? fw.id.trim()
         : `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      parsedFrameworks.push({
-        id: fwId,
-        name: fw.name.trim(),
-        domainKeywords: keywords,
-        provenance: "explicit",
-      });
+
+      const candidate: CaseFramework = resolved
+        ? {
+            id: fwId,
+            name: resolved.canonicalName,
+            domainKeywords: Array.from(
+              new Set([...resolved.suggestedDomainKeywords.map((k) => k.toLowerCase()), ...keywords]),
+            ).slice(0, 12),
+            canonicalId: resolved.canonicalId,
+            aliases: resolved.aliases,
+            coreConcepts: resolved.coreConcepts,
+            conceptualDescription: resolved.conceptualDescription,
+            recognitionSignals: resolved.recognitionSignals,
+            primaryDimension: resolved.primaryDimension,
+            provenance: "explicit",
+            accepted_by_professor: true,
+            signalPattern: resolved.suggestedSignalPattern,
+          }
+        : {
+            id: fwId,
+            name: trimmedName,
+            domainKeywords: keywords,
+            canonicalId: customCanonicalId(trimmedName),
+            provenance: "explicit",
+            accepted_by_professor: true,
+          };
+
+      const existing = byCanonical.get(candidate.canonicalId!);
+      if (!existing) {
+        byCanonical.set(candidate.canonicalId!, candidate);
+        continue;
+      }
+      // Prefer the more-populated entry; merge keyword arrays.
+      const winner = semanticScore(candidate) >= semanticScore(existing) ? candidate : existing;
+      const loser = winner === candidate ? existing : candidate;
+      const mergedKeywords = Array.from(new Set([...winner.domainKeywords, ...loser.domainKeywords])).slice(0, 12);
+      byCanonical.set(candidate.canonicalId!, { ...winner, domainKeywords: mergedKeywords });
     }
   }
+  const parsedFrameworks: CaseFramework[] = Array.from(byCanonical.values());
 
   // Post-process: drop sub-4-char + generic stopword keywords, deduplicate across
   // frameworks, and flag any frameworks whose keyword arrays appear to be in the
