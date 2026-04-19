@@ -1,5 +1,5 @@
-import { useState, useImperativeHandle, forwardRef, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useImperativeHandle, forwardRef, useCallback } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -17,6 +17,8 @@ import {
   Plus,
   Tag,
   Lightbulb,
+  HelpCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,6 +35,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { HelpIcon } from "@/components/HelpIcon";
@@ -40,6 +48,31 @@ import { DecisionDimensionsEditor } from "@/components/DecisionDimensionsEditor"
 import { useTranslation } from "@/contexts/LanguageContext";
 import type { GeneratedScenarioData, DecisionPoint, Indicator, CaseFramework, AcademicDimension } from "@shared/schema";
 import { Trash2, BookMarked } from "lucide-react";
+
+interface RegistryFramework {
+  canonicalId: string;
+  canonicalName: string;
+  aliases: string[];
+  disciplines: string[];
+  primaryDimension: string;
+  conceptualDescription: string;
+  coreConcepts: string[];
+}
+
+type PickerSelection = { type: "framework" | "discipline"; id: string };
+
+const DISCIPLINE_ORDER = ["business", "marketing", "finance", "operations", "human_resources", "strategy"] as const;
+
+const DISCIPLINE_LABELS_MAP: Record<string, { en: string; es: string }> = {
+  business: { en: "Business", es: "Negocios" },
+  marketing: { en: "Marketing", es: "Marketing" },
+  finance: { en: "Finance", es: "Finanzas" },
+  operations: { en: "Operations", es: "Operaciones" },
+  human_resources: { en: "Human Resources", es: "Recursos Humanos" },
+  strategy: { en: "Strategy", es: "Estrategia" },
+};
+
+const MAX_PICKER_SELECTIONS = 3;
 
 interface CanonicalCaseCreatorProps {
   onScenarioPublished: () => void;
@@ -129,23 +162,17 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   onClose,
 }, ref) => {
   const [topic, setTopic] = useState("");
-  // Phase 3 (Apéndice C): Pedagogical intent inputs that anchor case generation,
-  // framework inference (Phase 4), and runtime calibration (Phase 6).
   const [teachingGoal, setTeachingGoal] = useState("");
   const [intentFrameworks, setIntentFrameworks] = useState<Array<{ canonicalId: string | null; name: string }>>([]);
-  const [intentFrameworkInput, setIntentFrameworkInput] = useState("");
+  const [pickerSelections, setPickerSelections] = useState<PickerSelection[]>([]);
+  const [expandedDisciplines, setExpandedDisciplines] = useState<Record<string, boolean>>({});
   const [intentCompetencies, setIntentCompetencies] = useState<Array<"C1" | "C2" | "C3" | "C4" | "C5">>([]);
-  // Phase 3: per-decision academic dimensions chosen by the professor.
   const [intentDimensions, setIntentDimensions] = useState<
     Array<{ decisionNumber: number; primaryDimension: AcademicDimension; secondaryDimension?: AcademicDimension }>
   >([]);
   const [courseContext, setCourseContext] = useState("");
   const [reasoningConstraint, setReasoningConstraint] = useState("");
-  const [discipline, setDiscipline] = useState("Negocios");
   const [targetLevel, setTargetLevel] = useState("Pregrado");
-  const [scenarioObjective, setScenarioObjective] = useState("");
-  const [tradeoffFocus, setTradeoffFocus] = useState<string[]>([]);
-  const [customTradeoff, setCustomTradeoff] = useState("");
   const [stepCount, setStepCount] = useState(3);
   const [language, setLanguage] = useState<"es" | "en">("es");
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -156,11 +183,56 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [conceptTagInput, setConceptTagInput] = useState("");
   const [frameworks, setFrameworks] = useState<CaseFramework[]>([]);
   const [frameworkNameInput, setFrameworkNameInput] = useState("");
-  const [setupFrameworks, setSetupFrameworks] = useState<string[]>([]);
-  const [setupFrameworkInput, setSetupFrameworkInput] = useState("");
   const [keywordSuggestions, setKeywordSuggestions] = useState<Record<string, string[]>>({});
   const [suggestingKeywords, setSuggestingKeywords] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
+
+  const { data: registryData } = useQuery<RegistryFramework[]>({
+    queryKey: ["/api/frameworks/registry", language],
+    queryFn: async () => {
+      const res = await fetch(`/api/frameworks/registry?language=${language}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (registryData && pickerSelections.length > 0) {
+      const newIntentFrameworks = pickerSelections
+        .filter(s => s.type === "framework")
+        .map(s => {
+          const fw = registryData.find(r => r.canonicalId === s.id);
+          return { canonicalId: s.id, name: fw?.canonicalName ?? s.id };
+        });
+      setIntentFrameworks(newIntentFrameworks);
+    } else if (pickerSelections.length === 0) {
+      setIntentFrameworks([]);
+    }
+  }, [pickerSelections, registryData]);
+
+  const registryByDiscipline = useCallback(() => {
+    if (!registryData) return {};
+    const groups: Record<string, RegistryFramework[]> = {};
+    for (const d of DISCIPLINE_ORDER) groups[d] = [];
+    for (const fw of registryData) {
+      for (const d of fw.disciplines) {
+        if (groups[d]) groups[d].push(fw);
+      }
+    }
+    return groups;
+  }, [registryData]);
+
+  const crossDisciplineWarning = useCallback((): string[] | null => {
+    if (!registryData) return null;
+    const fwSelections = pickerSelections.filter(s => s.type === "framework");
+    if (fwSelections.length < 2) return null;
+    const allDisciplines = new Set<string>();
+    for (const sel of fwSelections) {
+      const fw = registryData.find(r => r.canonicalId === sel.id);
+      if (fw) fw.disciplines.forEach(d => allDisciplines.add(d));
+    }
+    return allDisciplines.size >= 2 ? Array.from(allDisciplines) : null;
+  }, [pickerSelections, registryData]);
 
   const fetchKeywordSuggestions = useCallback(async (fw: CaseFramework) => {
     setSuggestingKeywords(prev => ({ ...prev, [fw.id]: true }));
@@ -198,57 +270,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     }
   }));
 
-  const SCENARIO_OBJECTIVES = [
-    { id: "decision_making", labelKey: "scenarioObjectives.decisionMaking" },
-    { id: "crisis_management", labelKey: "scenarioObjectives.crisisManagement" },
-    { id: "strategic_thinking", labelKey: "scenarioObjectives.strategicThinking" },
-    { id: "leadership", labelKey: "scenarioObjectives.leadership" },
-    { id: "negotiation", labelKey: "scenarioObjectives.negotiation" },
-    { id: "ethical_dilemmas", labelKey: "scenarioObjectives.ethicalDilemmas" },
-  ];
-
-  const TRADEOFF_OPTIONS = [
-    { id: "cost_quality", labelKey: "tradeoffs.costVsQuality" },
-    { id: "speed_accuracy", labelKey: "tradeoffs.speedVsPrecision" },
-    { id: "short_long_term", labelKey: "tradeoffs.shortVsLong" },
-    { id: "risk_reward", labelKey: "tradeoffs.riskVsReward" },
-    { id: "individual_team", labelKey: "tradeoffs.individualVsTeam" },
-    { id: "innovation_stability", labelKey: "tradeoffs.innovationVsStability" },
-  ];
-
-  // Phase 3: resolve a typed framework name to its canonical id (custom_<sha1[:10]>
-  // or curated id) so the intent stays canonical end-to-end.
-  const addIntentFramework = useCallback(async () => {
-    const name = intentFrameworkInput.trim();
-    if (!name) return;
-    if (intentFrameworks.some(f => f.name.toLowerCase() === name.toLowerCase())) {
-      setIntentFrameworkInput("");
-      return;
-    }
-    try {
-      const res = await apiRequest("POST", "/api/scenarios/resolve-framework-name", { name });
-      const data = await res.json() as { canonicalId: string | null; name: string; ambiguous?: boolean };
-      // Phase 3 hard rule: never store a framework without a canonical id.
-      if (!data.canonicalId) {
-        toast({
-          title: language === "en" ? "Framework needs disambiguation" : "El framework necesita aclararse",
-          description: language === "en"
-            ? `"${name}" matches multiple frameworks. Type a more specific name (e.g., "Porter Five Forces").`
-            : `"${name}" coincide con varios frameworks. Escribe un nombre más específico (p. ej., "Porter Cinco Fuerzas").`,
-          variant: "destructive",
-        });
-        return;
-      }
-      setIntentFrameworks(prev => [...prev, { canonicalId: data.canonicalId, name: data.name || name }]);
-      setIntentFrameworkInput("");
-    } catch (err) {
-      toast({
-        title: language === "en" ? "Could not resolve framework" : "No se pudo resolver el framework",
-        description: err instanceof Error ? err.message : String(err),
-        variant: "destructive",
-      });
-    }
-  }, [intentFrameworkInput, intentFrameworks, language, toast]);
+  const togglePickerSelection = useCallback((sel: PickerSelection) => {
+    setPickerSelections(prev => {
+      const exists = prev.some(s => s.type === sel.type && s.id === sel.id);
+      if (exists) return prev.filter(s => !(s.type === sel.type && s.id === sel.id));
+      if (prev.length >= MAX_PICKER_SELECTIONS) return prev;
+      return [...prev, sel];
+    });
+  }, []);
 
   const COMPETENCY_LABELS: Record<"C1" | "C2" | "C3" | "C4" | "C5", string> = {
     C1: language === "en" ? "C1 Analytical" : "C1 Analítica",
@@ -260,22 +289,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      const additionalContext = setupFrameworks.length > 0
-        ? (language === "es"
-            ? `Marcos teóricos que el caso debe incorporar de forma natural en el contexto, las decisiones y los thinking scaffolds: ${setupFrameworks.join(", ")}.`
-            : `Theoretical frameworks the case should naturally incorporate in the context, decisions, and thinking scaffolds: ${setupFrameworks.join(", ")}.`)
-        : undefined;
       const response = await apiRequest("POST", "/api/canonical-case/generate", {
         topic,
-        discipline,
         targetLevel,
-        scenarioObjective,
-        tradeoffFocus,
-        customTradeoff: customTradeoff.trim() || undefined,
         stepCount,
         language,
-        additionalContext,
-        // Phase 3: pedagogical intent is required for every generation.
         pedagogicalIntent: {
           teachingGoal: teachingGoal.trim(),
           targetFrameworks: intentFrameworks,
@@ -298,16 +316,8 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         setConceptTags(data.canonicalCase.learningObjectives.slice(0, 5));
       }
       const aiFrameworks = data.scenarioData?.initialState?.frameworks ?? [];
-      const seededFromSetup: CaseFramework[] = setupFrameworks
-        .filter(name => !aiFrameworks.some(f => f.name.trim().toLowerCase() === name.trim().toLowerCase()))
-        .map(name => ({
-          id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          name,
-          domainKeywords: [],
-        }));
-      const merged = [...aiFrameworks, ...seededFromSetup].slice(0, 8);
-      if (merged.length > 0) {
-        setFrameworks(merged);
+      if (aiFrameworks.length > 0) {
+        setFrameworks(aiFrameworks.slice(0, 8));
       }
       toast({
         title: t("canonicalCase.caseGenerated"),
@@ -461,14 +471,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     }
   };
 
-  const toggleTradeoff = (id: string) => {
-    if (tradeoffFocus.includes(id)) {
-      setTradeoffFocus(tradeoffFocus.filter((t) => t !== id));
-    } else {
-      setTradeoffFocus([...tradeoffFocus, id]);
-    }
-  };
-
   if (!canonicalCase) {
     if (generateMutation.isPending) {
       return (
@@ -508,7 +510,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
         <ScrollArea className="flex-1">
           <div className="p-8 max-w-xl mx-auto space-y-8">
-            {/* Phase 3 (Apéndice C): Pedagogical Intent — required before generation. */}
             <Card className="p-5 border-primary/40 space-y-4" data-testid="panel-pedagogical-intent">
               <div className="flex items-center gap-2">
                 <Target className="w-5 h-5 text-primary" />
@@ -542,50 +543,168 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 <Label className="text-sm font-semibold">
                   {language === "en" ? "Target frameworks (optional)" : "Frameworks objetivo (opcional)"}
                 </Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={intentFrameworkInput}
-                    onChange={(e) => setIntentFrameworkInput(e.target.value)}
-                    placeholder={language === "en" ? "e.g., Porter's Five Forces" : "ej.: 5 Fuerzas de Porter"}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void addIntentFramework();
-                      }
-                    }}
-                    data-testid="input-intent-framework"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => void addIntentFramework()}
-                    disabled={!intentFrameworkInput.trim()}
-                    data-testid="button-add-intent-framework"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                <p className="text-xs text-muted-foreground">
+                  {pickerSelections.length} / {MAX_PICKER_SELECTIONS} {language === "en" ? "selected" : "seleccionados"}
+                </p>
+
+                <div className="border rounded-md divide-y">
+                  {DISCIPLINE_ORDER.map((disc) => {
+                    const groups = registryByDiscipline();
+                    const fws = groups[disc] ?? [];
+                    const isExpanded = !!expandedDisciplines[disc];
+                    const discLabel = DISCIPLINE_LABELS_MAP[disc]?.[language] ?? disc;
+                    const discSelected = pickerSelections.some(s => s.type === "discipline" && s.id === disc);
+                    const selectedInGroup = fws.filter(fw =>
+                      pickerSelections.some(s => s.type === "framework" && s.id === fw.canonicalId)
+                    ).length;
+                    const atCap = pickerSelections.length >= MAX_PICKER_SELECTIONS;
+
+                    return (
+                      <div key={disc} data-testid={`picker-group-${disc}`}>
+                        <div className="flex items-center gap-2 p-3">
+                          <Checkbox
+                            checked={discSelected}
+                            disabled={!discSelected && atCap}
+                            onCheckedChange={() => togglePickerSelection({ type: "discipline", id: disc })}
+                            data-testid={`checkbox-discipline-${disc}`}
+                          />
+                          <button
+                            type="button"
+                            className="flex-1 flex items-center justify-between text-left"
+                            onClick={() => setExpandedDisciplines(prev => ({ ...prev, [disc]: !prev[disc] }))}
+                            data-testid={`button-expand-${disc}`}
+                          >
+                            <span className="text-sm font-medium">{discLabel}</span>
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">
+                                {fws.length} {language === "en" ? "frameworks" : "marcos"}
+                                {selectedInGroup > 0 && ` · ${selectedInGroup} ${language === "en" ? "selected" : "sel."}`}
+                              </span>
+                              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </span>
+                          </button>
+                        </div>
+                        {isExpanded && (
+                          <div className="pl-8 pr-3 pb-3 space-y-1">
+                            {fws.map((fw) => {
+                              const fwSelected = pickerSelections.some(
+                                s => s.type === "framework" && s.id === fw.canonicalId
+                              );
+                              const truncDesc = fw.conceptualDescription.length > 140
+                                ? fw.conceptualDescription.slice(0, 137) + "..."
+                                : fw.conceptualDescription;
+                              return (
+                                <div
+                                  key={fw.canonicalId}
+                                  className="flex items-center gap-2 py-1"
+                                  data-testid={`picker-fw-${fw.canonicalId}`}
+                                >
+                                  <Checkbox
+                                    checked={fwSelected}
+                                    disabled={!fwSelected && atCap}
+                                    onCheckedChange={() =>
+                                      togglePickerSelection({ type: "framework", id: fw.canonicalId })
+                                    }
+                                    data-testid={`checkbox-fw-${fw.canonicalId}`}
+                                  />
+                                  <span className={`text-sm flex-1 ${!fwSelected && atCap ? "opacity-50" : ""}`}>
+                                    {fw.canonicalName}
+                                  </span>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0 cursor-help" data-testid={`tooltip-fw-info-${fw.canonicalId}`} />
+                                    </TooltipTrigger>
+                                    <TooltipContent side="left" className="max-w-xs text-xs">
+                                      <p>{truncDesc}</p>
+                                      <p className="mt-1 text-muted-foreground">
+                                        {fw.coreConcepts.slice(0, 4).join(", ")}
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                {intentFrameworks.length > 0 && (
+
+                {(() => {
+                  const crossDisc = crossDisciplineWarning();
+                  if (!crossDisc) return null;
+                  const discNames = crossDisc
+                    .map(d => DISCIPLINE_LABELS_MAP[d]?.[language] ?? d)
+                    .join(", ");
+                  return (
+                    <div
+                      className="flex items-start gap-2 p-3 rounded-md border-l-4 text-xs mt-2 bg-yellow-50 dark:bg-yellow-950/30 border-yellow-500 dark:border-yellow-600"
+                      data-testid="warning-cross-discipline"
+                    >
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-500" />
+                      <p>
+                        {language === "en"
+                          ? `Cross-discipline selection \u2014 you've picked frameworks from ${discNames}. The AI will generate a case that spans them, but it may not match a single course cleanly. Continue if intentional.`
+                          : `Selección multidisciplinaria \u2014 has elegido frameworks de ${discNames}. La IA generará un caso que los integra, pero puede no encajar en un curso específico. Continúa si es intencional.`}
+                      </p>
+                    </div>
+                  );
+                })()}
+
+                {pickerSelections.length > 0 && registryData && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {intentFrameworks.map((fw, idx) => (
-                      <Badge
-                        key={idx}
-                        variant="secondary"
-                        className="gap-1 pr-1"
-                        data-testid={`badge-intent-framework-${idx}`}
-                      >
-                        {fw.name}
-                        <button
-                          type="button"
-                          onClick={() => setIntentFrameworks(prev => prev.filter((_, i) => i !== idx))}
-                          className="ml-1 rounded-full p-0.5"
-                          data-testid={`button-remove-intent-framework-${idx}`}
+                    {pickerSelections.map((sel) => {
+                      if (sel.type === "discipline") {
+                        const label = DISCIPLINE_LABELS_MAP[sel.id]?.[language] ?? sel.id;
+                        return (
+                          <Badge key={`d-${sel.id}`} variant="secondary" className="gap-1 pr-1">
+                            {label}
+                            <button
+                              type="button"
+                              onClick={() => togglePickerSelection(sel)}
+                              className="ml-1 rounded-full p-0.5"
+                              data-testid={`button-remove-discipline-${sel.id}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        );
+                      }
+                      const fw = registryData.find(r => r.canonicalId === sel.id);
+                      if (!fw) return null;
+                      const truncDesc = fw.conceptualDescription.length > 120
+                        ? fw.conceptualDescription.slice(0, 117) + "..."
+                        : fw.conceptualDescription;
+                      return (
+                        <Card
+                          key={`f-${sel.id}`}
+                          className="p-3 space-y-1 w-full"
+                          data-testid={`preview-card-${sel.id}`}
                         >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium">{fw.canonicalName}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => togglePickerSelection(sel)}
+                              data-testid={`button-remove-picker-${sel.id}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{truncDesc}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {fw.coreConcepts.slice(0, 4).map((c, i) => (
+                              <Badge key={i} variant="outline" className="text-[10px] px-1.5 py-0">
+                                {c}
+                              </Badge>
+                            ))}
+                          </div>
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -642,7 +761,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 </div>
               </div>
 
-              {/* Phase 3: per-decision academic dimensions. */}
               <DecisionDimensionsEditor
                 value={intentDimensions}
                 onChange={setIntentDimensions}
@@ -669,153 +787,17 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label htmlFor="setup-frameworks" className="text-base font-semibold">{t("canonicalCase.setupFrameworks")}</Label>
-                <HelpIcon content={t("canonicalCase.setupFrameworksHelp")} />
+                <Label htmlFor="targetLevel" className="text-base font-semibold">{t("canonicalCase.level")}</Label>
+                <HelpIcon content={t("canonicalCase.levelHelp")} />
               </div>
-              <p className="text-sm text-muted-foreground">{t("canonicalCase.setupFrameworksHelp")}</p>
-              <div className="flex gap-2">
-                <Input
-                  id="setup-frameworks"
-                  value={setupFrameworkInput}
-                  onChange={(e) => setSetupFrameworkInput(e.target.value)}
-                  list="setup-framework-suggestions"
-                  placeholder={t("canonicalCase.setupFrameworksPlaceholder")}
-                  disabled={setupFrameworks.length >= 8}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      const val = setupFrameworkInput.trim();
-                      if (val && !setupFrameworks.some(f => f.toLowerCase() === val.toLowerCase()) && setupFrameworks.length < 8) {
-                        setSetupFrameworks(prev => [...prev, val]);
-                        setSetupFrameworkInput("");
-                      }
-                    }
-                  }}
-                  data-testid="input-setup-framework"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  disabled={!setupFrameworkInput.trim() || setupFrameworks.some(f => f.toLowerCase() === setupFrameworkInput.trim().toLowerCase()) || setupFrameworks.length >= 8}
-                  onClick={() => {
-                    const val = setupFrameworkInput.trim();
-                    if (val && !setupFrameworks.some(f => f.toLowerCase() === val.toLowerCase()) && setupFrameworks.length < 8) {
-                      setSetupFrameworks(prev => [...prev, val]);
-                      setSetupFrameworkInput("");
-                    }
-                  }}
-                  data-testid="button-add-setup-framework"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              <datalist id="setup-framework-suggestions">
-                {[
-                  "5 Fuerzas de Porter",
-                  "FODA / SWOT",
-                  "PESTEL",
-                  "Cadena de Valor (Porter)",
-                  "Matriz BCG",
-                  "Lienzo de Modelo de Negocio (Business Model Canvas)",
-                  "Lean Startup",
-                  "Design Thinking",
-                  "Scrum",
-                  "Kanban",
-                  "OKRs",
-                  "SMART Goals",
-                  "Balanced Scorecard",
-                  "McKinsey 7S",
-                  "4P del Marketing Mix",
-                  "Blue Ocean Strategy",
-                  "Análisis de Stakeholders",
-                  "Six Sigma",
-                  "Teoría de las Restricciones (TOC)",
-                  "Pirámide de Maslow",
-                  "Modelo Kotter (Cambio)",
-                  "Matriz de Ansoff",
-                  "Modelo de Hofstede",
-                ].map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
-              {setupFrameworks.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {setupFrameworks.map((fw, idx) => (
-                    <Badge
-                      key={idx}
-                      variant="secondary"
-                      className="gap-1 pr-1"
-                      data-testid={`badge-setup-framework-${idx}`}
-                    >
-                      {fw}
-                      <button
-                        type="button"
-                        onClick={() => setSetupFrameworks(prev => prev.filter((_, i) => i !== idx))}
-                        className="ml-1 rounded-full p-0.5"
-                        data-testid={`button-remove-setup-framework-${idx}`}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">{setupFrameworks.length}/8 · {t("canonicalCase.setupFrameworksLimit")}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="discipline" className="text-base font-semibold">{t("canonicalCase.discipline")}</Label>
-                  <HelpIcon content={t("canonicalCase.disciplineHelp")} />
-                </div>
-                <Select value={discipline} onValueChange={setDiscipline}>
-                  <SelectTrigger className="h-11" data-testid="select-discipline">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Negocios">{t("canonicalCase.business")}</SelectItem>
-                    <SelectItem value="Marketing">{t("canonicalCase.marketing")}</SelectItem>
-                    <SelectItem value="Finanzas">{t("canonicalCase.finance")}</SelectItem>
-                    <SelectItem value="Operaciones">{t("canonicalCase.operations")}</SelectItem>
-                    <SelectItem value="Recursos Humanos">{t("canonicalCase.humanResources")}</SelectItem>
-                    <SelectItem value="Estrategia">{t("canonicalCase.strategy")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="targetLevel" className="text-base font-semibold">{t("canonicalCase.level")}</Label>
-                  <HelpIcon content={t("canonicalCase.levelHelp")} />
-                </div>
-                <Select value={targetLevel} onValueChange={setTargetLevel}>
-                  <SelectTrigger className="h-11" data-testid="select-target-level">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pregrado">{t("canonicalCase.undergraduate")}</SelectItem>
-                    <SelectItem value="Posgrado">{t("canonicalCase.graduate")}</SelectItem>
-                    <SelectItem value="Ejecutivo">{t("canonicalCase.executive")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">{t("canonicalCase.scenarioObjective")}</Label>
-                <HelpIcon content={t("canonicalCase.objectiveHelp")} />
-              </div>
-              <Select value={scenarioObjective} onValueChange={setScenarioObjective}>
-                <SelectTrigger className="h-11" data-testid="select-scenario-objective">
-                  <SelectValue placeholder={t("canonicalCase.selectObjective")} />
+              <Select value={targetLevel} onValueChange={setTargetLevel}>
+                <SelectTrigger className="h-11" data-testid="select-target-level">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SCENARIO_OBJECTIVES.map((obj) => (
-                    <SelectItem key={obj.id} value={obj.id}>{t(obj.labelKey)}</SelectItem>
-                  ))}
+                  <SelectItem value="Pregrado">{t("canonicalCase.undergraduate")}</SelectItem>
+                  <SelectItem value="Posgrado">{t("canonicalCase.graduate")}</SelectItem>
+                  <SelectItem value="Ejecutivo">{t("canonicalCase.executive")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -832,10 +814,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 <SelectContent>
                   <SelectItem value="es">{t("common.spanish")}</SelectItem>
                   <SelectItem value="en">{t("common.english")}</SelectItem>
-
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Label className="text-base font-semibold">{t("canonicalCase.numberOfDecisions")}</Label>
@@ -853,42 +835,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">{t("canonicalCase.tradeoffFocus")}</Label>
-                <HelpIcon content={t("canonicalCase.tradeoffHelp")} />
-              </div>
-              <p className="text-sm text-muted-foreground">{t("canonicalCase.tradeoffDesc")}</p>
-              <div className="flex flex-wrap gap-2">
-                {TRADEOFF_OPTIONS.map((option) => {
-                  const isSelected = tradeoffFocus.includes(option.id);
-                  return (
-                    <Badge
-                      key={option.id}
-                      variant={isSelected ? "default" : "outline"}
-                      className={`cursor-pointer px-4 py-2 text-sm transition-all ${
-                        isSelected 
-                          ? "bg-primary text-primary-foreground" 
-                          : "hover:bg-primary/10"
-                      }`}
-                      onClick={() => toggleTradeoff(option.id)}
-                      data-testid={`chip-tradeoff-${option.id}`}
-                    >
-                      {isSelected && <Check className="w-3 h-3 mr-1" />}
-                      {t(option.labelKey)}
-                    </Badge>
-                  );
-                })}
-              </div>
-              <Input
-                value={customTradeoff}
-                onChange={(e) => setCustomTradeoff(e.target.value)}
-                placeholder={t("canonicalCase.customTradeoff")}
-                className="mt-2"
-                data-testid="input-custom-tradeoff"
-              />
             </div>
 
             <div className="pt-4">
@@ -928,11 +874,9 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               setScenarioData(null);
               setDraftId(null);
               setTopic("");
-              setScenarioObjective("");
-              setTradeoffFocus([]);
-              setCustomTradeoff("");
               setTeachingGoal("");
               setIntentFrameworks([]);
+              setPickerSelections([]);
               setIntentCompetencies([]);
               setIntentDimensions([]);
               setCourseContext("");

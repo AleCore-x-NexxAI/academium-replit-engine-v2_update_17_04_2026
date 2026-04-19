@@ -1,0 +1,146 @@
+# Task #75 — Scenario Creation Wizard v3.0 UX Cleanup + Registry Expansion
+
+## What & Why
+
+Post-v3.0, the scenario creation wizard (client/src/components/CanonicalCaseCreator.tsx) stacks the new Teaching Intent card on top of the legacy pre-v3.0 fields without deleting or consolidating them. The result is a confusing duplicated form where the professor fills out Teaching Intent (target frameworks, target competencies, per-decision dimensions) and then sees a second redundant set of fields below: setupFrameworks (duplicates intent target frameworks), tradeoffFocus (duplicated by C5 in targetCompetencies), scenarioObjective (duplicated by teachingGoal), and a separate Discipline selector that's redundant given the framework picker can carry discipline information.
+
+Additionally:
+- Language toggle leaks — Teaching Intent labels stay Spanish when UI flips to English (and vice versa).
+- Framework input is a bare text field — typing "Porter" fires a destructive toast instead of inline disambiguation. Typing "Porter Five Forces" resolves to `porter_generic_strategies` instead of `porter_five_forces` (resolver bug).
+- Per-decision dimension selectors show two unlabeled dropdowns side-by-side with no indication which is primary vs secondary, and no help text explaining what any dimension means.
+- Registry is limited to 13 strategy-focused frameworks — unusable for marketing, finance, operations, HR courses.
+
+This task fixes all of the above in one coordinated pass.
+
+## Done looks like
+
+1. The wizard, when Teaching Intent is filled, shows ONLY these fields outside the Teaching Intent card: Topic (required), Level (Pregrado/Posgrado/Ejecutivo), Language, Step count. The following fields are DELETED entirely: `setupFrameworks`, `tradeoffFocus`, `scenarioObjective`, `discipline` selector.
+2. Teaching Intent is required — Generate button stays disabled until `teachingGoal.trim().length > 0`.
+3. Language toggle fully switches all strings inside Teaching Intent card. No Spanish labels remain in English mode. No English labels remain in Spanish mode. Run a grep audit on the Teaching Intent card JSX and verify every user-facing string is either `language === "en" ? "..." : "..."` or uses a `t()` key with both `en` and `es` entries in `translations.ts`.
+4. Framework picker redesigned as a grouped accordion with 6 discipline sections: Business, Marketing, Finance, Operations, Human Resources, Strategy. Each section is collapsible. Each has a checkbox on the group header itself (to select the discipline as a whole without picking a specific framework) AND individual framework checkboxes inside the group. Discipline-header checkbox and individual-framework checkboxes are independent — a user can check "Marketing" header only (no specific framework), OR check "Porter's Generic Strategies" inside Strategy only, OR check both in combination.
+5. Hard cap of 3 selections total, counted across all groups (framework checkboxes AND discipline-header checkboxes both count as 1 toward the cap). When cap reached, remaining checkboxes disable with a subtle style change. Counter visible at top of the picker: "X of 3 selected".
+6. When selections span 2+ different disciplines, a warning banner renders below the picker: "Cross-discipline selection — you've picked frameworks from [Business, Strategy]. The AI will generate a case that spans them, but it may not match a single course cleanly. Continue if intentional." Use `--color-background-warning` with `--color-border-warning` left accent.
+7. Registry expanded from 13 to 42 frameworks. Registry entry structure extended with `disciplines: string[]` (multi-discipline array, replacing any single-discipline assumption). Every framework gets full bilingual semantic fields per the existing pattern: `canonicalName_en`, `canonicalName_es`, `aliases`, `coreConcepts_en`, `coreConcepts_es`, `conceptualDescription_en`, `conceptualDescription_es`, `recognitionSignals_en`, `recognitionSignals_es`, `primaryDimension`, `suggestedDomainKeywords_en`, `suggestedDomainKeywords_es`, `suggestedSignalPattern` (optional), `disciplines` (new array).
+8. `Porter Five Forces` typed into the picker search or added via resolver returns `porter_five_forces` canonicalId (never `porter_generic_strategies`). Regression test asserts this.
+9. Bare `Porter` input triggers INLINE disambiguation — two buttons rendered under the input labeled "Porter's Generic Strategies" and "Porter's Five Forces", not a destructive toast. Clicking either adds that canonicalId to the selection.
+10. Each framework checkbox has a HelpIcon tooltip on hover showing `conceptualDescription` (truncated to ~140 chars) and the first 3-4 `coreConcepts` as comma-separated text. Both strings pulled from the registry entry in the current UI language.
+11. Per-decision dimension UI, when rendered, clearly labels the two dropdowns: left one says "Primary dimension *" (required), right one says "Secondary dimension (optional)". Above each decision's pair of dropdowns add a one-line hint: "Primary is the main reasoning this decision exercises. Secondary is a related dimension it also touches." Add a HelpIcon on each dropdown OPTION explaining what that dimension means using packet §10.1 definitions: analytical = evidence & data, strategic = priorities & direction, stakeholder = interests & reactions, ethical = obligations & fairness, tradeoff = costs & sacrifices.
+12. When a framework is selected, a muted preview card renders beneath it showing `conceptualDescription` (truncated) and `coreConcepts.slice(0, 4)` as small chips. Confirms to the professor "yes this is the right framework" before generation.
+13. New endpoint `GET /api/frameworks/registry?language=en|es` returns `[{canonicalId, canonicalName, aliases, disciplines, primaryDimension, conceptualDescription, coreConcepts}]` for all 42 registry entries in the requested language. Used by the picker. Cache response client-side after first fetch.
+
+## Registry content — the 42 frameworks
+
+Expand `server/agents/frameworkRegistry.ts` from the current 13 entries to these 42. Each entry follows the existing structure. Keep the 13 current entries as-is (add `disciplines` array — most are `["strategy"]`, some span multiple). Add the 29 new ones below. Bilingual canonical names: use a Spanish translation when the framework has an established Spanish name, otherwise keep the English name in both fields. Aliases array must include common typos, abbreviations, and both-language variants.
+
+### Business (6 entries)
+- `business_model_canvas` — en: "Business Model Canvas", es: "Lienzo de Modelo de Negocio", aliases: ["BMC", "business canvas", "lienzo canvas"], disciplines: ["business"], primaryDimension: "strategic"
+- `okrs` — en: "OKRs", es: "OKRs", aliases: ["objectives and key results", "objetivos y resultados clave"], disciplines: ["business"], primaryDimension: "strategic"
+- `smart_goals` — en: "SMART goals", es: "Objetivos SMART", aliases: ["smart"], disciplines: ["business"], primaryDimension: "analytical"
+- `mckinsey_7s` — en: "McKinsey 7S", es: "Modelo 7S de McKinsey", aliases: ["7s framework", "mckinsey seven s"], disciplines: ["business", "strategy"], primaryDimension: "strategic"
+- `pdca_cycle` — en: "PDCA cycle", es: "Ciclo PDCA", aliases: ["deming cycle", "plan-do-check-act", "ciclo de deming"], disciplines: ["business", "operations"], primaryDimension: "analytical"
+- `balanced_scorecard` — ALREADY EXISTS in registry. Update its `disciplines` array to `["business", "strategy"]` so it appears in both groups.
+
+### Marketing (6 entries)
+- `marketing_mix_4ps` — en: "4Ps marketing mix", es: "4 P del marketing mix", aliases: ["4ps", "4 p", "product price place promotion", "producto precio plaza promoción"], disciplines: ["marketing"], primaryDimension: "strategic"
+- `stp_marketing` — en: "Segmentation, targeting, positioning", es: "Segmentación, targeting, posicionamiento", aliases: ["stp", "stp marketing"], disciplines: ["marketing", "strategy"], primaryDimension: "strategic"
+- `aida_model` — en: "AIDA model", es: "Modelo AIDA", aliases: ["attention interest desire action", "atención interés deseo acción"], disciplines: ["marketing"], primaryDimension: "stakeholder"
+- `customer_journey_map` — en: "Customer journey map", es: "Mapa del viaje del cliente", aliases: ["journey map", "mapa de viaje", "customer journey"], disciplines: ["marketing"], primaryDimension: "stakeholder"
+- `brand_equity_keller` — en: "Brand equity pyramid", es: "Pirámide de brand equity", aliases: ["keller pyramid", "cbbe", "pirámide de keller"], disciplines: ["marketing"], primaryDimension: "strategic"
+- `jobs_to_be_done` — en: "Jobs to be done", es: "Jobs to be done", aliases: ["jtbd"], disciplines: ["marketing", "strategy"], primaryDimension: "stakeholder"
+
+### Finance (5 entries)
+- `dcf_valuation` — en: "Discounted cash flow valuation", es: "Valoración por flujo de caja descontado", aliases: ["dcf", "discounted cashflow", "flujo descontado"], disciplines: ["finance"], primaryDimension: "analytical"
+- `capm` — en: "Capital Asset Pricing Model", es: "Modelo de valoración de activos financieros", aliases: ["capm", "mvaf"], disciplines: ["finance"], primaryDimension: "analytical"
+- `dupont_analysis` — en: "DuPont analysis", es: "Análisis DuPont", aliases: ["dupont", "dupont model"], disciplines: ["finance"], primaryDimension: "analytical"
+- `npv_irr` — en: "NPV and IRR", es: "VAN y TIR", aliases: ["net present value", "internal rate of return", "van", "tir", "valor presente neto", "tasa interna de retorno"], disciplines: ["finance"], primaryDimension: "tradeoff"
+- `working_capital_mgmt` — en: "Working capital management", es: "Gestión del capital de trabajo", aliases: ["wcm", "capital circulante"], disciplines: ["finance", "operations"], primaryDimension: "analytical"
+
+### Operations (6 entries)
+- `lean_manufacturing` — en: "Lean manufacturing", es: "Manufactura lean", aliases: ["lean", "producción lean", "lean production"], disciplines: ["operations"], primaryDimension: "strategic"
+- `six_sigma` — en: "Six Sigma", es: "Six Sigma", aliases: ["6 sigma", "seis sigma", "dmaic"], disciplines: ["operations"], primaryDimension: "analytical"
+- `theory_of_constraints` — en: "Theory of constraints", es: "Teoría de restricciones", aliases: ["toc", "tdr"], disciplines: ["operations"], primaryDimension: "strategic"
+- `just_in_time` — en: "Just-in-time", es: "Justo a tiempo", aliases: ["jit"], disciplines: ["operations"], primaryDimension: "tradeoff"
+- `scor_model` — en: "SCOR model", es: "Modelo SCOR", aliases: ["supply chain operations reference"], disciplines: ["operations"], primaryDimension: "analytical"
+- `kaizen` — en: "Kaizen", es: "Kaizen", aliases: ["continuous improvement", "mejora continua"], disciplines: ["operations"], primaryDimension: "strategic"
+
+### Human Resources (6 entries)
+- `maslow_hierarchy` — en: "Maslow's hierarchy of needs", es: "Pirámide de Maslow", aliases: ["maslow pyramid", "jerarquía de necesidades"], disciplines: ["human_resources"], primaryDimension: "stakeholder"
+- `herzberg_two_factor` — en: "Herzberg two-factor theory", es: "Teoría de los dos factores de Herzberg", aliases: ["motivation hygiene theory", "teoría de motivación-higiene"], disciplines: ["human_resources"], primaryDimension: "stakeholder"
+- `kotter_change` — en: "Kotter's 8-step change", es: "Modelo de cambio de 8 pasos de Kotter", aliases: ["kotter 8 step", "modelo kotter"], disciplines: ["human_resources", "strategy"], primaryDimension: "strategic"
+- `tuckman_stages` — en: "Tuckman's stages of group development", es: "Etapas de desarrollo de grupos de Tuckman", aliases: ["forming storming norming performing", "formación conflicto normalización desempeño"], disciplines: ["human_resources"], primaryDimension: "stakeholder"
+- `hofstede_cultural` — en: "Hofstede cultural dimensions", es: "Dimensiones culturales de Hofstede", aliases: ["hofstede model", "cultural dimensions"], disciplines: ["human_resources", "strategy"], primaryDimension: "stakeholder"
+- `situational_leadership` — en: "Situational leadership", es: "Liderazgo situacional", aliases: ["hersey blanchard", "modelo de hersey y blanchard"], disciplines: ["human_resources"], primaryDimension: "stakeholder"
+
+### Strategy (13 entries — ALREADY EXIST)
+Keep all 13 existing entries. Update `disciplines` array:
+- `porter_generic_strategies` → `["strategy", "marketing"]`
+- `porter_five_forces` → `["strategy"]`
+- `swot` → `["strategy", "marketing", "business"]`
+- `pestel` → `["strategy"]`
+- `bcg_matrix` → `["strategy", "marketing"]`
+- `value_chain` → `["strategy", "operations"]`
+- `rbv` → `["strategy"]`
+- `stakeholder_analysis` → `["strategy", "human_resources"]`
+- `cost_benefit` → `["strategy", "finance"]`
+- `batna` → `["strategy", "human_resources"]`
+- `blue_ocean` → `["strategy", "marketing"]`
+- `ansoff` → `["strategy", "marketing"]`
+- `balanced_scorecard` → `["strategy", "business"]`
+
+For each new entry, author a complete bilingual semantic payload (conceptualDescription_en/es, coreConcepts_en/es, recognitionSignals_en/es, suggestedDomainKeywords_en/es). Quality bar: the conceptualDescription must be useful enough for a student to reason "does my response apply this framework?" without naming it. The recognitionSignals must describe specific behaviors the semantic detector can match on. Match the quality and shape of the existing 13 entries.
+
+## Out of scope
+
+- Case generation logic (Phase 5), semantic detection (Phase 2), dashboard rendering (Phase 6) — no changes.
+- Mobile responsive design.
+- Internationalization beyond Spanish and English.
+- Any new analytics dimensions beyond the existing five (analytical/strategic/stakeholder/ethical/tradeoff).
+- Any schema migration for existing scenarios — new `disciplines` array on registry entries is TS-only (the registry is a TS const, not a DB table). Existing `scenarios.initialState.frameworks[]` entries carry `canonicalId` from the old 13-entry registry and resolve against the expanded registry without migration.
+
+## Steps
+
+1. **Expand registry first.** In `server/agents/frameworkRegistry.ts`, add the `disciplines: string[]` field to the existing TS type. Backfill the existing 13 entries with the `disciplines` arrays specified above. Add the 29 new entries. Author bilingual semantic payloads for each new entry matching the quality of the existing ones. Export `FRAMEWORK_DISCIPLINES` constant: `["business", "marketing", "finance", "operations", "human_resources", "strategy"]` in that display order.
+
+2. **Fix the Porter Five Forces resolver bug.** Add a regression test at `server/__tests__/frameworkRegistry.regression.test.ts`:
+```tstest("Porter Five Forces resolves to porter_five_forces, not porter_generic_strategies", () => { const resolved = resolveFrameworkName("Porter Five Forces", "en"); assert.strictEqual(resolved?.canonicalId, "porter_five_forces"); }); test("Cinco Fuerzas de Porter resolves to porter_five_forces", () => { const resolved = resolveFrameworkName("Cinco Fuerzas de Porter", "es"); assert.strictEqual(resolved?.canonicalId, "porter_five_forces"); }); test("Porter's Generic Strategies resolves to porter_generic_strategies", () => { const resolved = resolveFrameworkName("Porter's Generic Strategies", "en"); assert.strictEqual(resolved?.canonicalId, "porter_generic_strategies"); });
+
+Run `npm test`. If it currently fails, debug `resolveFrameworkName` in `frameworkRegistry.ts` — likely the normalization or the loose contains-fallback is hitting the wrong entry before the exact-alias match. Fix and confirm all three pass.
+
+3. **Add registry list endpoint.** In `server/routes.ts`, add `GET /api/frameworks/registry?language=en|es` that returns all registry entries in the requested language (default es). Response shape per entry: `{canonicalId, canonicalName, aliases, disciplines, primaryDimension, conceptualDescription, coreConcepts}`. Do NOT return Spanish fields when English is requested and vice versa — the endpoint returns one language. Cache this endpoint response server-side with a 1-hour TTL (it rarely changes).
+
+4. **Delete the old fields from `CanonicalCaseCreator.tsx`.** Remove state variables `setupFrameworks`, `setSetupFrameworks`, `setupFrameworkInput`, `setSetupFrameworkInput`, `tradeoffFocus`, `setTradeoffFocus`, `scenarioObjective`, `setScenarioObjective`, `discipline`, `setDiscipline`. Remove all JSX that references them. Remove the `SCENARIO_OBJECTIVES` constant and the `datalist` with hardcoded Spanish framework names. Remove the `additionalContext` derivation path that concatenates `setupFrameworks.join()` — the Teaching Intent card fields are now the sole source of truth. Keep `topic`, `targetLevel`, `stepCount`, `language`.
+
+5. **Fix language leakage in Teaching Intent card.** Grep every user-facing string between the `<Card ... data-testid="panel-pedagogical-intent">` opening tag and its matching close. Every string must be either (a) a `language === "en" ? "..." : "..."` ternary, or (b) a `t("key")` call where the key has BOTH an `en` and `es` entry in `client/src/lib/translations.ts`. Fix any hardcoded Spanish strings. Fix any `t()` keys missing `en` entries.
+
+6. **Build the grouped framework picker.** In the Teaching Intent card section of `CanonicalCaseCreator.tsx`, replace the existing `<Input>` + Add button (and its `addIntentFramework` callback logic) with a new component. Fetch `/api/frameworks/registry?language={currentLang}` on mount. Render 6 collapsible sections (one per discipline) in the order: Business, Marketing, Finance, Operations, Human Resources, Strategy. Discipline display names translate per UI language (e.g. "Human Resources" / "Recursos Humanos"). Each section header has: a checkbox (tracks discipline-only selection), the display name, framework count "N frameworks", and selected count "M selected" if any. Expanded section shows framework checkboxes, one per row, with each framework's `canonicalName` visible and a HelpIcon to the right showing `conceptualDescription` + first 3 `coreConcepts` on hover. A framework appears in every discipline group listed in its `disciplines` array (this is expected — Balanced Scorecard shows in both Business and Strategy groups). State model: maintain a single `selectedItems` array of `{type: "framework" | "discipline", id: string}`. 3-cap applies to array length total. When cap is reached, disable unchecked checkboxes with reduced opacity and cursor:not-allowed.
+
+7. **Cross-discipline warning.** Below the picker, render a warning banner when `selectedItems` includes frameworks (not just disciplines) from 2+ different disciplines. Count unique disciplines across all framework selections (a framework with `disciplines: ["strategy", "marketing"]` contributes both). If count ≥ 2, show warning banner with the list of mixed disciplines. Banner styling: `background: var(--color-background-warning)`, left-border accent using `--color-border-warning`, small font (13px), copy: "Cross-discipline selection — you've picked frameworks from [discipline list]. The AI will generate a case that spans them, but it may not match a single course cleanly. Continue if intentional." (EN) / "Selección multidisciplinaria — has elegido frameworks de [lista]. La IA generará un caso que los integra, pero puede no encajar en un curso específico. Continúa si es intencional." (ES).
+
+8. **Selection preview cards.** Below the cross-discipline warning, render a list of small muted preview cards — one per selected framework (discipline-only selections don't get cards, just a small pill). Each card shows: canonicalName, then truncated conceptualDescription (max 120 chars), then first 4 coreConcepts as chips. Also a small X button to remove that selection. Card background: `var(--color-background-secondary)`. 
+
+9. **Inline disambiguation for bare "Porter" (fallback path).** The picker doesn't have a free-text input anymore, so the bare-"Porter" problem is actually solved by the picker design itself — both Porter entries are visible and distinct in the Strategy group. BUT the `/api/scenarios/resolve-framework-name` endpoint is still used elsewhere (e.g. framework editor post-generation). In the `resolveFrameworkName` client-side consumer (search for `addIntentFramework` — if deleted per step 4, find equivalents in FrameworkEditor.tsx), when the server returns `ambiguous: true, candidates: [...]`, render a small inline disambiguation UI with one button per candidate. Clicking a button adds that canonicalId. Do NOT fire a destructive toast.
+
+10. **Primary + Secondary dimension labels.** Find the decision-dimensions UI (currently two side-by-side Selects per decision). Wrap each decision's pair in a labeled fieldset: left Select labeled "Primary dimension *" / "Dimensión primaria *" (required), right Select labeled "Secondary dimension (optional)" / "Dimensión secundaria (opcional)". Add a 12px helper text above each decision's fieldset: "Primary is the main reasoning this decision exercises. Secondary is a related dimension it also touches." / "Primaria es el razonamiento principal que ejercita esta decisión. Secundaria es una dimensión relacionada que también toca." Each Select option shows the dimension name plus a tooltip (HelpIcon next to the Select label, content explains all 5 dimensions per packet §10.1 at once — don't need per-option tooltips).
+
+11. **Required validation.** Confirm Generate button `disabled` predicate includes `!teachingGoal.trim()`. Topic and teachingGoal are both required; Generate stays disabled until both are filled. (It already does — verify, don't re-implement.)
+
+12. **Run tests.** `npm test` must pass including the new Porter Five Forces regression tests. `npx tsc --noEmit` must not introduce new errors in `CanonicalCaseCreator.tsx` beyond the 4 pre-existing TS2322 unknowns in ScenarioDashboard.tsx (which are out of scope for this task).
+
+13. **Manual smoke test.** Professor creates scenario with teachingGoal filled, picks 2 frameworks from 2 different disciplines, sees cross-discipline warning, sees preview cards. Toggles UI language — every visible string flips correctly. Attempts to pick a 4th framework — checkbox disables. Confirms Generate button works and produces a case whose `initialState.frameworks[]` contains the 2 picked canonicalIds with semantic fields populated.
+
+## Relevant files
+
+- `server/agents/frameworkRegistry.ts` — expand from 13 to 42 entries, add `disciplines` field
+- `server/agents/frameworkRegistry.ts` → `resolveFrameworkName` — fix Porter Five Forces bug
+- `server/__tests__/frameworkRegistry.regression.test.ts` — NEW, regression tests for resolver
+- `server/routes.ts` — add `GET /api/frameworks/registry`, keep existing `POST /api/scenarios/resolve-framework-name`
+- `client/src/components/CanonicalCaseCreator.tsx` — main rewrite: delete old fields (lines ~131-170 state), rebuild picker (lines ~540-680 Teaching Intent card), add language-audit fixes, label dimension dropdowns
+- `client/src/components/FrameworkEditor.tsx` — if the resolver is consumed here, add inline-disambiguation fallback
+- `client/src/lib/translations.ts` — add missing `en` entries for any keys that were Spanish-only in Teaching Intent card
+- `shared/schema.ts` — if the CaseFramework type needs a `disciplines?: string[]` field added (propagated from registry when resolving), add it as optional
+
+## Follow-ups (separate tasks, do not bundle)
+
+- #76 Mobile responsive design for the grouped picker (accordion works on mobile but checkbox sizing may need tuning).
+- #77 Search-within-picker (text input that filters across all groups) — deferred; the accordion is scannable enough for 42 entries.
+- #78 Professor-defined custom frameworks via the picker (currently only registry frameworks are pickable).

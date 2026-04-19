@@ -2142,6 +2142,42 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
   });
 
   // Phase 2 — resolve a framework name against the canonical registry.
+  let registryCacheEn: any[] | null = null;
+  let registryCacheEs: any[] | null = null;
+  let registryCacheTime = 0;
+  const REGISTRY_CACHE_TTL = 60 * 60 * 1000;
+
+  app.get("/api/frameworks/registry", isAuthenticated, async (req: any, res) => {
+    try {
+      const lang = req.query.language === "en" ? "en" : "es";
+      const now = Date.now();
+      if (now - registryCacheTime > REGISTRY_CACHE_TTL) {
+        registryCacheEn = null;
+        registryCacheEs = null;
+      }
+      const cached = lang === "en" ? registryCacheEn : registryCacheEs;
+      if (cached) return res.json(cached);
+
+      const { FRAMEWORK_REGISTRY } = await import("./agents/frameworkRegistry");
+      const isEn = lang === "en";
+      const result = FRAMEWORK_REGISTRY.map((e) => ({
+        canonicalId: e.canonicalId,
+        canonicalName: isEn ? e.canonicalName_en : e.canonicalName_es,
+        aliases: e.aliases,
+        disciplines: e.disciplines,
+        primaryDimension: e.primaryDimension,
+        conceptualDescription: isEn ? e.conceptualDescription_en : e.conceptualDescription_es,
+        coreConcepts: isEn ? e.coreConcepts_en : e.coreConcepts_es,
+      }));
+      if (isEn) registryCacheEn = result; else registryCacheEs = result;
+      registryCacheTime = now;
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching framework registry:", error);
+      res.status(500).json({ message: "Error fetching framework registry" });
+    }
+  });
+
   // Returns { canonicalId | null, ...semanticFields } so the client can either
   // save with canonical alignment or fall back to suggest-framework-keywords.
   // Bare "porter" returns disambiguation candidates.

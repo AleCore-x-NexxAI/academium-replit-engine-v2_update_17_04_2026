@@ -103,89 +103,102 @@ export function DecisionDimensionsEditor({
             : "Asocia decisiones específicas a dimensiones académicas para guiar la calibración del razonamiento."}
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {value.map((entry, idx) => (
-            <div
+            <fieldset
               key={idx}
-              className="grid grid-cols-12 gap-2 items-center"
+              className="space-y-2 border rounded-md p-3"
               data-testid={`row-${testIdPrefix}-dimension-${idx}`}
             >
-              <div className="col-span-2">
-                <Select
-                  value={String(entry.decisionNumber)}
-                  onValueChange={(v) => updateEntry(idx, { decisionNumber: Number(v) })}
-                  disabled={disabled}
-                >
-                  <SelectTrigger data-testid={`select-${testIdPrefix}-decision-${idx}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: maxDecision }, (_, i) => i + 1).map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {language === "en" ? `Decision ${n}` : `Decisión ${n}`}
+              <p className="text-xs text-muted-foreground">
+                {language === "en"
+                  ? "Primary is the main reasoning this decision exercises. Secondary is a related dimension it also touches."
+                  : "Primaria es el razonamiento principal que ejercita esta decisión. Secundaria es una dimensión relacionada que también toca."}
+              </p>
+              <div className="grid grid-cols-12 gap-2 items-end">
+                <div className="col-span-2">
+                  <Select
+                    value={String(entry.decisionNumber)}
+                    onValueChange={(v) => updateEntry(idx, { decisionNumber: Number(v) })}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger data-testid={`select-${testIdPrefix}-decision-${idx}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: maxDecision }, (_, i) => i + 1).map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {language === "en" ? `Decision ${n}` : `Decisión ${n}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-5 space-y-1">
+                  <Label className="text-xs font-medium">
+                    {language === "en" ? "Primary dimension *" : "Dimensión primaria *"}
+                  </Label>
+                  <Select
+                    value={entry.primaryDimension}
+                    onValueChange={(v) => updateEntry(idx, { primaryDimension: v as AcademicDimension })}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger data-testid={`select-${testIdPrefix}-primary-${idx}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DIMENSIONS.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {dimensionLabel(d, language)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-4 space-y-1">
+                  <Label className="text-xs font-medium">
+                    {language === "en" ? "Secondary dimension (optional)" : "Dimensión secundaria (opcional)"}
+                  </Label>
+                  <Select
+                    value={entry.secondaryDimension ?? SENTINEL_NONE}
+                    onValueChange={(v) =>
+                      updateEntry(idx, {
+                        secondaryDimension: v === SENTINEL_NONE ? undefined : (v as AcademicDimension),
+                      })
+                    }
+                    disabled={disabled}
+                  >
+                    <SelectTrigger data-testid={`select-${testIdPrefix}-secondary-${idx}`}>
+                      <SelectValue
+                        placeholder={language === "en" ? "Secondary (optional)" : "Secundaria (opcional)"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SENTINEL_NONE}>
+                        {language === "en" ? "None" : "Ninguna"}
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      {DIMENSIONS.filter((d) => d !== entry.primaryDimension).map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {dimensionLabel(d, language)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeEntry(idx)}
+                    disabled={disabled}
+                    data-testid={`button-${testIdPrefix}-remove-dimension-${idx}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="col-span-5">
-                <Select
-                  value={entry.primaryDimension}
-                  onValueChange={(v) => updateEntry(idx, { primaryDimension: v as AcademicDimension })}
-                  disabled={disabled}
-                >
-                  <SelectTrigger data-testid={`select-${testIdPrefix}-primary-${idx}`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DIMENSIONS.map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {dimensionLabel(d, language)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-4">
-                <Select
-                  value={entry.secondaryDimension ?? SENTINEL_NONE}
-                  onValueChange={(v) =>
-                    updateEntry(idx, {
-                      secondaryDimension: v === SENTINEL_NONE ? undefined : (v as AcademicDimension),
-                    })
-                  }
-                  disabled={disabled}
-                >
-                  <SelectTrigger data-testid={`select-${testIdPrefix}-secondary-${idx}`}>
-                    <SelectValue
-                      placeholder={language === "en" ? "Secondary (optional)" : "Secundaria (opcional)"}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SENTINEL_NONE}>
-                      {language === "en" ? "None" : "Ninguna"}
-                    </SelectItem>
-                    {DIMENSIONS.filter((d) => d !== entry.primaryDimension).map((d) => (
-                      <SelectItem key={d} value={d}>
-                        {dimensionLabel(d, language)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-1 flex justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeEntry(idx)}
-                  disabled={disabled}
-                  data-testid={`button-${testIdPrefix}-remove-dimension-${idx}`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
+            </fieldset>
           ))}
         </div>
       )}

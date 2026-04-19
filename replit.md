@@ -18,6 +18,13 @@ The backend is an Express.js (Node.js) REST API, using PostgreSQL with Drizzle O
 ### Feature Specifications
 The platform incorporates a robust turn processing pipeline, including a 6-gate input classifier, a signal extractor scoring 5 reasoning signals, and a director orchestrating various agents. It includes a Framework Detector for analytical frameworks and a Debrief Question Generator targeting low-scoring signals. A Dashboard Summary Generator provides session-level analytics for professors. Simulations are structured with configurable decision points and reflection steps, utilizing "thinking scaffolds." Indicators have directionality (e.g., `up_better`/`down_better`) influencing UI displays. Role-Based Access Control (RBAC) manages user permissions.
 
+### Framework Registry (Task #75)
+- `server/agents/frameworkRegistry.ts` contains 42 curated bilingual framework entries across 6 disciplines (business, marketing, finance, operations, human_resources, strategy), each with `disciplines: string[]`, bilingual names/descriptions/concepts, `primaryDimension`, and aliases for resolution.
+- `resolveFrameworkName()` handles Porter disambiguation (Five Forces vs Generic Strategies) via alias matching.
+- `GET /api/frameworks/registry?language=en|es` endpoint with 1hr server-side TTL cache returns registry for the wizard picker.
+- The CanonicalCaseCreator wizard uses a grouped 6-discipline accordion picker with 3-item max selection, cross-discipline warning banner, preview cards, and labeled dimension dropdowns in DecisionDimensionsEditor.
+- Regression tests: `server/__tests__/frameworkRegistry.regression.test.ts` (5 Porter resolution tests).
+
 ### Professor Dashboard (Part C)
 The professor dashboard at `/scenarios/:scenarioId/dashboard` provides a 3-tab view (Analytics/Students/Control) with:
 - **Analytics Tab**: 4 stat cards (completed, in progress, biggest drop point, applied course theory), Module Health section (framework detection rates with status badges), Reasoning Depth trajectory chart (Recharts LineChart), Class Patterns section (competency rates with progress bars), Students table with reasoning arc dots and session links.
