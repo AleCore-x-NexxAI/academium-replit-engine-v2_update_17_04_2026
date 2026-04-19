@@ -67,8 +67,8 @@ function getRDSWordRange(
     default: baseMin = 80; baseMax = 100; break;
   }
   if (studentWords <= 0) return { min: baseMin, max: baseMax };
-  const scaledMax = Math.min(baseMax, Math.max(20, studentWords * 4));
-  const min = Math.min(baseMin, Math.max(20, Math.floor(scaledMax * 0.7)));
+  const scaledMax = Math.min(baseMax, studentWords * 4);
+  const min = Math.min(baseMin, Math.max(1, Math.floor(scaledMax * 0.7)));
   return { min, max: scaledMax };
 }
 

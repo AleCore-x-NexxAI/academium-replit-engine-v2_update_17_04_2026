@@ -510,7 +510,7 @@ function AnalyticsTab({
                   <LineChart data={depthTrajectory.points}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
                     <XAxis dataKey="turn" tick={{ fontSize: 10 }} tickFormatter={(v: number) => `T${v}`} />
-                    <YAxis domain={[0, 3]} ticks={[1, 2, 3]} tick={{ fontSize: 10 }} tickFormatter={(v: number) => v === 1 ? "Surface" : v === 2 ? "Engaged" : "Integrated"} width={65} />
+                    <YAxis domain={[0, 3]} ticks={[1, 2, 3]} tick={{ fontSize: 10 }} tickFormatter={(v: number) => v === 1 ? t("scenarioDashboard.depthSurface") : v === 2 ? t("scenarioDashboard.depthEngaged") : t("scenarioDashboard.depthIntegrated")} width={65} />
                     <RechartsTooltip formatter={(v: number) => [v.toFixed(1), t("scenarioDashboard.avgDepth")]} />
                     <Line type="monotone" dataKey="avg" stroke="#378ADD" strokeWidth={2} dot={(props: any) => {
                       const { cx, cy, payload, index } = props;
@@ -524,7 +524,7 @@ function AnalyticsTab({
               <div className="flex gap-1.5" data-testid="depth-annotations">
                 {depthTrajectory.annotations?.map((anno) => (
                   <div key={anno.turn} className="flex-1 text-center p-2 bg-muted/30 rounded-lg border border-dashed border-border/50">
-                    <div className="text-[11px] font-medium text-muted-foreground mb-0.5">{isEn ? `Turn ${anno.turn}` : `Turno ${anno.turn}`}</div>
+                    <div className="text-[11px] font-medium text-muted-foreground mb-0.5">{t("scenarioDashboard.turnLabel")} {anno.turn}</div>
                     <div className="text-[10px] text-muted-foreground/70 italic leading-snug">{anno.description}</div>
                   </div>
                 ))}
@@ -854,7 +854,7 @@ function ChatHistoryTab({ data, loading, isEn }: { data: { turns: ChatTurn[] } |
         <div key={turn.number} className="mb-3 border border-dashed border-border rounded-xl overflow-hidden" data-testid={`turn-card-chat-${turn.number}`}>
           <div className="px-3.5 py-2.5 bg-muted/30 border-b border-dashed border-border/50 flex items-center justify-between">
             <span className="text-[11px] font-medium text-muted-foreground">
-              {isEn ? `Turn ${turn.number}` : `Turno ${turn.number}`} · {turn.type === "mcq" ? "MCQ" : (t("scenarioDashboard.freeResponse"))}
+              {t("scenarioDashboard.turnLabel")} {turn.number} · {turn.type === "mcq" ? "MCQ" : (t("scenarioDashboard.freeResponse"))}
             </span>
           </div>
           <div className="p-3.5">
@@ -898,7 +898,7 @@ function DebriefPrepTab({ data, loading, isEn }: { data: { turns: DebriefTurn[] 
         <div key={turn.number} className="mb-3 border border-dashed border-border rounded-xl overflow-hidden" data-testid={`turn-card-debrief-${turn.number}`}>
           <div className="px-3.5 py-2.5 bg-muted/30 border-b border-dashed border-border/50 flex items-center justify-between">
             <span className="text-[11px] font-medium text-muted-foreground">
-              {isEn ? `Turn ${turn.number}` : `Turno ${turn.number}`} · {turn.type === "mcq" ? "MCQ" : (t("scenarioDashboard.freeResponse"))}
+              {t("scenarioDashboard.turnLabel")} {turn.number} · {turn.type === "mcq" ? "MCQ" : (t("scenarioDashboard.freeResponse"))}
             </span>
             {turn.depth && (
               <span className={`text-[10px] font-medium px-2 py-0.5 rounded`} style={{ background: DEPTH_COLORS[turn.depth] + "20", color: DEPTH_COLORS[turn.depth] }}>
@@ -1093,7 +1093,7 @@ function KpiFrameworksTab({ data, loading, isEn }: { data: KpiFrameworksData | u
             <div className="p-2 border-r border-dashed border-border text-[10px] font-medium text-muted-foreground uppercase tracking-wide">KPI</div>
             {turns.map((turn) => (
               <div key={turn.number} className="p-2 border-r border-dashed border-border last:border-r-0 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                {isEn ? `Turn ${turn.number}` : `T${turn.number}`} · {turn.depth?.charAt(0).toUpperCase()}{turn.depth?.slice(1)}
+                {t("scenarioDashboard.turnLabel")} {turn.number} · {turn.depth?.charAt(0).toUpperCase()}{turn.depth?.slice(1)}
               </div>
             ))}
           </div>
@@ -1149,7 +1149,7 @@ function KpiFrameworksTab({ data, loading, isEn }: { data: KpiFrameworksData | u
         {turns.map((turn) => (
           <div key={turn.number}>
             <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1.5 mt-2.5 first:mt-0">
-              {isEn ? `Turn ${turn.number}` : `Turno ${turn.number}`} · {turn.type === "mcq" ? "MCQ" : (t("scenarioDashboard.freeResponse"))}
+              {t("scenarioDashboard.turnLabel")} {turn.number} · {turn.type === "mcq" ? "MCQ" : (t("scenarioDashboard.freeResponse"))}
             </div>
             {turn.frameworkApplications?.length > 0 ? (
               turn.frameworkApplications.map((fw, i) => (

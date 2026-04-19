@@ -192,6 +192,10 @@ const translations = {
   },
 
   scenarioDashboard: {
+    turnLabel: { es: "Turno", en: "Turn" },
+    depthSurface: { es: "Superficial", en: "Surface" },
+    depthEngaged: { es: "Comprometido", en: "Engaged" },
+    depthIntegrated: { es: "Integrado", en: "Integrated" },
     completed: { es: "Completados", en: "Completed" },
     studentsWhoFinishedAllTurns: { es: "Estudiantes que terminaron todos los turnos y enviaron la reflexión", en: "Students who finished all turns and submitted the reflection" },
     inProgress: { es: "En progreso", en: "In progress" },
