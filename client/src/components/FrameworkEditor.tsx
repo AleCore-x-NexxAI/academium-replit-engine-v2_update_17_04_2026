@@ -372,7 +372,7 @@ export function FrameworkEditor({
               addFramework();
             }
           }}
-          disabled={disabled || value.length >= maxFrameworks}
+          disabled={disabled || acceptedEntries.length >= maxFrameworks}
           data-testid="input-fwedit-name"
         />
         <Button
@@ -383,7 +383,7 @@ export function FrameworkEditor({
             disabled ||
             resolving ||
             !nameInput.trim() ||
-            value.length >= maxFrameworks ||
+            acceptedEntries.length >= maxFrameworks ||
             value.some((f) => f.name.toLowerCase() === nameInput.trim().toLowerCase())
           }
           onClick={() => void addFramework()}
@@ -437,7 +437,10 @@ export function FrameworkEditor({
                     size="icon"
                     variant="ghost"
                     onClick={() => move(idx, 1)}
-                    disabled={disabled || idx === value.length - 1}
+                    disabled={
+                      disabled ||
+                      idx === acceptedEntries[acceptedEntries.length - 1].idx
+                    }
                     data-testid={`button-fwedit-down-${idx}`}
                   >
                     <ChevronDown className="w-3 h-3" />
