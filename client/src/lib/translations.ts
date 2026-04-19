@@ -193,6 +193,10 @@ const translations = {
 
   scenarioDashboard: {
     turnLabel: { es: "Turno", en: "Turn" },
+    kpiHeader: { es: "KPI", en: "KPI" },
+    moduleHealthExplainer: { es: "Cómo los marcos y teorías conectados a esta simulación aparecen en las decisiones de los estudiantes.", en: "How the frameworks and theories connected to this simulation are showing up in student decisions." },
+    summaryGenerationDidNotComplete: { es: "La generación del resumen no se completó para esta sesión. Haz clic en Regenerar para intentarlo de nuevo.", en: "Summary generation did not complete for this session. Click Regenerate to try again." },
+    kpiTrajectoryExplainer: { es: "La trayectoria de KPI muestra qué indicadores se movieron en cada turno. La aplicación de marcos muestra cómo aparecieron los marcos.", en: "KPI trajectory shows which indicators moved at each turn. Course framework application shows how frameworks appeared in each turn." },
     depthSurface: { es: "Superficial", en: "Surface" },
     depthEngaged: { es: "Comprometido", en: "Engaged" },
     depthIntegrated: { es: "Integrado", en: "Integrated" },

@@ -440,9 +440,7 @@ function AnalyticsTab({
       <Card className="p-5" data-testid="module-health-card">
         <div className="text-[13px] font-medium mb-0.5">{t("scenarioDashboard.moduleHealth")}</div>
         <div className="text-[11px] text-muted-foreground mb-3.5 leading-relaxed italic">
-          {isEn
-            ? "How the frameworks and theories connected to this simulation are showing up in student decisions."
-            : "Cómo los marcos y teorías conectados a esta simulación aparecen en las decisiones de los estudiantes."}
+          {t("scenarioDashboard.moduleHealthExplainer")}
         </div>
 
         {mhLoading ? (
@@ -781,9 +779,7 @@ function StudentSessionModal({ sessionId, isEn, onClose }: { sessionId: string; 
                     )}
                   </>
                 ) : summaryData?.isComplete ? (
-                  isEn
-                    ? "Summary generation did not complete for this session. Click Regenerate to try again."
-                    : "La generación del resumen no se completó para esta sesión. Haz clic en Regenerar para intentarlo de nuevo."
+                  t("scenarioDashboard.summaryGenerationDidNotComplete")
                 ) : (
                   t("scenarioDashboard.summaryAvailableWhenSessionIs")
                 )}
@@ -1052,9 +1048,7 @@ function KpiFrameworksTab({ data, loading, isEn }: { data: KpiFrameworksData | u
   return (
     <div>
       <div className="text-[12px] text-muted-foreground/70 leading-relaxed mb-4 p-2.5 bg-muted/30 rounded-lg border border-dashed border-border/50 italic">
-        {isEn
-          ? "KPI trajectory shows which indicators moved at each turn. Course framework application shows how frameworks appeared in each turn."
-          : "La trayectoria de KPI muestra qué indicadores se movieron en cada turno. La aplicación de marcos muestra cómo aparecieron los marcos."}
+        {t("scenarioDashboard.kpiTrajectoryExplainer")}
       </div>
 
       {frameworkCounts.length > 0 && totalTurns > 0 && (
@@ -1090,7 +1084,7 @@ function KpiFrameworksTab({ data, loading, isEn }: { data: KpiFrameworksData | u
       {activeKpis.length > 0 ? (
         <div className="border border-dashed border-border rounded-lg overflow-hidden mb-4" data-testid="kpi-trajectory-table">
           <div className="grid bg-muted/30 border-b border-dashed border-border" style={{ gridTemplateColumns: `90px repeat(${turns.length}, 1fr)` }}>
-            <div className="p-2 border-r border-dashed border-border text-[10px] font-medium text-muted-foreground uppercase tracking-wide">KPI</div>
+            <div className="p-2 border-r border-dashed border-border text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{t("scenarioDashboard.kpiHeader")}</div>
             {turns.map((turn) => (
               <div key={turn.number} className="p-2 border-r border-dashed border-border last:border-r-0 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                 {t("scenarioDashboard.turnLabel")} {turn.number} · {turn.depth?.charAt(0).toUpperCase()}{turn.depth?.slice(1)}
