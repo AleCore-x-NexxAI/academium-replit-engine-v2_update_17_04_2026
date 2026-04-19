@@ -4282,17 +4282,34 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
         if (t?.canonicalId) targetIds.add(t.canonicalId);
         if (t?.name) targetIds.add(t.name);
       }
-      const isTarget = (f: { id: string; canonicalId?: string; name: string }) =>
+      // Phase 6 §6: target = (in pedagogicalIntent.targetFrameworks) AND
+      // framework provenance is "explicit" (course-defined). Inference-derived
+      // frameworks (provenance "inferred*"/undefined-but-not-explicit) belong
+      // in the suggested section even if they appear in the target list.
+      const fwById = new Map<string, any>();
+      for (const fw of frameworks) fwById.set(fw.id, fw);
+      const isInIntent = (f: { id: string; canonicalId?: string; name: string }) =>
         targetIds.has(f.canonicalId || "") || targetIds.has(f.id) || targetIds.has(f.name);
+      const isExplicitProvenance = (f: { id: string }) => {
+        const meta = fwById.get(f.id);
+        return meta?.provenance === "explicit";
+      };
+      const isTarget = (f: { id: string; canonicalId?: string; name: string }) =>
+        isInIntent(f) && isExplicitProvenance(f);
       const targetList = targetIds.size > 0 ? frameworkResults.filter(isTarget) : [];
       const suggestedList = targetIds.size > 0 ? frameworkResults.filter(f => !isTarget(f)) : [];
 
       // Phase 6 §6: per-section aggregate detection_method_distribution.
+      // Use REAL detection-method keys (keyword, semantic, signal_pattern,
+      // none, consistency_promoted) — sum every key present in any per-
+      // framework distribution within the section.
       const aggregateDist = (list: typeof frameworkResults): Record<string, number> => {
-        const agg: Record<string, number> = { explicit: 0, implicit: 0, marginal: 0 };
+        const agg: Record<string, number> = {};
         for (const fw of list) {
           const d = fw.detection_method_distribution || {};
-          for (const k of Object.keys(agg)) agg[k] += (d[k] ?? 0);
+          for (const [k, v] of Object.entries(d)) {
+            agg[k] = (agg[k] || 0) + (v as number);
+          }
         }
         return agg;
       };

@@ -177,9 +177,20 @@ function buildFrameworkResponseDirective(context: AgentContext): string {
   const turnIdx = context.turnCount;
   const lastTurnDetections = context.framework_detections?.[turnIdx] || [];
 
-  // Find the strongest detection for the decision's primary dimension when
-  // available; otherwise consider any explicit/implicit-medium-or-high.
-  type Detected = { level: "explicit" | "implicit" | "not_evidenced"; confidence?: "low" | "medium" | "high" };
+  // Find the strongest detection FOR THE DECISION'S PRIMARY DIMENSION only.
+  // An unrelated explicit detection on a different dimension must NOT trigger
+  // the explicit/implicit branch — calibration is dimension-scoped.
+  type Detected = { framework_id?: string; level: "explicit" | "implicit" | "not_evidenced"; confidence?: "low" | "medium" | "high" };
+  const fwDimById = new Map<string, string | undefined>();
+  for (const fw of (context.scenario.frameworks || [])) {
+    if (fw?.id) fwDimById.set(fw.id, (fw as any).primaryDimension);
+  }
+  const matchesDimension = (det: Detected): boolean => {
+    if (!primaryDimension) return true; // no constraint available — fallback
+    if (!det.framework_id) return false;
+    const fwDim = fwDimById.get(det.framework_id);
+    return fwDim === primaryDimension;
+  };
   let best: Detected | null = null;
   const rank = (d: Detected) => {
     const lvl = d.level === "explicit" ? 3 : d.level === "implicit" ? 2 : 0;
@@ -187,6 +198,7 @@ function buildFrameworkResponseDirective(context: AgentContext): string {
     return lvl * 10 + conf;
   };
   for (const det of lastTurnDetections as Detected[]) {
+    if (!matchesDimension(det)) continue;
     if (!best || rank(det) > rank(best)) best = det;
   }
 

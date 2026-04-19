@@ -246,22 +246,29 @@ function DistributionStrip({
   className?: string;
 }) {
   if (!dist) return null;
-  const explicit = dist.explicit ?? 0;
-  const implicit = dist.implicit ?? 0;
-  const marginal = dist.marginal ?? 0;
-  const total = explicit + implicit + marginal;
-  if (total === 0) return null;
+  const entries = Object.entries(dist).filter(([, v]) => (v ?? 0) > 0);
+  if (entries.length === 0) return null;
+  const labelOf = (k: string) => {
+    switch (k) {
+      case "keyword": return "kw";
+      case "semantic": return "sem";
+      case "signal_pattern": return "sig";
+      case "consistency_promoted": return "cons";
+      case "none": return "none";
+      default: return k;
+    }
+  };
   return (
     <div
       className={`flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground ${className}`}
       data-testid={testid}
     >
-      <span className="font-medium">E</span>
-      <span data-testid={`${testid}-explicit`}>{explicit}</span>
-      <span className="font-medium">I</span>
-      <span data-testid={`${testid}-implicit`}>{implicit}</span>
-      <span className="font-medium">M</span>
-      <span data-testid={`${testid}-marginal`}>{marginal}</span>
+      {entries.map(([k, v]) => (
+        <span key={k} className="inline-flex items-center gap-0.5" data-testid={`${testid}-${k}`}>
+          <span className="font-medium">{labelOf(k)}</span>
+          <span>{v}</span>
+        </span>
+      ))}
     </div>
   );
 }
