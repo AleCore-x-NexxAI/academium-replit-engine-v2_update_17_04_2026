@@ -70,6 +70,21 @@ app.use((req, res, next) => {
     console.error("Failed to seed sample data:", err);
   });
 
+  // Phase 2 (§4.5) — boot-time canonical migration. Idempotent: scans every
+  // scenario's initialState.frameworks, attempts resolveFrameworkName, and
+  // backfills canonicalId / aliases / coreConcepts / conceptualDescription /
+  // recognitionSignals / primaryDimension on entries missing canonicalId.
+  // Frameworks already canonicalized are skipped. Runs in the background so
+  // boot is not delayed.
+  void (async () => {
+    try {
+      const { runFrameworkCanonicalMigration } = await import("./agents/frameworkBootMigration");
+      await runFrameworkCanonicalMigration();
+    } catch (err) {
+      console.warn("[boot-migration] Framework canonical migration failed:", err);
+    }
+  })();
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

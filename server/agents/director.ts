@@ -793,10 +793,38 @@ export async function processStudentTurn(
   };
 
   const { detectFrameworks } = await import("./frameworkDetector");
+  const { checkConsistency } = await import("./frameworkConsistency");
   const scenarioFrameworks = context.scenario?.frameworks || [];
-  const frameworkDetections = !isMcq && scenarioFrameworks.length > 0
-    ? detectFrameworks(context.studentInput, evidenceLog.signals_detected, scenarioFrameworks, context.language)
+  let frameworkDetections = !isMcq && scenarioFrameworks.length > 0
+    ? await detectFrameworks(context.studentInput, evidenceLog.signals_detected, scenarioFrameworks, context.language)
     : [];
+
+  // Phase 2 §12.3: consistency check between signal extractor and framework detector.
+  // Promotes not_evidenced → implicit (low confidence) when the framework's
+  // primary dimension shows PRESENT/STRONG signals. Never demotes. Logs a
+  // disagreement event for observability.
+  if (!isMcq && scenarioFrameworks.length > 0) {
+    const { detections: promoted, promotions } = checkConsistency(
+      evidenceLog.signals_detected,
+      frameworkDetections,
+      scenarioFrameworks,
+    );
+    frameworkDetections = promoted;
+    if (promotions.length > 0) {
+      storage.createTurnEvent({
+        sessionId: context.sessionId,
+        eventType: "agent_call",
+        turnNumber: currentDecisionNum,
+        rawStudentInput: context.studentInput,
+        eventData: {
+          agentName: "frameworkConsistencyCheck",
+          durationMs: 0,
+          disagreement: true,
+          promotions,
+        },
+      }).catch(err => console.error("[TurnEvent] Failed to log frameworkConsistencyCheck:", err));
+    }
+  }
 
   const turnPosition = determineTurnPosition(context);
 

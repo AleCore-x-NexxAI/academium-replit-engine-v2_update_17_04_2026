@@ -605,6 +605,9 @@ const translations = {
     aiFillError: { es: "No se pudo generar la sugerencia. Intenta de nuevo.", en: "Could not generate the suggestion. Try again." },
     aiSuggestError: { es: "No se pudieron obtener sugerencias.", en: "Could not get suggestions." },
     aiFetchingKeywords: { es: "Obteniendo palabras clave…", en: "Fetching keywords…" },
+    frameworkAlreadyAdded: { es: "Ya agregado", en: "Already added" },
+    frameworkAlreadyAddedDesc: { es: "Este marco ya está en la lista (mismo marco canónico).", en: "This framework is already in the list (same canonical framework)." },
+    frameworkDisambig: { es: "¿Cuál de estos marcos?", en: "Which of these frameworks?" },
   },
 
   canonicalCase: {

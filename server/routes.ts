@@ -1842,22 +1842,86 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       }
       const { generateChatCompletion } = await import("./openai");
       const lang = language === "en" ? "en" : "es";
+      // Phase 2: extended response includes coreConcepts, conceptualDescription,
+      // recognitionSignals so the client can save them on a custom framework.
       const prompt = lang === "en"
-        ? `Given the framework "${frameworkName}" taught in a business simulation scenario${caseContext ? ` about: ${caseContext}` : ""}, return 8-15 domain keywords a student might use when applying this framework, and which of the 5 reasoning signals (intent, justification, tradeoffAwareness, stakeholderAwareness, ethicalAwareness) would indicate implicit application. Respond in English. Return JSON only: {"keywords": ["..."], "signalPattern": {"requiredSignals": ["..."], "minQuality": "PRESENT"}}`
-        : `Dado el marco teórico "${frameworkName}" enseñado en un escenario de simulación de negocios${caseContext ? ` sobre: ${caseContext}` : ""}, retorna 8-15 palabras clave del dominio que un estudiante podría usar al aplicar este marco, y cuáles de las 5 señales de razonamiento (intent, justification, tradeoffAwareness, stakeholderAwareness, ethicalAwareness) indicarían aplicación implícita. Responde en español. Retorna solo JSON: {"keywords": ["..."], "signalPattern": {"requiredSignals": ["..."], "minQuality": "PRESENT"}}`;
+        ? `Given the framework "${frameworkName}" taught in a business simulation scenario${caseContext ? ` about: ${caseContext}` : ""}, return:
+- 8-15 domain keywords a student might use when applying it.
+- 4-6 core concepts (short noun phrases that name the framework's central ideas).
+- A 1-2 sentence conceptual description of what the framework is and how it structures reasoning.
+- 3-5 recognition signals: short phrases that describe the SHAPE of student reasoning when applying this framework without naming it.
+- Which of the 5 reasoning signals (intent, justification, tradeoffAwareness, stakeholderAwareness, ethicalAwareness) would indicate implicit application.
+Respond in English. Return JSON only: {"keywords":["..."],"coreConcepts":["..."],"conceptualDescription":"...","recognitionSignals":["..."],"signalPattern":{"requiredSignals":["..."],"minQuality":"PRESENT"}}`
+        : `Dado el marco teórico "${frameworkName}" enseñado en un escenario de simulación de negocios${caseContext ? ` sobre: ${caseContext}` : ""}, retorna:
+- 8-15 palabras clave del dominio que un estudiante podría usar al aplicarlo.
+- 4-6 conceptos centrales (frases nominales cortas que nombran las ideas centrales del marco).
+- Una descripción conceptual de 1-2 oraciones de qué es el marco y cómo estructura el razonamiento.
+- 3-5 señales de reconocimiento: frases cortas que describen la FORMA del razonamiento del estudiante cuando aplica este marco sin nombrarlo.
+- Cuáles de las 5 señales de razonamiento (intent, justification, tradeoffAwareness, stakeholderAwareness, ethicalAwareness) indicarían aplicación implícita.
+Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..."],"conceptualDescription":"...","recognitionSignals":["..."],"signalPattern":{"requiredSignals":["..."],"minQuality":"PRESENT"}}`;
 
       const response = await generateChatCompletion(
         [{ role: "user", content: prompt }],
-        { responseFormat: "json", maxTokens: 512, agentName: "frameworkKeywordSuggester" }
+        { responseFormat: "json", maxTokens: 768, agentName: "frameworkKeywordSuggester" }
       );
       const parsed = JSON.parse(response);
+      const stringArray = (v: any): string[] =>
+        Array.isArray(v) ? v.filter((x) => typeof x === "string" && x.trim().length > 0) : [];
       res.json({
-        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+        keywords: stringArray(parsed.keywords),
+        coreConcepts: stringArray(parsed.coreConcepts),
+        conceptualDescription: typeof parsed.conceptualDescription === "string" ? parsed.conceptualDescription.trim() : "",
+        recognitionSignals: stringArray(parsed.recognitionSignals),
         signalPattern: parsed.signalPattern || { requiredSignals: ["justification"], minQuality: "PRESENT" },
       });
     } catch (error) {
       console.error("Error suggesting framework keywords:", error);
       res.status(500).json({ message: "Error generating keyword suggestions" });
+    }
+  });
+
+  // Phase 2 — resolve a framework name against the canonical registry.
+  // Returns { canonicalId | null, ...semanticFields } so the client can either
+  // save with canonical alignment or fall back to suggest-framework-keywords.
+  // Bare "porter" returns disambiguation candidates.
+  app.post("/api/scenarios/resolve-framework-name", isAuthenticated, async (req: any, res) => {
+    try {
+      const { name, language } = req.body;
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ message: "name required" });
+      }
+      const lang = language === "en" ? "en" : "es";
+      const { resolveFrameworkName, FRAMEWORK_REGISTRY } = await import("./agents/frameworkRegistry");
+
+      const norm = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+      if (norm === "porter" || norm === "porters" || norm === "porter s") {
+        const candidates = FRAMEWORK_REGISTRY
+          .filter((e) => e.canonicalId === "porter_generic_strategies" || e.canonicalId === "porter_five_forces")
+          .map((e) => ({
+            canonicalId: e.canonicalId,
+            name: lang === "en" ? e.canonicalName_en : e.canonicalName_es,
+          }));
+        return res.json({ canonicalId: null, ambiguous: true, candidates });
+      }
+
+      const resolved = resolveFrameworkName(name, lang);
+      if (!resolved) {
+        return res.json({ canonicalId: null, ambiguous: false });
+      }
+      res.json({
+        canonicalId: resolved.canonicalId,
+        name: resolved.canonicalName,
+        coreConcepts: resolved.coreConcepts,
+        conceptualDescription: resolved.conceptualDescription,
+        recognitionSignals: resolved.recognitionSignals,
+        primaryDimension: resolved.primaryDimension,
+        suggestedDomainKeywords: resolved.suggestedDomainKeywords,
+        suggestedSignalPattern: resolved.suggestedSignalPattern,
+        aliases: resolved.aliases,
+      });
+    } catch (error) {
+      console.error("Error resolving framework name:", error);
+      res.status(500).json({ message: "Error resolving framework name" });
     }
   });
 
@@ -3524,7 +3588,8 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       const sessionsData = await getSessionsWithTurns(scenarioId);
       const completed = sessionsData.filter(s => s.session.status === "completed");
 
-      const { detectFrameworks } = await import("./agents/frameworkDetector");
+      const { detectFrameworksSync } = await import("./agents/frameworkDetector");
+      const { checkConsistency } = await import("./agents/frameworkConsistency");
 
       let processedSessions = 0, processedTurns = 0, errors = 0, skipped = 0;
 
@@ -3594,7 +3659,11 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
             });
 
             if (!isMcq && frameworks.length > 0 && signalsDetected) {
-              const fwDets = detectFrameworks(turn.studentInput, signalsDetected, frameworks, language);
+              const rawDets = detectFrameworksSync(turn.studentInput, signalsDetected, frameworks, language);
+              // Phase 2 §12.3: also apply the consistency promotion to backfilled
+              // detections so historical analytics never retain not_evidenced
+              // verdicts that contradict PRESENT/STRONG primaryDimension signals.
+              const { detections: fwDets } = checkConsistency(signalsDetected, rawDets, frameworks);
               newFwDets.push(fwDets);
             } else {
               newFwDets.push([]);
@@ -3674,13 +3743,22 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       const scenario = auth.scenario;
       const initialState = scenario.initialState as any;
       const frameworks = initialState?.frameworks;
-      if (frameworks && frameworks.length > 0 && completed.length > 0) {
+      // Phase 2: appliedCourseTheory uses accepted_by_professor only.
+      const eligibleFrameworks = (frameworks || []).filter(
+        (fw: any) => fw && fw.accepted_by_professor !== false,
+      );
+      const eligibleIds = new Set(eligibleFrameworks.map((fw: any) => fw.id));
+      if (eligibleFrameworks.length > 0 && completed.length > 0) {
         let n = 0;
         for (const s of completed) {
           const state = s.session.currentState as any;
           const fwDetections = state?.framework_detections || [];
           const hasApplied = fwDetections.some((turnDetections: any[]) =>
-            turnDetections?.some((d: any) => d.level === "explicit" || d.level === "implicit")
+            turnDetections?.some(
+              (d: any) =>
+                eligibleIds.has(d.framework_id) &&
+                (d.level === "explicit" || d.level === "implicit"),
+            ),
           );
           if (hasApplied) n++;
         }

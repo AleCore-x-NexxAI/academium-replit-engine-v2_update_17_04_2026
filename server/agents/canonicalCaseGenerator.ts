@@ -677,7 +677,13 @@ export async function generateCanonicalCase(
       }))
     : defaultIndicators;
 
+  // Phase 2: dedup generated frameworks by canonicalId; merge keywords from
+  // duplicates. Resolver maps aliases (e.g. "5 Forces" + "Five Forces") to the
+  // same canonical entry, so we only emit one CaseFramework per canonical.
+  const { resolveFrameworkName } = await import("./frameworkRegistry");
+  const effectiveLangForResolver: "es" | "en" = isEn ? "en" : "es";
   const parsedFrameworks: CaseFramework[] = [];
+  const byCanonical = new Map<string, CaseFramework>();
   if (Array.isArray(parsed.frameworks)) {
     for (const fw of parsed.frameworks) {
       if (!fw || typeof fw.name !== "string" || !fw.name.trim()) continue;
@@ -687,10 +693,53 @@ export async function generateCanonicalCase(
         .map((k: string) => k.trim().toLowerCase())
         .slice(0, 12);
       if (keywords.length < 2) continue;
+
+      const resolved = resolveFrameworkName(fw.name.trim(), effectiveLangForResolver);
+      if (resolved) {
+        const existing = byCanonical.get(resolved.canonicalId);
+        if (existing) {
+          // Merge into the canonical entry already added.
+          const merged = Array.from(new Set([...existing.domainKeywords, ...keywords])).slice(0, 12);
+          existing.domainKeywords = merged;
+          continue;
+        }
+        const fwId = typeof fw.id === "string" && fw.id.trim()
+          ? fw.id.trim()
+          : `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+        const mergedKeywords = Array.from(
+          new Set([...resolved.suggestedDomainKeywords.map((k) => k.toLowerCase()), ...keywords]),
+        ).slice(0, 12);
+        const next: CaseFramework = {
+          id: fwId,
+          name: resolved.canonicalName,
+          domainKeywords: mergedKeywords,
+          canonicalId: resolved.canonicalId,
+          aliases: resolved.aliases,
+          coreConcepts: resolved.coreConcepts,
+          conceptualDescription: resolved.conceptualDescription,
+          recognitionSignals: resolved.recognitionSignals,
+          primaryDimension: resolved.primaryDimension,
+          provenance: "explicit",
+          signalPattern: resolved.suggestedSignalPattern,
+        };
+        byCanonical.set(resolved.canonicalId, next);
+        parsedFrameworks.push(next);
+        continue;
+      }
+
+      // Unresolved name → keep as a custom framework, but still dedup by name.
+      if (parsedFrameworks.some((p) => !p.canonicalId && p.name.toLowerCase() === fw.name.trim().toLowerCase())) {
+        continue;
+      }
       const fwId = typeof fw.id === "string" && fw.id.trim()
         ? fw.id.trim()
         : `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      parsedFrameworks.push({ id: fwId, name: fw.name.trim(), domainKeywords: keywords });
+      parsedFrameworks.push({
+        id: fwId,
+        name: fw.name.trim(),
+        domainKeywords: keywords,
+        provenance: "explicit",
+      });
     }
   }
 

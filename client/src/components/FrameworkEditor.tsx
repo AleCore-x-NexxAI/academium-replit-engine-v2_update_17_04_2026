@@ -25,7 +25,15 @@ import {
 } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useTranslation } from "@/contexts/LanguageContext";
+import { useToast } from "@/hooks/use-toast";
 import type { CaseFramework } from "@shared/schema";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface FrameworkEditorProps {
   value: CaseFramework[];
@@ -53,9 +61,12 @@ export function FrameworkEditor({
   maxFrameworks = 8,
 }: FrameworkEditorProps) {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [nameInput, setNameInput] = useState("");
   const [fetchingFor, setFetchingFor] = useState<Set<string>>(new Set());
   const [signalOpen, setSignalOpen] = useState<Record<number, boolean>>({});
+  const [disambig, setDisambig] = useState<{ candidates: Array<{ canonicalId: string; name: string }> } | null>(null);
+  const [resolving, setResolving] = useState(false);
 
   const update = (next: CaseFramework[]) => onChange(next);
 
@@ -90,18 +101,102 @@ export function FrameworkEditor({
     }
   };
 
-  const addFramework = () => {
-    const name = nameInput.trim();
-    if (!name || value.length >= maxFrameworks) return;
-    if (value.some((f) => f.name.toLowerCase() === name.toLowerCase())) return;
+  const addByCanonical = async (
+    nameToAdd: string,
+    canonicalId: string | null,
+  ): Promise<CaseFramework | null> => {
+    // Dedup by canonicalId when known, otherwise by case-insensitive name.
+    if (canonicalId && value.some((f) => f.canonicalId === canonicalId)) {
+      toast({
+        title: t("manualCase.frameworkAlreadyAdded"),
+        description: t("manualCase.frameworkAlreadyAddedDesc"),
+      });
+      return null;
+    }
+    if (!canonicalId && value.some((f) => f.name.toLowerCase() === nameToAdd.toLowerCase())) {
+      return null;
+    }
+
+    let resolved: any = null;
+    if (canonicalId) {
+      try {
+        const res = await apiRequest("POST", "/api/scenarios/resolve-framework-name", {
+          name: canonicalId.replace(/_/g, " "),
+          language,
+        });
+        resolved = await res.json();
+        if (resolved?.canonicalId !== canonicalId) {
+          // Re-attempt by passing the actual canonical id back
+          resolved = { ...resolved, canonicalId };
+        }
+      } catch {
+        // ignore — fall through with name only
+      }
+    }
+
     const fw: CaseFramework = {
       id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      name,
-      domainKeywords: [],
+      name: resolved?.name || nameToAdd,
+      domainKeywords: Array.isArray(resolved?.suggestedDomainKeywords)
+        ? resolved.suggestedDomainKeywords.map((k: string) => k.toLowerCase())
+        : [],
+      canonicalId: canonicalId || undefined,
+      aliases: Array.isArray(resolved?.aliases) ? resolved.aliases : undefined,
+      coreConcepts: Array.isArray(resolved?.coreConcepts) ? resolved.coreConcepts : undefined,
+      conceptualDescription: typeof resolved?.conceptualDescription === "string" ? resolved.conceptualDescription : undefined,
+      recognitionSignals: Array.isArray(resolved?.recognitionSignals) ? resolved.recognitionSignals : undefined,
+      primaryDimension: resolved?.primaryDimension,
+      provenance: canonicalId ? "explicit" : "explicit",
+      signalPattern: resolved?.suggestedSignalPattern,
     };
     update([...value, fw]);
+    return fw;
+  };
+
+  const addFramework = async () => {
+    const name = nameInput.trim();
+    if (!name || value.length >= maxFrameworks) return;
+    setResolving(true);
+    try {
+      const res = await apiRequest("POST", "/api/scenarios/resolve-framework-name", {
+        name,
+        language,
+      });
+      const data = await res.json();
+      if (data?.ambiguous && Array.isArray(data?.candidates)) {
+        setDisambig({ candidates: data.candidates });
+        return;
+      }
+      const canonicalId: string | null = data?.canonicalId || null;
+      const finalName = data?.name || name;
+      const added = await addByCanonical(finalName, canonicalId);
+      setNameInput("");
+      // If we did not have a canonical match, fall back to AI-suggested keywords.
+      if (added && !canonicalId) {
+        void fetchKeywords(added.id, finalName);
+      }
+    } catch {
+      // Network failure — fall back to legacy behavior.
+      if (!value.some((f) => f.name.toLowerCase() === name.toLowerCase())) {
+        const fw: CaseFramework = {
+          id: `fw_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          name,
+          domainKeywords: [],
+          provenance: "explicit",
+        };
+        update([...value, fw]);
+        setNameInput("");
+        void fetchKeywords(fw.id, name);
+      }
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const pickDisambig = async (canonicalId: string, displayName: string) => {
+    setDisambig(null);
+    await addByCanonical(displayName, canonicalId);
     setNameInput("");
-    void fetchKeywords(fw.id, name);
   };
 
   const removeFramework = (i: number) => update(value.filter((_, idx) => idx !== i));
@@ -207,16 +302,37 @@ export function FrameworkEditor({
           size="icon"
           disabled={
             disabled ||
+            resolving ||
             !nameInput.trim() ||
             value.length >= maxFrameworks ||
             value.some((f) => f.name.toLowerCase() === nameInput.trim().toLowerCase())
           }
-          onClick={addFramework}
+          onClick={() => void addFramework()}
           data-testid="button-fwedit-add"
         >
-          <Plus className="w-4 h-4" />
+          {resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
         </Button>
       </div>
+
+      <Dialog open={!!disambig} onOpenChange={(open) => !open && setDisambig(null)}>
+        <DialogContent data-testid="dialog-fwedit-disambig">
+          <DialogHeader>
+            <DialogTitle>{t("manualCase.frameworkDisambig")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {disambig?.candidates.map((c) => (
+              <Button
+                key={c.canonicalId}
+                variant="outline"
+                onClick={() => void pickDisambig(c.canonicalId, c.name)}
+                data-testid={`button-fwedit-disambig-${c.canonicalId}`}
+              >
+                {c.name}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {value.length > 0 && (
         <div className="space-y-2">

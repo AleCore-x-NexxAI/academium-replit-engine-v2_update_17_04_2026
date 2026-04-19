@@ -328,6 +328,13 @@ export interface InitialState {
   frameworks?: CaseFramework[];
 }
 
+export type FrameworkPrimaryDimension =
+  | "analytical"
+  | "strategic"
+  | "tradeoff"
+  | "stakeholder"
+  | "ethical";
+
 export interface CaseFramework {
   id: string;
   name: string;
@@ -337,6 +344,17 @@ export interface CaseFramework {
     minQuality: "WEAK" | "PRESENT" | "STRONG";
     additionalKeywords?: string[];
   };
+  // Phase 2 (v3.0 §4.5 + v2.0 §7): canonical registry alignment.
+  canonicalId?: string;
+  aliases?: string[];
+  coreConcepts?: string[];
+  conceptualDescription?: string;
+  recognitionSignals?: string[];
+  primaryDimension?: FrameworkPrimaryDimension;
+  provenance?: "explicit" | "inferred";
+  inference_reason?: string;
+  accepted_by_professor?: boolean;
+  accepted_at?: string;
 }
 
 export interface FrameworkDetection {
@@ -344,12 +362,12 @@ export interface FrameworkDetection {
   framework_name: string;
   level: "explicit" | "implicit" | "not_evidenced";
   evidence: string;
-  // Phase 1c (Section 6.2): optional fields populated by Phase 2 semantic detector.
-  // Legacy detections (pre-v3.0) are read-time backfilled with defaults.
-  confidence?: "high" | "medium" | "low";
-  detection_method?: "keyword" | "semantic" | "signal_pattern" | "none" | "consistency_promoted";
-  reasoning?: string;
-  canonicalId?: string;
+  // Phase 2 (v3.0 §6.2 / Apéndice D.2): required fields. The 5th detection_method
+  // value "consistency_promoted" is set by checkConsistency (§12.3).
+  confidence: "high" | "medium" | "low";
+  detection_method: "keyword" | "semantic" | "signal_pattern" | "none" | "consistency_promoted";
+  reasoning: string;
+  canonicalId: string;
 }
 
 export interface DashboardSummary {
