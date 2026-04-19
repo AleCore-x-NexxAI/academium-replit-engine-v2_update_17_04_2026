@@ -965,9 +965,7 @@ function ReasoningSignalsTab({ data, loading, isEn }: { data: ReasoningSignalsDa
   return (
     <div>
       <div className="text-[12px] text-muted-foreground/70 leading-relaxed mb-4 p-2.5 bg-muted/30 rounded-lg border border-dashed border-border/50 italic">
-        {isEn
-          ? "Radar chart shows the visual shape of the signal profile. Table below shows all five signals across every turn."
-          : "El gráfico radar muestra la forma visual del perfil de señales. La tabla muestra las cinco señales en cada turno."}
+        {t("scenarioDashboard.radarChartExplainer")}
       </div>
 
       <div className="text-[12px] font-medium text-muted-foreground mb-2 mt-4 pt-4 border-t">{t("scenarioDashboard.signalStrengthSessionOverview")}</div>
