@@ -695,8 +695,11 @@ export const academicDimensionSchema = z.enum([
   "analytical", "strategic", "stakeholder", "ethical", "tradeoff",
 ]);
 
+// Phase 3: pedagogical intent must always carry a non-null canonicalId
+// (curated registry id or `custom_<sha1[:10]>`); raw unresolved names are
+// rejected at the schema boundary so persisted intent stays canonical.
 export const targetFrameworkSchema = z.object({
-  canonicalId: z.string().nullable(),
+  canonicalId: z.string().min(1),
   name: z.string().min(1),
 });
 

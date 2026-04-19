@@ -1891,6 +1891,23 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       if (pedagogicalIntent.targetCompetencies?.length) {
         intentLines.push(`Competencias objetivo: ${pedagogicalIntent.targetCompetencies.join(", ")}`);
       }
+      // Phase 3: per-decision dimensions steer how each decision should be
+      // framed by the generator (which academic dimension the decision must
+      // exercise). The generator should align decision[N].primaryDimension
+      // with the requested mapping so reasoning calibration is honored.
+      if (pedagogicalIntent.decisionDimensions?.length) {
+        const mapping = pedagogicalIntent.decisionDimensions
+          .slice()
+          .sort((a, b) => a.decisionNumber - b.decisionNumber)
+          .map(d => {
+            const sec = d.secondaryDimension ? ` (secundaria: ${d.secondaryDimension})` : "";
+            return `Decisión ${d.decisionNumber} → ${d.primaryDimension}${sec}`;
+          })
+          .join("; ");
+        intentLines.push(
+          `Mapeo de dimensiones por decisión (cada decisión debe ejercitar la dimensión indicada como primaryDimension): ${mapping}`
+        );
+      }
       if (pedagogicalIntent.courseContext) {
         intentLines.push(`Contexto del curso: ${pedagogicalIntent.courseContext}`);
       }
