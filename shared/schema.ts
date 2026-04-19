@@ -64,7 +64,7 @@ export type LLMModel = "gpt-4o" | "gpt-4o-mini" | "gpt-3.5-turbo";
 export interface PedagogicalIntent {
   teachingGoal: string;
   targetFrameworks: Array<{
-    canonicalId: string | null;
+    canonicalId: string;
     name: string;
   }>;
   targetCompetencies: Array<"C1" | "C2" | "C3" | "C4" | "C5">;

@@ -619,6 +619,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (!parsed.success) {
           return res.status(400).json({ message: "Invalid pedagogicalIntent", errors: parsed.error.errors });
         }
+        if (parsed.data.targetFrameworks) {
+          const canon = await canonicalizeIntentFrameworks(parsed.data.targetFrameworks);
+          if (!canon.ok) {
+            return res.status(400).json({ message: canon.message, code: "FRAMEWORK_NOT_CANONICAL" });
+          }
+          parsed.data.targetFrameworks = canon.value;
+        }
         const merged: PedagogicalIntent = {
           teachingGoal: scenario.pedagogicalIntent?.teachingGoal ?? "",
           targetFrameworks: scenario.pedagogicalIntent?.targetFrameworks ?? [],
@@ -626,10 +633,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           ...scenario.pedagogicalIntent,
           ...parsed.data,
         };
-        if (!merged.teachingGoal) {
-          return res.status(400).json({ message: "teachingGoal is required" });
+        const finalParsed = pedagogicalIntentSchema.safeParse(merged);
+        if (!finalParsed.success) {
+          return res.status(400).json({ message: "Merged pedagogicalIntent is invalid", errors: finalParsed.error.errors });
         }
-        updateData.pedagogicalIntent = merged;
+        updateData.pedagogicalIntent = finalParsed.data;
       }
       if (language !== undefined) {
         if (language !== "es" && language !== "en") {
@@ -645,6 +653,47 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to update scenario" });
     }
   });
+
+  // Phase 3: server-side canonicalization of pedagogical intent. Every
+  // targetFrameworks entry must either (a) match a curated registry id, or
+  // (b) be a `custom_<sha1[:10]>` id whose hash matches the supplied name.
+  // The registry resolver is the single source of truth: the client cannot
+  // sneak unresolved or fabricated ids past this guard.
+  async function canonicalizeIntentFrameworks(
+    incoming: PedagogicalIntent["targetFrameworks"],
+  ): Promise<{ ok: true; value: PedagogicalIntent["targetFrameworks"] } | { ok: false; message: string }> {
+    const { FRAMEWORK_REGISTRY, resolveFrameworkName } = await import("./agents/frameworkRegistry");
+    const { customCanonicalId } = await import("./agents/frameworkBootMigration");
+    const out: PedagogicalIntent["targetFrameworks"] = [];
+    for (const fw of incoming) {
+      if (!fw?.name?.trim()) {
+        return { ok: false, message: "Each framework requires a non-empty name" };
+      }
+      const trimmedName = fw.name.trim();
+      const registryHit = FRAMEWORK_REGISTRY.find((e) => e.canonicalId === fw.canonicalId);
+      if (registryHit) {
+        out.push({ canonicalId: registryHit.canonicalId, name: trimmedName });
+        continue;
+      }
+      // Allow a custom_<sha1[:10]> id only when it matches the hash of the
+      // supplied name (prevents arbitrary client-fabricated ids).
+      if (fw.canonicalId === customCanonicalId(trimmedName)) {
+        out.push({ canonicalId: fw.canonicalId, name: trimmedName });
+        continue;
+      }
+      // As a last resort, try resolving by name in either language.
+      const byName = resolveFrameworkName(trimmedName, "es") ?? resolveFrameworkName(trimmedName, "en");
+      if (byName) {
+        out.push({ canonicalId: byName.canonicalId, name: trimmedName });
+        continue;
+      }
+      return {
+        ok: false,
+        message: `Framework "${trimmedName}" could not be canonicalized. Use the resolver before submitting.`,
+      };
+    }
+    return { ok: true, value: out };
+  }
 
   // Phase 3: dedicated pedagogical-intent endpoints. Author/admin only.
   // PATCH returns 423 (Locked) when any session exists for the scenario,
@@ -696,6 +745,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(400).json({ message: "Invalid pedagogicalIntent", errors: parsed.error.errors });
       }
 
+      // Re-resolve every framework against the registry so persisted intent
+      // is canonical regardless of what the client sent.
+      if (parsed.data.targetFrameworks) {
+        const canon = await canonicalizeIntentFrameworks(parsed.data.targetFrameworks);
+        if (!canon.ok) {
+          return res.status(400).json({ message: canon.message, code: "FRAMEWORK_NOT_CANONICAL" });
+        }
+        parsed.data.targetFrameworks = canon.value;
+      }
+
       const merged: PedagogicalIntent = {
         teachingGoal: scenario.pedagogicalIntent?.teachingGoal ?? "",
         targetFrameworks: scenario.pedagogicalIntent?.targetFrameworks ?? [],
@@ -703,12 +762,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ...scenario.pedagogicalIntent,
         ...parsed.data,
       };
-      if (!merged.teachingGoal) {
-        return res.status(400).json({ message: "teachingGoal is required" });
+
+      // Re-validate the fully merged intent against the strict schema so any
+      // pre-existing malformed stored intent (e.g., from earlier writes) is
+      // rejected before re-persisting.
+      const finalParsed = pedagogicalIntentSchema.safeParse(merged);
+      if (!finalParsed.success) {
+        return res.status(400).json({ message: "Merged pedagogicalIntent is invalid", errors: finalParsed.error.errors });
       }
 
-      const updated = await storage.updateScenario(req.params.id, { pedagogicalIntent: merged });
-      res.json({ pedagogicalIntent: updated?.pedagogicalIntent ?? merged });
+      const updated = await storage.updateScenario(req.params.id, { pedagogicalIntent: finalParsed.data });
+      res.json({ pedagogicalIntent: updated?.pedagogicalIntent ?? finalParsed.data });
     } catch (error) {
       console.error("Error updating pedagogical intent:", error);
       res.status(500).json({ message: "Failed to update pedagogical intent" });
