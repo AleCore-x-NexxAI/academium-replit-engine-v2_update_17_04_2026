@@ -314,7 +314,23 @@ export default function ScenarioDashboard() {
           </Link>
           <div>
             <div className="text-[15px] font-medium text-muted-foreground italic" data-testid="text-scenario-title">{scenarioTitle}</div>
-            <div className="text-[12px] text-muted-foreground/70" data-testid="text-scenario-meta">
+            {/* Phase 3: surface the professor's pedagogical intent here. */}
+            {scenario?.pedagogicalIntent?.teachingGoal && (
+              <div className="text-[12px] text-muted-foreground mt-0.5 max-w-xl truncate" data-testid="text-teaching-goal">
+                <span className="font-medium">{t("simulationManagement.teachingGoal") || "Goal"}:</span>{" "}
+                {scenario.pedagogicalIntent.teachingGoal}
+              </div>
+            )}
+            {scenario?.pedagogicalIntent?.targetFrameworks && scenario.pedagogicalIntent.targetFrameworks.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1" data-testid="badges-target-frameworks">
+                {scenario.pedagogicalIntent.targetFrameworks.map((fw, idx) => (
+                  <Badge key={idx} variant="outline" className="text-[10px]" data-testid={`badge-target-fw-${idx}`}>
+                    {fw.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="text-[12px] text-muted-foreground/70 mt-0.5" data-testid="text-scenario-meta">
               {enrolledCount} {t("professorDashboard.studentsEnrolled")}
             </div>
           </div>

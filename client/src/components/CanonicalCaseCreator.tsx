@@ -128,6 +128,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   onClose,
 }, ref) => {
   const [topic, setTopic] = useState("");
+  // Phase 3 (Apéndice C): Pedagogical intent inputs that anchor case generation,
+  // framework inference (Phase 4), and runtime calibration (Phase 6).
+  const [teachingGoal, setTeachingGoal] = useState("");
+  const [intentFrameworks, setIntentFrameworks] = useState<Array<{ canonicalId: string | null; name: string }>>([]);
+  const [intentFrameworkInput, setIntentFrameworkInput] = useState("");
+  const [intentCompetencies, setIntentCompetencies] = useState<Array<"C1" | "C2" | "C3" | "C4" | "C5">>([]);
+  const [courseContext, setCourseContext] = useState("");
+  const [reasoningConstraint, setReasoningConstraint] = useState("");
   const [discipline, setDiscipline] = useState("Negocios");
   const [targetLevel, setTargetLevel] = useState("Pregrado");
   const [scenarioObjective, setScenarioObjective] = useState("");
@@ -203,6 +211,34 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     { id: "innovation_stability", labelKey: "tradeoffs.innovationVsStability" },
   ];
 
+  // Phase 3: resolve a typed framework name to its canonical id (custom_<sha1[:10]>
+  // or curated id) so the intent stays canonical end-to-end.
+  const addIntentFramework = useCallback(async () => {
+    const name = intentFrameworkInput.trim();
+    if (!name) return;
+    if (intentFrameworks.some(f => f.name.toLowerCase() === name.toLowerCase())) {
+      setIntentFrameworkInput("");
+      return;
+    }
+    try {
+      const res = await apiRequest("POST", "/api/scenarios/resolve-framework-name", { name });
+      const data = await res.json() as { canonicalId: string | null; name: string };
+      setIntentFrameworks(prev => [...prev, { canonicalId: data.canonicalId ?? null, name: data.name || name }]);
+    } catch {
+      setIntentFrameworks(prev => [...prev, { canonicalId: null, name }]);
+    } finally {
+      setIntentFrameworkInput("");
+    }
+  }, [intentFrameworkInput, intentFrameworks]);
+
+  const COMPETENCY_LABELS: Record<"C1" | "C2" | "C3" | "C4" | "C5", string> = {
+    C1: language === "en" ? "C1 Analytical" : "C1 Analítica",
+    C2: language === "en" ? "C2 Strategic" : "C2 Estratégica",
+    C3: language === "en" ? "C3 Stakeholder" : "C3 Stakeholder",
+    C4: language === "en" ? "C4 Ethical" : "C4 Ética",
+    C5: language === "en" ? "C5 Trade-off" : "C5 Trade-off",
+  };
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       const additionalContext = setupFrameworks.length > 0
@@ -220,6 +256,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         stepCount,
         language,
         additionalContext,
+        // Phase 3: pedagogical intent is required for every generation.
+        pedagogicalIntent: {
+          teachingGoal: teachingGoal.trim(),
+          targetFrameworks: intentFrameworks,
+          targetCompetencies: intentCompetencies,
+          courseContext: courseContext.trim() || undefined,
+          reasoningConstraint: reasoningConstraint.trim() || undefined,
+        },
       });
       return response.json() as Promise<GenerateResponse>;
     },
@@ -444,6 +488,141 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
         <ScrollArea className="flex-1">
           <div className="p-8 max-w-xl mx-auto space-y-8">
+            {/* Phase 3 (Apéndice C): Pedagogical Intent — required before generation. */}
+            <Card className="p-5 border-primary/40 space-y-4" data-testid="panel-pedagogical-intent">
+              <div className="flex items-center gap-2">
+                <Target className="w-5 h-5 text-primary" />
+                <h3 className="text-base font-semibold">
+                  {language === "en" ? "Teaching intent" : "Intención pedagógica"}
+                </h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {language === "en"
+                  ? "Tell us what students should learn. This anchors case generation, framework inference, and runtime feedback."
+                  : "Cuéntanos qué deben aprender los estudiantes. Esto ancla la generación del caso, la inferencia de frameworks y la retroalimentación en tiempo real."}
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="teaching-goal" className="text-sm font-semibold">
+                  {language === "en" ? "Teaching goal *" : "Objetivo de enseñanza *"}
+                </Label>
+                <Textarea
+                  id="teaching-goal"
+                  value={teachingGoal}
+                  onChange={(e) => setTeachingGoal(e.target.value)}
+                  placeholder={language === "en"
+                    ? "e.g., Students should learn to apply Porter's Five Forces to evaluate market entry."
+                    : "ej.: Los estudiantes deben aprender a aplicar las 5 Fuerzas de Porter para evaluar la entrada a un mercado."}
+                  className="min-h-[80px]"
+                  data-testid="input-teaching-goal"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">
+                  {language === "en" ? "Target frameworks (optional)" : "Frameworks objetivo (opcional)"}
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={intentFrameworkInput}
+                    onChange={(e) => setIntentFrameworkInput(e.target.value)}
+                    placeholder={language === "en" ? "e.g., Porter's Five Forces" : "ej.: 5 Fuerzas de Porter"}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void addIntentFramework();
+                      }
+                    }}
+                    data-testid="input-intent-framework"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => void addIntentFramework()}
+                    disabled={!intentFrameworkInput.trim()}
+                    data-testid="button-add-intent-framework"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                {intentFrameworks.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {intentFrameworks.map((fw, idx) => (
+                      <Badge
+                        key={idx}
+                        variant="secondary"
+                        className="gap-1 pr-1"
+                        data-testid={`badge-intent-framework-${idx}`}
+                      >
+                        {fw.name}
+                        <button
+                          type="button"
+                          onClick={() => setIntentFrameworks(prev => prev.filter((_, i) => i !== idx))}
+                          className="ml-1 rounded-full p-0.5"
+                          data-testid={`button-remove-intent-framework-${idx}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">
+                  {language === "en" ? "Target competencies (optional)" : "Competencias objetivo (opcional)"}
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {(["C1", "C2", "C3", "C4", "C5"] as const).map((c) => {
+                    const selected = intentCompetencies.includes(c);
+                    return (
+                      <Badge
+                        key={c}
+                        variant={selected ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => setIntentCompetencies(prev =>
+                          selected ? prev.filter(x => x !== c) : [...prev, c]
+                        )}
+                        data-testid={`chip-competency-${c}`}
+                      >
+                        {selected && <Check className="w-3 h-3 mr-1" />}
+                        {COMPETENCY_LABELS[c]}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="course-context" className="text-sm font-semibold">
+                    {language === "en" ? "Course context (optional)" : "Contexto del curso (opcional)"}
+                  </Label>
+                  <Input
+                    id="course-context"
+                    value={courseContext}
+                    onChange={(e) => setCourseContext(e.target.value)}
+                    placeholder={language === "en" ? "e.g., 2nd year MBA Strategy" : "ej.: Estrategia MBA 2do año"}
+                    data-testid="input-course-context"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reasoning-constraint" className="text-sm font-semibold">
+                    {language === "en" ? "Reasoning constraint (optional)" : "Restricción de razonamiento (opcional)"}
+                  </Label>
+                  <Input
+                    id="reasoning-constraint"
+                    value={reasoningConstraint}
+                    onChange={(e) => setReasoningConstraint(e.target.value)}
+                    placeholder={language === "en" ? "e.g., Must justify with quantitative evidence" : "ej.: Debe justificar con evidencia cuantitativa"}
+                    data-testid="input-reasoning-constraint"
+                  />
+                </div>
+              </div>
+            </Card>
+
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <Label htmlFor="topic" className="text-base font-semibold">{t("canonicalCase.caseTopic")}</Label>
@@ -686,7 +865,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             <div className="pt-4">
               <Button
                 onClick={() => generateMutation.mutate()}
-                disabled={!topic.trim()}
+                disabled={!topic.trim() || !teachingGoal.trim() || generateMutation.isPending}
                 className="w-full h-12 text-base"
                 data-testid="button-generate-draft"
               >
@@ -723,6 +902,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               setScenarioObjective("");
               setTradeoffFocus([]);
               setCustomTradeoff("");
+              setTeachingGoal("");
+              setIntentFrameworks([]);
+              setIntentCompetencies([]);
+              setCourseContext("");
+              setReasoningConstraint("");
               setIsEditing(false);
             }}
             data-testid="button-regenerate"

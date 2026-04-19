@@ -52,6 +52,51 @@ export const users = pgTable("users", {
 export type LLMModel = "gpt-4o" | "gpt-4o-mini" | "gpt-3.5-turbo";
 
 // Agent prompts configuration per scenario
+/**
+ * PedagogicalIntent — what the professor wants students to learn.
+ * Distinct from case content. Intent is the INPUT driving case generation,
+ * framework inference (Phase 4), and runtime calibration (Phase 6).
+ * Stored on scenarios.pedagogical_intent. Editable only when scenario has
+ * zero sessions (PATCH returns 423 Locked otherwise).
+ *
+ * Reference: Milestone Packet v3.0 — Apéndice C.
+ */
+export interface PedagogicalIntent {
+  teachingGoal: string;
+  targetFrameworks: Array<{
+    canonicalId: string | null;
+    name: string;
+  }>;
+  targetCompetencies: Array<"C1" | "C2" | "C3" | "C4" | "C5">;
+  decisionDimensions?: Array<{
+    decisionNumber: number;
+    primaryDimension: AcademicDimension;
+    secondaryDimension?: AcademicDimension;
+  }>;
+  courseContext?: string;
+  reasoningConstraint?: string;
+}
+
+export type AcademicDimension =
+  | "analytical" | "strategic" | "stakeholder"
+  | "ethical" | "tradeoff";
+
+export const DIMENSION_TO_SIGNAL: Record<AcademicDimension, string> = {
+  analytical: "justification",
+  strategic: "intent",
+  stakeholder: "stakeholderAwareness",
+  ethical: "ethicalAwareness",
+  tradeoff: "tradeoffAwareness",
+};
+
+export const DIMENSION_TO_COMPETENCY: Record<AcademicDimension, "C1" | "C2" | "C3" | "C4" | "C5"> = {
+  analytical: "C1",
+  strategic: "C2",
+  stakeholder: "C3",
+  ethical: "C4",
+  tradeoff: "C5",
+};
+
 export interface AgentPrompts {
   narrator?: string;       // Custom narrator system prompt
   evaluator?: string;      // Custom evaluator system prompt
@@ -70,6 +115,11 @@ export const scenarios = pgTable("scenarios", {
   rubric: jsonb("rubric").$type<Rubric>(),
   llmModel: varchar("llm_model", { length: 50 }).default("gpt-4o"), // LLM model for this scenario
   agentPrompts: jsonb("agent_prompts").$type<AgentPrompts>(), // Custom agent prompts (optional)
+  // Phase 3 (Apéndice C): professor's pedagogical intent for this scenario.
+  // Drives Phase 4 framework inference, Phase 5 theory-anchored generation,
+  // and Phase 6 reasoning calibration. Editable only when scenario has zero
+  // sessions; PATCH returns 423 (Locked) otherwise.
+  pedagogicalIntent: jsonb("pedagogical_intent").$type<PedagogicalIntent>(),
   isPublished: boolean("is_published").default(false).notNull(),
   isStarted: boolean("is_started").default(false).notNull(), // Professor controls when students can start
   isGlobalDemo: boolean("is_global_demo").default(false).notNull(), // Global demo visible to all students
@@ -619,6 +669,8 @@ export interface GeneratedScenarioData {
   isComplete: boolean;
   confidence: number; // 0-100 - how confident the AI is about this scenario
   courseConcepts?: string[];
+  // Phase 3 (Apéndice C): pedagogical intent forwarded from generation through publish.
+  pedagogicalIntent?: PedagogicalIntent;
 }
 
 export interface DraftConversationMessage {
@@ -637,6 +689,34 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
 });
+
+// Phase 3 (Apéndice C): runtime validation for PedagogicalIntent.
+export const academicDimensionSchema = z.enum([
+  "analytical", "strategic", "stakeholder", "ethical", "tradeoff",
+]);
+
+export const targetFrameworkSchema = z.object({
+  canonicalId: z.string().nullable(),
+  name: z.string().min(1),
+});
+
+export const decisionDimensionSchema = z.object({
+  decisionNumber: z.number().int().min(1),
+  primaryDimension: academicDimensionSchema,
+  secondaryDimension: academicDimensionSchema.optional(),
+});
+
+export const pedagogicalIntentSchema = z.object({
+  teachingGoal: z.string().min(1),
+  targetFrameworks: z.array(targetFrameworkSchema).default([]),
+  targetCompetencies: z.array(z.enum(["C1", "C2", "C3", "C4", "C5"])).default([]),
+  decisionDimensions: z.array(decisionDimensionSchema).optional(),
+  courseContext: z.string().optional(),
+  reasoningConstraint: z.string().optional(),
+});
+
+// PATCH accepts partials; teachingGoal cannot be cleared once set.
+export const pedagogicalIntentPatchSchema = pedagogicalIntentSchema.partial();
 
 export const insertScenarioSchema = createInsertSchema(scenarios).omit({
   id: true,

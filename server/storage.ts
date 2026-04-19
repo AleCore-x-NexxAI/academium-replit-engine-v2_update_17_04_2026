@@ -737,6 +737,15 @@ export class DatabaseStorage implements IStorage {
     return result?.count ?? 0;
   }
 
+  // Phase 3: lock check for pedagogical_intent edits.
+  async countScenarioSessions(scenarioId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(simulationSessions)
+      .where(eq(simulationSessions.scenarioId, scenarioId));
+    return result?.count ?? 0;
+  }
+
   async enrollStudent(studentId: string, scenarioId: string, via: "email" | "code"): Promise<void> {
     const existing = await this.isStudentEnrolled(studentId, scenarioId);
     if (!existing) {

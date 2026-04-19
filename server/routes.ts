@@ -14,7 +14,8 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import type { AgentContext, DomainExpertOutput, CausalExplanation, DisplayKPI } from "./agents/types";
 import { DEFAULT_DECISIONS } from "./agents/constants";
-import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts, TurnResponse, SimulationState } from "@shared/schema";
+import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts, TurnResponse, SimulationState, PedagogicalIntent } from "@shared/schema";
+import { pedagogicalIntentSchema, pedagogicalIntentPatchSchema } from "@shared/schema";
 
 /**
  * Belt-and-suspenders helper: for reflection turns, copy any analytics fields that
@@ -583,6 +584,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(403).json({ message: "Not authorized" });
       }
 
+      const { title, description, domain, language, initialState, pedagogicalIntent: incomingIntent } = req.body;
+
+      // Phase 3: pedagogical-intent session-lock takes precedence over the
+      // generic enrollment lock so PUTs that touch intent return a
+      // deterministic 423 PEDAGOGICAL_INTENT_LOCKED instead of 409.
+      if (incomingIntent !== undefined) {
+        const sessionCount = await storage.countScenarioSessions(req.params.id);
+        if (sessionCount > 0) {
+          return res.status(423).json({
+            message: "Pedagogical intent is locked: scenario already has sessions",
+            code: "PEDAGOGICAL_INTENT_LOCKED",
+            sessionCount,
+          });
+        }
+      }
+
       const enrollmentCount = await storage.countScenarioEnrollments(req.params.id);
       if (enrollmentCount > 0) {
         return res.status(409).json({
@@ -592,13 +609,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         });
       }
 
-      const { title, description, domain, language, initialState, status } = req.body;
-      const updateData: Record<string, any> = {};
+      const updateData: Partial<InsertScenario> = {};
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description;
       if (domain !== undefined) updateData.domain = domain;
-      if (status !== undefined) updateData.status = status;
       if (initialState !== undefined) updateData.initialState = initialState;
+      if (incomingIntent !== undefined) {
+        const parsed = pedagogicalIntentPatchSchema.safeParse(incomingIntent);
+        if (!parsed.success) {
+          return res.status(400).json({ message: "Invalid pedagogicalIntent", errors: parsed.error.errors });
+        }
+        const merged: PedagogicalIntent = {
+          teachingGoal: scenario.pedagogicalIntent?.teachingGoal ?? "",
+          targetFrameworks: scenario.pedagogicalIntent?.targetFrameworks ?? [],
+          targetCompetencies: scenario.pedagogicalIntent?.targetCompetencies ?? [],
+          ...scenario.pedagogicalIntent,
+          ...parsed.data,
+        };
+        if (!merged.teachingGoal) {
+          return res.status(400).json({ message: "teachingGoal is required" });
+        }
+        updateData.pedagogicalIntent = merged;
+      }
       if (language !== undefined) {
         if (language !== "es" && language !== "en") {
           return res.status(400).json({ message: "language must be 'es' or 'en'" });
@@ -611,6 +643,75 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error) {
       console.error("Error updating scenario:", error);
       res.status(500).json({ message: "Failed to update scenario" });
+    }
+  });
+
+  // Phase 3: dedicated pedagogical-intent endpoints. Author/admin only.
+  // PATCH returns 423 (Locked) when any session exists for the scenario,
+  // because intent edits would invalidate prior runtime calibration.
+  app.get("/api/scenarios/:id/pedagogical-intent", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const scenario = await storage.getScenario(req.params.id);
+      if (!scenario) return res.status(404).json({ message: "Scenario not found" });
+      const user = await storage.getUser(userId);
+      const isAdmin = user?.role === "admin";
+      if (scenario.authorId !== userId && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      const sessionCount = await storage.countScenarioSessions(req.params.id);
+      res.json({
+        pedagogicalIntent: scenario.pedagogicalIntent ?? null,
+        locked: sessionCount > 0,
+        sessionCount,
+      });
+    } catch (error) {
+      console.error("Error fetching pedagogical intent:", error);
+      res.status(500).json({ message: "Failed to fetch pedagogical intent" });
+    }
+  });
+
+  app.patch("/api/scenarios/:id/pedagogical-intent", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const scenario = await storage.getScenario(req.params.id);
+      if (!scenario) return res.status(404).json({ message: "Scenario not found" });
+      const user = await storage.getUser(userId);
+      const isAdmin = user?.role === "admin";
+      if (scenario.authorId !== userId && !isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const sessionCount = await storage.countScenarioSessions(req.params.id);
+      if (sessionCount > 0) {
+        return res.status(423).json({
+          message: "Pedagogical intent is locked: scenario already has sessions",
+          code: "PEDAGOGICAL_INTENT_LOCKED",
+          sessionCount,
+        });
+      }
+
+      const parsed = pedagogicalIntentPatchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid pedagogicalIntent", errors: parsed.error.errors });
+      }
+
+      const merged: PedagogicalIntent = {
+        teachingGoal: scenario.pedagogicalIntent?.teachingGoal ?? "",
+        targetFrameworks: scenario.pedagogicalIntent?.targetFrameworks ?? [],
+        targetCompetencies: scenario.pedagogicalIntent?.targetCompetencies ?? [],
+        ...scenario.pedagogicalIntent,
+        ...parsed.data,
+      };
+      if (!merged.teachingGoal) {
+        return res.status(400).json({ message: "teachingGoal is required" });
+      }
+
+      const updated = await storage.updateScenario(req.params.id, { pedagogicalIntent: merged });
+      res.json({ pedagogicalIntent: updated?.pedagogicalIntent ?? merged });
+    } catch (error) {
+      console.error("Error updating pedagogical intent:", error);
+      res.status(500).json({ message: "Failed to update pedagogical intent" });
     }
   });
 
@@ -1741,6 +1842,8 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
     customTradeoff: z.string().optional(),
     stepCount: z.number().int().min(3).max(10).optional(),
     language: z.enum(["es", "en"]).optional(),
+    // Phase 3 (Apéndice C): pedagogical intent must accompany every generation.
+    pedagogicalIntent: pedagogicalIntentSchema,
   });
 
   app.post("/api/canonical-case/generate", isAuthenticated, async (req: any, res) => {
@@ -1757,7 +1860,7 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         return res.status(400).json({ message: "Datos inválidos", errors: parseResult.error.errors });
       }
 
-      const { topic, additionalContext, tradeoffFocus, customTradeoff, stepCount, language: caseLang } = parseResult.data;
+      const { topic, additionalContext, tradeoffFocus, customTradeoff, stepCount, language: caseLang, pedagogicalIntent } = parseResult.data;
 
       const tradeoffParts: string[] = [];
       if (tradeoffFocus && tradeoffFocus.length > 0) {
@@ -1774,8 +1877,33 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         builtContext = builtContext ? `${builtContext}\n${tradeoffSection}` : tradeoffSection;
       }
 
+      // Phase 3: prepend the professor's pedagogical intent so the canonical
+      // case generator anchors its content in the declared teaching goal,
+      // target frameworks, competencies, and reasoning constraints.
+      const intentLines: string[] = [
+        `Objetivo pedagógico del profesor: ${pedagogicalIntent.teachingGoal}`,
+      ];
+      if (pedagogicalIntent.targetFrameworks?.length) {
+        intentLines.push(
+          `Frameworks objetivo (los estudiantes deben demostrar uso de): ${pedagogicalIntent.targetFrameworks.map(f => f.name).join(", ")}`
+        );
+      }
+      if (pedagogicalIntent.targetCompetencies?.length) {
+        intentLines.push(`Competencias objetivo: ${pedagogicalIntent.targetCompetencies.join(", ")}`);
+      }
+      if (pedagogicalIntent.courseContext) {
+        intentLines.push(`Contexto del curso: ${pedagogicalIntent.courseContext}`);
+      }
+      if (pedagogicalIntent.reasoningConstraint) {
+        intentLines.push(`Restricción de razonamiento: ${pedagogicalIntent.reasoningConstraint}`);
+      }
+      const intentSection = `Intención pedagógica (úsala para anclar el caso):\n${intentLines.join("\n")}`;
+      builtContext = builtContext ? `${intentSection}\n\n${builtContext}` : intentSection;
+
       const canonicalCase = await generateCanonicalCase(topic, builtContext || undefined, stepCount, caseLang);
       const scenarioData = convertCanonicalToScenarioData(canonicalCase, caseLang);
+      // Carry the intent forward through draft so publish can persist it.
+      scenarioData.pedagogicalIntent = pedagogicalIntent;
 
       const initialMessage: DraftConversationMessage = {
         role: "assistant",
@@ -2127,6 +2255,8 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
         initialState: generatedScenario.initialState,
         rubric: generatedScenario.rubric,
         courseConcepts: generatedScenario.courseConcepts || null,
+        // Phase 3: persist the pedagogical intent that drove generation.
+        pedagogicalIntent: generatedScenario.pedagogicalIntent ?? null,
         isPublished: true,
         language: req.body.language || "es",
       });

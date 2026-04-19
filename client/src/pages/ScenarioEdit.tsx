@@ -54,7 +54,14 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import type { Scenario, AgentPrompts, DecisionPoint, CaseFramework } from "@shared/schema";
+import type { Scenario, AgentPrompts, DecisionPoint, CaseFramework, PedagogicalIntent } from "@shared/schema";
+
+// Phase 3: response shape for /api/scenarios/:id/pedagogical-intent
+interface PedagogicalIntentResponse {
+  pedagogicalIntent: PedagogicalIntent | null;
+  locked: boolean;
+  sessionCount: number;
+}
 
 type ScenarioWithLock = Scenario & { isLocked?: boolean; enrollmentCount?: number };
 
@@ -213,6 +220,77 @@ export default function ScenarioEdit() {
   }, [scenario, form]);
 
   const isLocked = !!scenario?.isLocked;
+
+  // Phase 3 (Apéndice C): pedagogical intent panel — author/admin only.
+  // PATCH is locked the moment any session exists for this scenario.
+  const { data: intentData } = useQuery<PedagogicalIntentResponse>({
+    queryKey: ["/api/scenarios", scenarioId, "pedagogical-intent"],
+    enabled: !!scenarioId && !!user,
+  });
+  const [intentDraft, setIntentDraft] = useState<PedagogicalIntent | null>(null);
+  useEffect(() => {
+    if (intentData?.pedagogicalIntent) {
+      setIntentDraft(intentData.pedagogicalIntent);
+    } else if (intentData) {
+      setIntentDraft({
+        teachingGoal: "",
+        targetFrameworks: [],
+        targetCompetencies: [],
+      });
+    }
+  }, [intentData]);
+  const intentLocked = !!intentData?.locked;
+  const [intentFwInput, setIntentFwInput] = useState("");
+
+  const intentMutation = useMutation({
+    mutationFn: async (payload: Partial<PedagogicalIntent>) => {
+      const res = await apiRequest("PATCH", `/api/scenarios/${scenarioId}/pedagogical-intent`, payload);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId, "pedagogical-intent"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/scenarios", scenarioId] });
+      toast({ title: language === "en" ? "Teaching intent saved" : "Intención pedagógica guardada" });
+    },
+    onError: (error: Error) => {
+      const msg = error.message || "";
+      if (msg.includes("PEDAGOGICAL_INTENT_LOCKED") || msg.includes("423")) {
+        toast({
+          title: language === "en" ? "Intent locked" : "Intención bloqueada",
+          description: language === "en"
+            ? "Sessions exist for this scenario; intent cannot be changed."
+            : "Existen sesiones para este escenario; no se puede cambiar la intención.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: language === "en" ? "Failed to save intent" : "No se pudo guardar la intención", description: error.message, variant: "destructive" });
+      }
+    },
+  });
+
+  const addIntentEditFramework = async () => {
+    const name = intentFwInput.trim();
+    if (!name || !intentDraft) return;
+    if (intentDraft.targetFrameworks.some(f => f.name.toLowerCase() === name.toLowerCase())) {
+      setIntentFwInput("");
+      return;
+    }
+    try {
+      const res = await apiRequest("POST", "/api/scenarios/resolve-framework-name", { name });
+      const data = await res.json() as { canonicalId: string | null; name: string };
+      setIntentDraft({
+        ...intentDraft,
+        targetFrameworks: [...intentDraft.targetFrameworks, { canonicalId: data.canonicalId ?? null, name: data.name || name }],
+      });
+    } catch {
+      setIntentDraft({
+        ...intentDraft,
+        targetFrameworks: [...intentDraft.targetFrameworks, { canonicalId: null, name }],
+      });
+    } finally {
+      setIntentFwInput("");
+    }
+  };
 
   const handleDepthStrictnessChange = (dpIndex: number, value: string) => {
     setDecisionPoints(prev => {
@@ -404,6 +482,159 @@ export default function ScenarioEdit() {
               {scenario?.enrollmentCount ? ` (${scenario.enrollmentCount})` : ""}
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Phase 3 (Apéndice C): Pedagogical intent panel. */}
+        {intentDraft && (
+          <Card className="p-6 mb-6 space-y-4" data-testid="panel-intent-edit">
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold">
+                {language === "en" ? "Teaching intent" : "Intención pedagógica"}
+              </h2>
+            </div>
+            {intentLocked && (
+              <Alert className="border-amber-500/50 bg-amber-500/10" data-testid="alert-intent-locked">
+                <Lock className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>
+                    {language === "en" ? "Intent locked" : "Intención bloqueada"}
+                  </strong>{" "}
+                  {language === "en"
+                    ? `Sessions exist for this scenario (${intentData?.sessionCount}); pedagogical intent cannot be changed without invalidating prior runs.`
+                    : `Existen sesiones para este escenario (${intentData?.sessionCount}); no se puede cambiar la intención sin invalidar las corridas previas.`}
+                </AlertDescription>
+              </Alert>
+            )}
+            <fieldset disabled={intentLocked} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">
+                  {language === "en" ? "Teaching goal *" : "Objetivo de enseñanza *"}
+                </label>
+                <Textarea
+                  value={intentDraft.teachingGoal}
+                  onChange={(e) => setIntentDraft({ ...intentDraft, teachingGoal: e.target.value })}
+                  className="min-h-[80px]"
+                  data-testid="input-edit-teaching-goal"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">
+                  {language === "en" ? "Target frameworks" : "Frameworks objetivo"}
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    value={intentFwInput}
+                    onChange={(e) => setIntentFwInput(e.target.value)}
+                    placeholder={language === "en" ? "Framework name" : "Nombre del framework"}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void addIntentEditFramework();
+                      }
+                    }}
+                    data-testid="input-edit-intent-framework"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void addIntentEditFramework()}
+                    disabled={!intentFwInput.trim()}
+                    data-testid="button-add-edit-intent-framework"
+                  >
+                    {language === "en" ? "Add" : "Agregar"}
+                  </Button>
+                </div>
+                {intentDraft.targetFrameworks.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {intentDraft.targetFrameworks.map((fw, idx) => (
+                      <Badge key={idx} variant="secondary" data-testid={`badge-edit-intent-fw-${idx}`}>
+                        {fw.name}
+                        {!intentLocked && (
+                          <button
+                            type="button"
+                            onClick={() => setIntentDraft({
+                              ...intentDraft,
+                              targetFrameworks: intentDraft.targetFrameworks.filter((_, i) => i !== idx),
+                            })}
+                            className="ml-2"
+                            data-testid={`button-remove-edit-intent-fw-${idx}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">
+                  {language === "en" ? "Target competencies" : "Competencias objetivo"}
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(["C1", "C2", "C3", "C4", "C5"] as const).map((c) => {
+                    const sel = intentDraft.targetCompetencies.includes(c);
+                    return (
+                      <Badge
+                        key={c}
+                        variant={sel ? "default" : "outline"}
+                        className="cursor-pointer"
+                        onClick={() => !intentLocked && setIntentDraft({
+                          ...intentDraft,
+                          targetCompetencies: sel
+                            ? intentDraft.targetCompetencies.filter(x => x !== c)
+                            : [...intentDraft.targetCompetencies, c],
+                        })}
+                        data-testid={`chip-edit-competency-${c}`}
+                      >
+                        {c}
+                      </Badge>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">
+                    {language === "en" ? "Course context" : "Contexto del curso"}
+                  </label>
+                  <Input
+                    value={intentDraft.courseContext ?? ""}
+                    onChange={(e) => setIntentDraft({ ...intentDraft, courseContext: e.target.value })}
+                    data-testid="input-edit-course-context"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold">
+                    {language === "en" ? "Reasoning constraint" : "Restricción de razonamiento"}
+                  </label>
+                  <Input
+                    value={intentDraft.reasoningConstraint ?? ""}
+                    onChange={(e) => setIntentDraft({ ...intentDraft, reasoningConstraint: e.target.value })}
+                    data-testid="input-edit-reasoning-constraint"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={() => intentMutation.mutate({
+                    teachingGoal: intentDraft.teachingGoal,
+                    targetFrameworks: intentDraft.targetFrameworks,
+                    targetCompetencies: intentDraft.targetCompetencies,
+                    courseContext: intentDraft.courseContext || undefined,
+                    reasoningConstraint: intentDraft.reasoningConstraint || undefined,
+                  })}
+                  disabled={intentLocked || intentMutation.isPending || !intentDraft.teachingGoal.trim()}
+                  data-testid="button-save-intent"
+                >
+                  {intentMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  {language === "en" ? "Save intent" : "Guardar intención"}
+                </Button>
+              </div>
+            </fieldset>
+          </Card>
         )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
