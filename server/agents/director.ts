@@ -1465,12 +1465,12 @@ export async function generateDashboardSummary(
 Reasoning arc: ${bandSummary}
 Highest signal: ${highestSignal[0]} (avg ${highestSignal[1]})
 Lowest signal: ${lowestSignal[0]} (avg ${lowestSignal[1]})
-Rules: Observation only. Identify ONE strength OR ONE gap (not both). No evaluation language. No "correct/incorrect", "good/bad", "well done", "optimal", "ideal", "should have", "you should", "best", "unfortunately", "fortunately", "sadly", "surprisingly". No exclamation marks. No "weak/strong student". BANNED SUPERLATIVES — never use any of: ${BANNED_SUPERLATIVES_EN.join(", ")}. Write in English.`
+Rules: Observation only. Identify ONE strength OR ONE gap (not both). No evaluative lexicon (judgments of accuracy, valence labels, praise phrases, prescriptive obligations, comparative superlatives, emotional adverbs). No exclamation marks. No labels for student capability. SUPERLATIVES BANNED — never use any of: ${BANNED_SUPERLATIVES_EN.join(", ")}. Write in English.`
     : `Escribe un resumen de 1-2 oraciones para el profesor sobre esta sesión.
 Arco de razonamiento: ${bandSummary}
 Señal más alta: ${highestSignal[0]} (promedio ${highestSignal[1]})
 Señal más baja: ${lowestSignal[0]} (promedio ${lowestSignal[1]})
-Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin lenguaje evaluativo. Sin "correcto/incorrecto", "bueno/malo", "bien hecho", "óptimo", "ideal", "debería haber". Sin signos de exclamación. Sin "estudiante débil/fuerte". SUPERLATIVOS PROHIBIDOS — nunca uses ninguno de: ${BANNED_SUPERLATIVES_ES.join(", ")}. Escribe en español.`;
+Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin léxico evaluativo (juicios de acierto, etiquetas de valencia, frases de elogio, obligaciones prescriptivas, superlativos comparativos, adverbios emocionales). Sin signos de exclamación. Sin etiquetas de capacidad del estudiante. SUPERLATIVOS PROHIBIDOS — nunca uses ninguno de: ${BANNED_SUPERLATIVES_ES.join(", ")}. Escribe en español.`;
 
   let sessionHeadline: string;
   try {

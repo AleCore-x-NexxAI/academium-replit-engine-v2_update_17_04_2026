@@ -298,9 +298,9 @@ export default function ScenarioDashboard() {
   const enrolledCount = studentsSummary?.students?.length || 0;
 
   const tabs = [
-    { key: "analytics" as const, label: isEn ? "Analytics" : "Analíticas", icon: BarChart3 },
-    { key: "students" as const, label: isEn ? "Students" : "Estudiantes", icon: Users },
-    { key: "control" as const, label: isEn ? "Control" : "Control", icon: Settings },
+    { key: "analytics" as const, label: t("simulationManagement.analytics"), icon: BarChart3 },
+    { key: "students" as const, label: t("simulationManagement.students"), icon: Users },
+    { key: "control" as const, label: t("simulationManagement.control"), icon: Settings },
   ];
 
   return (

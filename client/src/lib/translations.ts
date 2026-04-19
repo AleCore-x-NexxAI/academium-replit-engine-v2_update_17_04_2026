@@ -183,6 +183,11 @@ const translations = {
     noSimulations: { es: "Aún no has creado ninguna simulación.", en: "You haven't created any simulations yet." },
     createFirst: { es: "Crear Tu Primera Simulación", en: "Create Your First Simulation" },
     loadError: { es: "Error al cargar simulaciones. Por favor intenta de nuevo.", en: "Error loading simulations. Please try again." },
+    noFrameworksConfigured: { es: "No hay marcos configurados", en: "No frameworks configured" },
+    noCompletedSessions: { es: "No hay sesiones completadas aún", en: "No completed sessions yet" },
+    noTurnsRecorded: { es: "No hay turnos registrados.", en: "No turns recorded." },
+    noKpiMovements: { es: "No se registraron movimientos de KPI.", en: "No KPI movements recorded." },
+    couldNotRegenerateSummary: { es: "No se pudo regenerar el resumen", en: "Could not regenerate summary" },
   },
 
   simulation: {

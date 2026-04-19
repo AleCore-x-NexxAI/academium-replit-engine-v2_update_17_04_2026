@@ -109,16 +109,32 @@ function findVerbatimQuote(output: string, studentInput: string, minRun = 6): { 
   return best;
 }
 
+/**
+ * Phase 1b: replace verbatim spans with a semantic paraphrase that preserves
+ * the topical anchor. Strategy: keep the first 1-2 content tokens of the span
+ * (so the student's intent is preserved as a topic marker) and wrap the rest
+ * in a neutral framing. Falls back to the generic phrase only if no content
+ * tokens survive.
+ */
 function paraphraseVerbatim(text: string, studentInput: string, isEn: boolean, minRun = 6): string {
-  const replacement = isEn ? "their stated approach" : "su enfoque planteado";
+  const STOPWORDS_EN = new Set(["the", "a", "an", "to", "of", "and", "or", "in", "on", "for", "with", "is", "are", "was", "were", "be", "been", "being", "by", "as", "at", "from", "this", "that", "these", "those", "it", "its", "their", "his", "her", "i", "you", "we", "they", "but", "not", "if", "then", "than"]);
+  const STOPWORDS_ES = new Set(["el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "y", "o", "que", "en", "para", "por", "con", "es", "son", "se", "su", "sus", "lo", "como", "pero", "más", "este", "esta", "estos", "estas", "ser", "muy", "también", "sobre", "entre", "todo", "todos", "cada", "cuando", "donde", "porque", "hay"]);
+  const stops = isEn ? STOPWORDS_EN : STOPWORDS_ES;
+  const buildReplacement = (tokens: string[]): string => {
+    const anchor = tokens.find((t) => !stops.has(t.toLowerCase()) && t.length >= 4);
+    if (!anchor) return isEn ? "their stated approach" : "su enfoque planteado";
+    return isEn
+      ? `their position on ${anchor}`
+      : `su postura sobre ${anchor}`;
+  };
+
   let result = text;
   for (let pass = 0; pass < 3; pass++) {
     const hit = findVerbatimQuote(result, studentInput, minRun);
     if (!hit) break;
-    // Replace the matched span using a regex on the raw text. Since
-    // tokenization stripped punctuation, rebuild a flexible matcher.
     const tokens = tokenizeForVerbatim(result).slice(hit.start, hit.start + hit.len);
     if (tokens.length === 0) break;
+    const replacement = buildReplacement(tokens);
     const pattern = new RegExp(
       tokens
         .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))

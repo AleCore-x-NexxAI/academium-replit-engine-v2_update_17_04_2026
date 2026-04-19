@@ -721,22 +721,23 @@ export async function generateCanonicalCase(
   // Drop frameworks that ended up with fewer than 2 usable keywords.
   const finalFrameworks = cleanedFrameworks.filter((f) => f.domainKeywords.length >= 2);
 
+  const isEnFallback = effectiveLang === "en";
   return {
-    title: parsed.title || "Caso de Negocios",
-    description: parsed.description || "Un caso de simulación de negocios",
-    domain: parsed.domain || "Gestión de Negocios",
-    caseContext: parsed.caseContext || "Contexto del caso pendiente...",
-    coreChallenge: parsed.coreChallenge || "Desafío central por definir...",
+    title: parsed.title || (isEnFallback ? "Business Case" : "Caso de Negocios"),
+    description: parsed.description || (isEnFallback ? "A business simulation case" : "Un caso de simulación de negocios"),
+    domain: parsed.domain || (isEnFallback ? "Business Management" : "Gestión de Negocios"),
+    caseContext: parsed.caseContext || (isEnFallback ? "Case context pending..." : "Contexto del caso pendiente..."),
+    coreChallenge: parsed.coreChallenge || (isEnFallback ? "Core challenge to be defined..." : "Desafío central por definir..."),
     decisionPoints: decisionPoints.slice(0, effectiveSteps),
-    reflectionPrompt: parsed.reflectionPrompt || "¿Qué factor influyó más en tus decisiones?",
+    reflectionPrompt: parsed.reflectionPrompt || (isEnFallback ? "Which factor most influenced your decisions?" : "¿Qué factor influyó más en tus decisiones?"),
     indicators,
-    role: parsed.role || "Gerente",
-    objective: parsed.objective || "Navegar la situación exitosamente",
-    companyName: parsed.companyName || "Empresa",
-    industry: parsed.industry || "Negocios",
-    timelineContext: parsed.timelineContext || "Situación urgente",
-    keyConstraints: parsed.keyConstraints || ["Presupuesto limitado", "Tiempo restringido"],
-    learningObjectives: parsed.learningObjectives || ["Pensamiento crítico", "Toma de decisiones"],
+    role: parsed.role || (isEnFallback ? "Manager" : "Gerente"),
+    objective: parsed.objective || (isEnFallback ? "Navigate the situation successfully" : "Navegar la situación exitosamente"),
+    companyName: parsed.companyName || (isEnFallback ? "Company" : "Empresa"),
+    industry: parsed.industry || (isEnFallback ? "Business" : "Negocios"),
+    timelineContext: parsed.timelineContext || (isEnFallback ? "Urgent situation" : "Situación urgente"),
+    keyConstraints: parsed.keyConstraints || (isEnFallback ? ["Limited budget", "Constrained time"] : ["Presupuesto limitado", "Tiempo restringido"]),
+    learningObjectives: parsed.learningObjectives || (isEnFallback ? ["Critical thinking", "Decision making"] : ["Pensamiento crítico", "Toma de decisiones"]),
     frameworks: finalFrameworks.slice(0, 4),
     confidence: parsed.confidence || 75,
   };
