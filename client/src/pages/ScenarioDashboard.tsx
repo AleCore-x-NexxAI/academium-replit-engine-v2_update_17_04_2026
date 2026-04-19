@@ -808,22 +808,22 @@ function StudentSessionModal({ sessionId, isEn, onClose }: { sessionId: string; 
     },
   });
 
-  const { data: chatHistory, isLoading: chatLoading } = useQuery({
+  const { data: chatHistory, isLoading: chatLoading } = useQuery<{ turns: ChatTurn[] }>({
     queryKey: ["/api/sessions", sessionId, "chat-history"],
     enabled: !!sessionId && modalTab === "chat",
   });
 
-  const { data: debriefPrep, isLoading: debriefLoading } = useQuery({
+  const { data: debriefPrep, isLoading: debriefLoading } = useQuery<{ turns: DebriefTurn[] }>({
     queryKey: ["/api/sessions", sessionId, "debrief-prep"],
     enabled: !!sessionId && modalTab === "debrief",
   });
 
-  const { data: reasoningSignals, isLoading: signalsLoading } = useQuery({
+  const { data: reasoningSignals, isLoading: signalsLoading } = useQuery<ReasoningSignalsData>({
     queryKey: ["/api/sessions", sessionId, "reasoning-signals"],
     enabled: !!sessionId && modalTab === "signals",
   });
 
-  const { data: kpiFrameworks, isLoading: kpiLoading } = useQuery({
+  const { data: kpiFrameworks, isLoading: kpiLoading } = useQuery<KpiFrameworksData>({
     queryKey: ["/api/sessions", sessionId, "kpi-frameworks"],
     enabled: !!sessionId && modalTab === "kpi",
   });
