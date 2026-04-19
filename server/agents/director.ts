@@ -804,10 +804,15 @@ export async function processStudentTurn(
   // primary dimension shows PRESENT/STRONG signals. Never demotes. Logs a
   // disagreement event for observability.
   if (!isMcq && scenarioFrameworks.length > 0) {
+    // Phase 3 will pipe pedagogicalIntent into the director context and forward
+    // it here so checkConsistency can scope eligibility to targetFrameworks.
+    // Until then, we pass undefined and the consistency check falls back to
+    // the provenance==="explicit" eligibility rule (Phase-2 default).
     const { detections: promoted, promotions } = checkConsistency(
       evidenceLog.signals_detected,
       frameworkDetections,
       scenarioFrameworks,
+      undefined,
     );
     frameworkDetections = promoted;
     if (promotions.length > 0) {
