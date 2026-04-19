@@ -706,9 +706,7 @@ async function checkFrameworkCoverage(
 ): Promise<{ ok: boolean; missingPrimary: string | null }> {
   if (frameworks.length === 0) return { ok: true, missingPrimary: null };
   try {
-    const { detectFrameworksSync } = await import("./frameworkDetector");
-    // The "primary" target is the first targetFramework declared by the
-    // professor's intent, mapped to a CaseFramework entry by canonicalId.
+    const { detectFrameworks } = await import("./frameworkDetector");
     const primaryFw = primaryTargetCanonicalId
       ? frameworks.find((f) => f.canonicalId === primaryTargetCanonicalId) ?? frameworks[0]
       : frameworks[0];
@@ -719,15 +717,15 @@ async function checkFrameworkCoverage(
       stakeholderAwareness: { quality: "WEAK", detected: false, evidence: "" },
       ethicalAwareness: { quality: "WEAK", detected: false, evidence: "" },
     };
-    let primaryHit = false;
-    for (const dp of decisionPoints) {
-      const text = `${dp.prompt}\n${(dp.options ?? []).join("\n")}\n${dp.focusCue ?? ""}`;
-      const detections = detectFrameworksSync(text, emptySignals, frameworks, language);
-      if (detections.some((d: any) => d.frameworkId === primaryFw.id && d.level !== "not_evidenced")) {
-        primaryHit = true;
-        break;
-      }
-    }
+    // Concatenate all decision text into a single pass so the semantic
+    // detector can reason holistically about the case.
+    const fullText = decisionPoints
+      .map((dp) => `${dp.prompt}\n${(dp.options ?? []).join("\n")}\n${dp.focusCue ?? ""}`)
+      .join("\n\n");
+    const detections = await detectFrameworks(fullText, emptySignals, frameworks, language);
+    const primaryHit = detections.some(
+      (d) => d.framework_id === primaryFw.id && d.level !== "not_evidenced",
+    );
     return primaryHit
       ? { ok: true, missingPrimary: null }
       : { ok: false, missingPrimary: primaryFw.name };
@@ -735,6 +733,72 @@ async function checkFrameworkCoverage(
     console.warn("[canonicalCaseGenerator] checkFrameworkCoverage skipped due to error:", err);
     return { ok: true, missingPrimary: null };
   }
+}
+
+/**
+ * Phase 5 (§9.4 + §10.3): per-dimension prompt-text validators. Each
+ * validator inspects the decision's prompt + options for the textual
+ * markers required by its dimension. Returns the failing decision numbers.
+ */
+function checkPerDimensionPromptText(decisionPoints: DecisionPoint[]): {
+  stakeholderFailures: number[];
+  analyticalFailures: number[];
+  strategicFailures: number[];
+  ethicalFailures: number[];
+  tradeoffPromptFailures: number[];
+} {
+  const stakeholderFailures: number[] = [];
+  const analyticalFailures: number[] = [];
+  const strategicFailures: number[] = [];
+  const ethicalFailures: number[] = [];
+  const tradeoffPromptFailures: number[] = [];
+
+  // Lightweight cue lexicons (Es+En). Validators use case-insensitive checks.
+  const stakeholderCues = /\b(stakeholders?|equipo|empleados?|clientes?|inversor(?:es)?|accionistas?|proveedor(?:es)?|comunidad|junta|board|customers?|investors?|shareholders?|suppliers?|community|team|employees?|users?)\b/gi;
+  const numericCue = /\d|%|porcentaje|percent|aument|decrease|increase|disminu|caus|provoc|debido a|because|leads? to|results? in/gi;
+  const ethicalCues = /\bético|ética|ethical|ethic|legítim|legitimate|principio|principle|integridad|integrity|justicia|justice|fairness|valor(?:es)? humanos?|human values?/gi;
+  const tradeoffCueCost = /\b(costo|coste|sacrific|riesgo|pierde|cost|sacrifice|risk|lose|forfeit|trade.?off)\b/gi;
+  const tradeoffCueBenefit = /\b(beneficio|gana|ventaja|oportunidad|mejor|benefit|gain|upside|opportunity|advantage|payoff)\b/gi;
+
+  for (const dp of decisionPoints) {
+    const text = `${dp.prompt}\n${(dp.options ?? []).join("\n")}`;
+    const lower = text.toLowerCase();
+    switch (dp.primaryDimension) {
+      case "stakeholder": {
+        const matches = new Set(text.match(stakeholderCues) ?? []);
+        if (matches.size < 2) stakeholderFailures.push(dp.number);
+        break;
+      }
+      case "analytical": {
+        if (!numericCue.test(text)) analyticalFailures.push(dp.number);
+        numericCue.lastIndex = 0;
+        break;
+      }
+      case "strategic": {
+        const optionCount = Array.isArray(dp.options) ? dp.options.length : 0;
+        // strategic decisions need ≥2 defensible paths surfaced — use options
+        // as the most reliable proxy; fall back to detecting two "or"/"o" splits.
+        const orSplits = (lower.match(/\b(or|o)\b/g) ?? []).length;
+        if (optionCount < 2 && orSplits < 1) strategicFailures.push(dp.number);
+        break;
+      }
+      case "ethical": {
+        if (!ethicalCues.test(text)) ethicalFailures.push(dp.number);
+        ethicalCues.lastIndex = 0;
+        break;
+      }
+      case "tradeoff": {
+        const hasCost = tradeoffCueCost.test(text);
+        const hasBenefit = tradeoffCueBenefit.test(text);
+        tradeoffCueCost.lastIndex = 0;
+        tradeoffCueBenefit.lastIndex = 0;
+        if (!hasCost || !hasBenefit) tradeoffPromptFailures.push(dp.number);
+        break;
+      }
+    }
+  }
+
+  return { stakeholderFailures, analyticalFailures, strategicFailures, ethicalFailures, tradeoffPromptFailures };
 }
 
 /**
@@ -1117,21 +1181,87 @@ export async function generateCanonicalCase(
     }
   }
 
-  // Gate 6: tradeoff realism — regenerate each failing tradeoff decision.
-  const trG = checkTradeoffRealism(decisionPoints, dimensions);
-  if (!trG.ok) {
-    console.warn(`[canonicalCaseGenerator] Gate6 tradeoff realism failed for: ${trG.failingNumbers.join(", ")}`);
+  // Gate 6: tradeoff realism — combines signature completeness AND prompt
+  // text containing both cost & benefit cues. Regenerate each failing
+  // tradeoff decision with a single hint covering both requirements.
+  const trSigG = checkTradeoffRealism(decisionPoints, dimensions);
+  const perDimInitial = checkPerDimensionPromptText(decisionPoints);
+  const tradeoffFailures = Array.from(new Set([
+    ...trSigG.failingNumbers,
+    ...perDimInitial.tradeoffPromptFailures,
+  ]));
+  if (tradeoffFailures.length > 0) {
+    console.warn(`[canonicalCaseGenerator] Gate6 tradeoff failures: ${tradeoffFailures.join(", ")}`);
     const hint = isEn
-      ? `IMPORTANT: name a concrete cost AND a concrete benefit in the prompt; populate tradeoffSignature fully.`
-      : `IMPORTANTE: nombra un costo concreto Y un beneficio concreto en el prompt; completa tradeoffSignature.`;
-    for (const num of trG.failingNumbers) {
-      await runRegenForDecision(num, hint, "tradeoff_signature_incomplete");
+      ? `IMPORTANT: name BOTH a concrete cost AND a concrete benefit in the prompt text; populate tradeoffSignature with non-empty dimension/cost/benefit.`
+      : `IMPORTANTE: nombra TANTO un costo concreto COMO un beneficio concreto en el texto del prompt; completa tradeoffSignature con dimension/cost/benefit no vacíos.`;
+    for (const num of tradeoffFailures) {
+      await runRegenForDecision(num, hint, "tradeoff_incomplete");
     }
-    // residual flagging
-    const reTrG = checkTradeoffRealism(decisionPoints, dimensions);
+    const reTrSig = checkTradeoffRealism(decisionPoints, dimensions);
+    const rePerDim = checkPerDimensionPromptText(decisionPoints);
+    const residual = new Set([...reTrSig.failingNumbers, ...rePerDim.tradeoffPromptFailures]);
     for (const dp of decisionPoints) {
-      if (reTrG.failingNumbers.includes(dp.number)) {
-        dp.qualityFlags = [...(dp.qualityFlags ?? []), "tradeoff_signature_incomplete"];
+      if (residual.has(dp.number)) {
+        dp.qualityFlags = [...(dp.qualityFlags ?? []), "tradeoff_incomplete"];
+      }
+    }
+  }
+
+  // Gate 6b (§10.3): per-dimension prompt-text validators for stakeholder /
+  // analytical / strategic / ethical decisions. Each failing decision gets
+  // ONE focused regen attempt with a dimension-specific hint; residuals
+  // are flagged for the professor review checkpoint.
+  const perDim = checkPerDimensionPromptText(decisionPoints);
+  const perDimRegens: Array<[number[], string, string]> = [
+    [
+      perDim.stakeholderFailures,
+      isEn
+        ? "IMPORTANT: name at least TWO distinct stakeholders with non-aligned interests."
+        : "IMPORTANTE: nombra al menos DOS stakeholders distintos con intereses no alineados.",
+      "stakeholder_prompt_weak",
+    ],
+    [
+      perDim.analyticalFailures,
+      isEn
+        ? "IMPORTANT: include a numeric data point or an explicit causal claim in the prompt or options."
+        : "IMPORTANTE: incluye un dato numérico o una afirmación causal explícita en el prompt u opciones.",
+      "analytical_prompt_weak",
+    ],
+    [
+      perDim.strategicFailures,
+      isEn
+        ? "IMPORTANT: present at least TWO defensible strategic paths with distinct long-term consequences."
+        : "IMPORTANTE: presenta al menos DOS caminos estratégicos defendibles con consecuencias de largo plazo distintas.",
+      "strategic_prompt_weak",
+    ],
+    [
+      perDim.ethicalFailures,
+      isEn
+        ? "IMPORTANT: frame the decision as a tension between two LEGITIMATE goods (not good vs. evil)."
+        : "IMPORTANTE: enmarca la decisión como tensión entre dos BIENES LEGÍTIMOS (no bien vs. mal).",
+      "ethical_prompt_weak",
+    ],
+  ];
+  for (const [failingNums, hint, flag] of perDimRegens) {
+    if (failingNums.length === 0) continue;
+    console.warn(`[canonicalCaseGenerator] Gate6b ${flag} for: ${failingNums.join(", ")}`);
+    for (const num of failingNums) {
+      await runRegenForDecision(num, hint, flag);
+    }
+  }
+  // Residual per-dimension flagging
+  const finalPerDim = checkPerDimensionPromptText(decisionPoints);
+  const finalFailures: Record<string, number[]> = {
+    stakeholder_prompt_weak: finalPerDim.stakeholderFailures,
+    analytical_prompt_weak: finalPerDim.analyticalFailures,
+    strategic_prompt_weak: finalPerDim.strategicFailures,
+    ethical_prompt_weak: finalPerDim.ethicalFailures,
+  };
+  for (const dp of decisionPoints) {
+    for (const [flag, nums] of Object.entries(finalFailures)) {
+      if (nums.includes(dp.number)) {
+        dp.qualityFlags = [...(dp.qualityFlags ?? []), flag];
       }
     }
   }
