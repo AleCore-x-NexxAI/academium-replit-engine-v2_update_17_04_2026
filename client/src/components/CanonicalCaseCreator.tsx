@@ -435,6 +435,19 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     },
     onSuccess: () => {
       setUnreviewedDecisions([]);
+      if (scenarioData?.initialState?.decisionPoints) {
+        const updatedPoints = scenarioData.initialState.decisionPoints.map((d) => ({
+          ...d,
+          reviewCompleted: true,
+        }));
+        setScenarioData({
+          ...scenarioData,
+          initialState: {
+            ...scenarioData.initialState,
+            decisionPoints: updatedPoints,
+          },
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/canonical-case", draftId] });
     },
     onError: () => {
