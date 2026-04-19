@@ -48,12 +48,88 @@ function determineTurnPosition(context: AgentContext): TurnPosition {
   return "INTERMEDIATE";
 }
 
-function getRDSWordRange(rdsBand: RDSBand | undefined): { min: number; max: number } {
+/**
+ * Phase 1b: word-range scaled to the student's response length.
+ * Per-band ceilings preserved (160/130/100); upper bound = studentWords*4
+ * clamped at the band ceiling so a 12-word answer cannot demand >48 words.
+ * Lower bound preserves the original floor but never exceeds the new max
+ * (so the band is always feasible).
+ */
+function getRDSWordRange(
+  rdsBand: RDSBand | undefined,
+  studentWords: number = 0,
+): { min: number; max: number } {
+  let baseMin: number;
+  let baseMax: number;
   switch (rdsBand) {
-    case RDSBand.INTEGRATED: return { min: 130, max: 160 };
-    case RDSBand.ENGAGED: return { min: 100, max: 130 };
-    default: return { min: 80, max: 100 };
+    case RDSBand.INTEGRATED: baseMin = 130; baseMax = 160; break;
+    case RDSBand.ENGAGED: baseMin = 100; baseMax = 130; break;
+    default: baseMin = 80; baseMax = 100; break;
   }
+  if (studentWords <= 0) return { min: baseMin, max: baseMax };
+  const scaledMax = Math.min(baseMax, Math.max(20, studentWords * 4));
+  const min = Math.min(baseMin, Math.max(20, Math.floor(scaledMax * 0.7)));
+  return { min, max: scaledMax };
+}
+
+function countWords(text: string): number {
+  if (!text) return 0;
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function tokenizeForVerbatim(text: string): string[] {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[^a-zA-Z0-9\u00C0-\u024F\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * Phase 1b: detect any 6+ consecutive-word window from `output` that appears
+ * verbatim (case-insensitive, punctuation-stripped) in `studentInput`.
+ * Returns the longest matching span, or null if none.
+ */
+function findVerbatimQuote(output: string, studentInput: string, minRun = 6): { start: number; len: number } | null {
+  const out = tokenizeForVerbatim(output);
+  const stu = tokenizeForVerbatim(studentInput);
+  if (out.length < minRun || stu.length < minRun) return null;
+  const stuJoined = " " + stu.join(" ") + " ";
+  let best: { start: number; len: number } | null = null;
+  for (let i = 0; i + minRun <= out.length; i++) {
+    let j = minRun;
+    while (i + j <= out.length) {
+      const window = " " + out.slice(i, i + j).join(" ") + " ";
+      if (stuJoined.includes(window)) {
+        if (!best || j > best.len) best = { start: i, len: j };
+        j++;
+      } else break;
+    }
+  }
+  return best;
+}
+
+function paraphraseVerbatim(text: string, studentInput: string, isEn: boolean, minRun = 6): string {
+  const replacement = isEn ? "their stated approach" : "su enfoque planteado";
+  let result = text;
+  for (let pass = 0; pass < 3; pass++) {
+    const hit = findVerbatimQuote(result, studentInput, minRun);
+    if (!hit) break;
+    // Replace the matched span using a regex on the raw text. Since
+    // tokenization stripped punctuation, rebuild a flexible matcher.
+    const tokens = tokenizeForVerbatim(result).slice(hit.start, hit.start + hit.len);
+    if (tokens.length === 0) break;
+    const pattern = new RegExp(
+      tokens
+        .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("[\\s\\p{P}]+"),
+      "iu",
+    );
+    const next = result.replace(pattern, replacement);
+    if (next === result) break;
+    result = next;
+  }
+  return result;
 }
 
 function getRDSComplexity(rdsBand: RDSBand | undefined): string {
@@ -127,7 +203,9 @@ export async function generateNarrative(
 ): Promise<NarratorOutput> {
   const turnPosition = determineTurnPosition(context);
   const rdsBand = context.rdsBand;
-  const wordRange = getRDSWordRange(rdsBand);
+  const studentWords = countWords(context.studentInput || "");
+  const wordRange = getRDSWordRange(rdsBand, studentWords);
+  const isEn = context.language === "en";
   const complexity = getRDSComplexity(rdsBand);
   const tradeoffDirective = buildTradeoffDirective(context);
 
@@ -226,6 +304,46 @@ Genera una narrativa de consecuencias organizacionales con los 4 elementos, basa
         }
       } catch (retryErr) {
         console.error("[Narrator] Regeneration failed, falling back to regex repair:", retryErr);
+        text = regexRepairNarrative(text);
+      }
+    }
+
+    // Phase 1b: 6-word verbatim guard. Re-prompt once if the narrator quoted
+    // the student verbatim for 6+ consecutive words; if still failing, paraphrase.
+    if (context.studentInput && findVerbatimQuote(text, context.studentInput)) {
+      console.warn("[Narrator] Verbatim quote (>=6 words) detected. Regenerating...");
+      try {
+        const antiQuoteSuffix = isEn
+          ? "\n\nCRITICAL: Your previous response copied the student's exact wording. Do NOT quote the student verbatim for more than 6 consecutive words. Paraphrase their stance in your own words."
+          : "\n\nCRÍTICO: Tu respuesta anterior copió las palabras exactas del estudiante. NO cites al estudiante de forma literal por más de 6 palabras consecutivas. Parafrasea su postura con tus propias palabras.";
+        const retryResp = await generateChatCompletion(
+          [
+            { role: "system", content: systemPrompt + antiQuoteSuffix },
+            { role: "user", content: userPrompt },
+          ],
+          { responseFormat: "json", maxTokens: 768, model: context.llmModel, agentName: "narrator", sessionId: parseInt(context.sessionId) || undefined }
+        );
+        const retryParsed = JSON.parse(retryResp) as { text?: string; mood?: string };
+        if (retryParsed.text) {
+          let retryText = retryParsed.text.replace(/!/g, ".");
+          const retryGate = runNarratorQualityGates(retryText, turnPosition);
+          if (retryGate.passed && !findVerbatimQuote(retryText, context.studentInput)) {
+            text = retryText;
+          } else {
+            text = paraphraseVerbatim(retryText, context.studentInput, isEn);
+          }
+        } else {
+          text = paraphraseVerbatim(text, context.studentInput, isEn);
+        }
+      } catch (verbErr) {
+        console.error("[Narrator] Verbatim re-prompt failed, paraphrasing programmatically:", verbErr);
+        text = paraphraseVerbatim(text, context.studentInput, isEn);
+      }
+
+      // After paraphrase, re-validate quality gates and apply regex repair as
+      // last-ditch fix to ensure no evaluative language slipped back in.
+      const postParaphraseGate = runNarratorQualityGates(text, turnPosition);
+      if (!postParaphraseGate.passed) {
         text = regexRepairNarrative(text);
       }
     }

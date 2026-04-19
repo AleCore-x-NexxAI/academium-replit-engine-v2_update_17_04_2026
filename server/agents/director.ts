@@ -1417,24 +1417,91 @@ export async function generateDashboardSummary(
   const highestSignal = Object.entries(signalAverages).sort(([,a], [,b]) => b - a)[0];
   const lowestSignal = Object.entries(signalAverages).sort(([,a], [,b]) => a - b)[0];
 
-  let sessionHeadline: string;
-  try {
-    const headlinePrompt = isEn
-      ? `Write a 1-2 sentence professor-facing session summary.
+  // Phase 1b: explicit superlative ban for session_headline (en + es).
+  const BANNED_SUPERLATIVES_EN = ["excellent", "amazing", "great", "fantastic", "outstanding", "brilliant", "superb", "wonderful", "perfect"];
+  const BANNED_SUPERLATIVES_ES = ["excelente", "increíble", "increible", "fantástico", "fantastico", "extraordinario", "sobresaliente", "magnífico", "magnifico", "perfecto", "asombroso", "estupendo"];
+  const bannedList = [...BANNED_SUPERLATIVES_EN, ...BANNED_SUPERLATIVES_ES];
+  // Unicode-aware boundary check: \b is not reliable for accented chars in JS,
+  // so we test with explicit non-letter lookarounds via a manual scan.
+  const containsBannedSuperlative = (text: string): string | null => {
+    const lower = text.toLowerCase();
+    const isLetter = (ch: string) => /[a-z\u00C0-\u024F]/.test(ch);
+    for (const w of bannedList) {
+      let from = 0;
+      while (from <= lower.length) {
+        const idx = lower.indexOf(w, from);
+        if (idx === -1) break;
+        const before = idx === 0 ? "" : lower[idx - 1];
+        const after = idx + w.length >= lower.length ? "" : lower[idx + w.length];
+        if (!isLetter(before) && !isLetter(after)) return w;
+        from = idx + w.length;
+      }
+    }
+    return null;
+  };
+  const stripBanned = (text: string): string => {
+    let out = text.toLowerCase();
+    let cleaned = text;
+    for (const w of bannedList) {
+      let from = 0;
+      while (from <= out.length) {
+        const idx = out.indexOf(w, from);
+        if (idx === -1) break;
+        const before = idx === 0 ? "" : out[idx - 1];
+        const after = idx + w.length >= out.length ? "" : out[idx + w.length];
+        const isLetter = (ch: string) => /[a-z\u00C0-\u024F]/.test(ch);
+        if (!isLetter(before) && !isLetter(after)) {
+          cleaned = cleaned.slice(0, idx) + " ".repeat(w.length) + cleaned.slice(idx + w.length);
+          out = out.slice(0, idx) + " ".repeat(w.length) + out.slice(idx + w.length);
+        }
+        from = idx + w.length;
+      }
+    }
+    return cleaned.replace(/\s{2,}/g, " ").trim();
+  };
+
+  const baseHeadlinePrompt = isEn
+    ? `Write a 1-2 sentence professor-facing session summary.
 Reasoning arc: ${bandSummary}
 Highest signal: ${highestSignal[0]} (avg ${highestSignal[1]})
 Lowest signal: ${lowestSignal[0]} (avg ${lowestSignal[1]})
-Rules: Observation only. Identify ONE strength OR ONE gap (not both). No evaluation language. No "correct/incorrect", "good/bad", "well done", "optimal", "ideal", "should have", "you should", "best", "unfortunately", "fortunately", "sadly", "surprisingly". No exclamation marks. No "weak/strong student". ${isEn ? "Write in English." : "Write in Spanish."}`
-      : `Escribe un resumen de 1-2 oraciones para el profesor sobre esta sesión.
+Rules: Observation only. Identify ONE strength OR ONE gap (not both). No evaluation language. No "correct/incorrect", "good/bad", "well done", "optimal", "ideal", "should have", "you should", "best", "unfortunately", "fortunately", "sadly", "surprisingly". No exclamation marks. No "weak/strong student". BANNED SUPERLATIVES — never use any of: ${BANNED_SUPERLATIVES_EN.join(", ")}. Write in English.`
+    : `Escribe un resumen de 1-2 oraciones para el profesor sobre esta sesión.
 Arco de razonamiento: ${bandSummary}
 Señal más alta: ${highestSignal[0]} (promedio ${highestSignal[1]})
 Señal más baja: ${lowestSignal[0]} (promedio ${lowestSignal[1]})
-Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin lenguaje evaluativo. Sin "correcto/incorrecto", "bueno/malo", "bien hecho", "óptimo", "ideal", "debería haber". Sin signos de exclamación. Sin "estudiante débil/fuerte". Escribe en español.`;
+Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin lenguaje evaluativo. Sin "correcto/incorrecto", "bueno/malo", "bien hecho", "óptimo", "ideal", "debería haber". Sin signos de exclamación. Sin "estudiante débil/fuerte". SUPERLATIVOS PROHIBIDOS — nunca uses ninguno de: ${BANNED_SUPERLATIVES_ES.join(", ")}. Escribe en español.`;
 
+  let sessionHeadline: string;
+  try {
     sessionHeadline = (await generateChatCompletion(
-      [{ role: "user", content: headlinePrompt }],
+      [{ role: "user", content: baseHeadlinePrompt }],
       { maxTokens: 128, model: "gpt-4o-mini", agentName: "dashboardSummaryGenerator" }
     )).trim().replace(/^["']|["']$/g, "");
+
+    // Phase 1b: post-gen superlative scrub. Regenerate once with explicit
+    // mention of the offending term; if still failing, strip it deterministically.
+    const offending = containsBannedSuperlative(sessionHeadline);
+    if (offending) {
+      console.warn(`[DashboardSummary] Banned superlative "${offending}" detected. Regenerating...`);
+      try {
+        const retry = (await generateChatCompletion(
+          [{ role: "user", content: baseHeadlinePrompt + (isEn
+            ? `\n\nYour previous attempt used the banned term "${offending}". Rewrite without any banned superlative.`
+            : `\n\nTu intento anterior usó el término prohibido "${offending}". Reescribe sin ningún superlativo prohibido.`) }],
+          { maxTokens: 128, model: "gpt-4o-mini", agentName: "dashboardSummaryGenerator" }
+        )).trim().replace(/^["']|["']$/g, "");
+        if (!containsBannedSuperlative(retry)) {
+          sessionHeadline = retry;
+        } else {
+          // Strip the retry (best-available) output, not the original.
+          sessionHeadline = stripBanned(retry);
+        }
+      } catch (retryErr) {
+        console.error("[DashboardSummary] Superlative retry failed; stripping deterministically:", retryErr);
+        sessionHeadline = stripBanned(sessionHeadline);
+      }
+    }
   } catch {
     sessionHeadline = isEn
       ? `Session showed ${highestSignal[0]} as the dominant reasoning pattern across ${evidenceLogs.length} turns.`

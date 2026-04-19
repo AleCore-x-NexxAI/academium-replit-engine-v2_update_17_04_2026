@@ -24,7 +24,73 @@ import { generateChatCompletion } from "../openai";
 import { POC_VERSION, STRUCTURE_LOCK_NOTICE, DEFAULT_DECISIONS, MIN_DECISIONS, MAX_DECISIONS } from "./constants";
 import { sanitizeFrameworks, mergeRegeneratedKeywords } from "./frameworkKeywordSanitizer";
 
-function buildCanonicalPrompt(stepCount: number): string {
+/**
+ * Phase 1b: lightweight language-leakage detector. Returns the share of
+ * "off-language" tokens across the user-facing strings in a generated case.
+ * Numerals and short tokens (<3 chars) are ignored. Stopword presence is the
+ * only signal — sufficient to flag obvious leaks (e.g. Spanish chunks inside
+ * an English case) without false-positives on brand names.
+ */
+function offLanguageRatio(parsed: any, target: "es" | "en"): number {
+  if (!parsed || typeof parsed !== "object") return 0;
+  const ES_STOPWORDS = new Set(["el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "y", "o", "que", "en", "para", "por", "con", "es", "son", "se", "su", "sus", "lo", "como", "pero", "más", "este", "esta", "estos", "estas", "ser", "muy", "también", "sobre", "entre", "todo", "todos", "cada", "cuando", "donde", "porque", "qué", "cuál", "tiene", "tienen", "hay", "fue", "fueron", "será", "serán", "puede", "pueden", "debe", "deben", "después", "antes"]);
+  const EN_STOPWORDS = new Set(["the", "and", "or", "of", "to", "in", "on", "for", "with", "is", "are", "was", "were", "be", "been", "being", "by", "as", "at", "from", "this", "that", "these", "those", "an", "a", "but", "not", "no", "if", "then", "than", "which", "who", "whom", "whose", "what", "when", "where", "why", "how", "can", "could", "should", "would", "may", "might", "must", "have", "has", "had", "do", "does", "did", "will", "shall"]);
+  const offSet = target === "en" ? ES_STOPWORDS : EN_STOPWORDS;
+  const targetSet = target === "en" ? EN_STOPWORDS : ES_STOPWORDS;
+
+  const samples: string[] = [];
+  const collect = (v: any) => {
+    if (typeof v === "string" && v.trim().length > 0) samples.push(v);
+    else if (Array.isArray(v)) v.forEach(collect);
+  };
+  collect(parsed.title);
+  collect(parsed.description);
+  collect(parsed.caseContext);
+  collect(parsed.coreChallenge);
+  collect(parsed.role);
+  collect(parsed.objective);
+  collect(parsed.timelineContext);
+  collect(parsed.industry);
+  collect(parsed.keyConstraints);
+  collect(parsed.learningObjectives);
+  collect(parsed.reflectionPrompt);
+  if (Array.isArray(parsed.decisionPoints)) {
+    for (const dp of parsed.decisionPoints) {
+      collect(dp?.prompt);
+      collect(dp?.options);
+      collect(dp?.focusCue);
+      collect(dp?.thinkingScaffold);
+    }
+  }
+  if (Array.isArray(parsed.indicators)) {
+    for (const ind of parsed.indicators) {
+      collect(ind?.label);
+      collect(ind?.description);
+    }
+  }
+  if (Array.isArray(parsed.frameworks)) {
+    for (const fw of parsed.frameworks) {
+      collect(fw?.name);
+      collect(fw?.domainKeywords);
+    }
+  }
+
+  let off = 0;
+  let on = 0;
+  for (const sample of samples) {
+    // Keep short stopwords (de, la, el, to, in, an…) — they're the highest-signal language markers.
+    const tokens = sample.toLowerCase().replace(/[^a-zA-Z\u00C0-\u024F\s]/g, " ").split(/\s+/).filter(Boolean);
+    for (const tok of tokens) {
+      if (offSet.has(tok)) off++;
+      else if (targetSet.has(tok)) on++;
+    }
+  }
+  const total = off + on;
+  if (total === 0) return 0;
+  return off / total;
+}
+
+function buildCanonicalPromptEs(stepCount: number): string {
   const durationMin = Math.round((stepCount / 3) * 20);
   const durationMax = Math.round((stepCount / 3) * 25);
   return `Eres un ARQUITECTO DE CASOS DE NEGOCIOS CANÓNICOS para Academium, una plataforma de simulación de negocios impulsada por IA para educación universitaria en América Latina.
@@ -210,6 +276,198 @@ IMPORTANTE:
 - Cada opción de decisión 1 debe ser igualmente defendible`;
 }
 
+/**
+ * Phase 1b: dedicated English variant of the canonical-case prompt.
+ * Replaces the previous Spanish-prompt + langDirective approach. Every
+ * instruction, label, and example is in English so the model never sees
+ * conflicting language signals.
+ */
+function buildCanonicalPromptEn(stepCount: number): string {
+  const durationMin = Math.round((stepCount / 3) * 20);
+  const durationMax = Math.round((stepCount / 3) * 25);
+  return `You are a CANONICAL BUSINESS CASE ARCHITECT for Academium, an AI-powered business simulation platform for university education.
+
+${STRUCTURE_LOCK_NOTICE}
+
+YOUR MISSION: Build business cases that follow a STRICT CANONICAL STRUCTURE for the POC release (${POC_VERSION}).
+
+=== MANDATORY CONSTRAINTS (NON-NEGOTIABLE) ===
+- Discipline: Business
+- Level: University undergraduate
+- Case duration: ${durationMin}-${durationMax} minutes total
+- Decision points: EXACTLY ${stepCount}
+- Language: ENGLISH only (no Spanish anywhere — titles, descriptions, prompts, options, contexts, constraints, framework names, indicator labels, keywords)
+- Assessment status: Not graded (POC only)
+- Primary goal: Flow, completion, and an authentic decision-making experience
+
+=== CANONICAL CASE STRUCTURE ===
+
+SECTION 1 — CASE CONTEXT (120-180 words):
+- Tone: Professional, neutral, real
+- Functional, not literary
+- Every sentence must support decision-making
+- MUST include:
+  * Type of organization (company, startup, division, etc.)
+  * Student's role (explicit level of authority)
+  * Current situation or pressure
+  * Time constraint or urgency
+  * Clear reason why decisions matter NOW
+- MUST NOT include:
+  * Emotional storytelling
+  * Character arcs
+  * Historical recaps
+  * Academic theory explanations
+  * Hidden "right answer" hints
+
+SECTION 2 — CORE BUSINESS CHALLENGE:
+- A single primary challenge
+- Clearly bounded (budget, time, resources, uncertainty)
+- No excessive technical jargon
+- No implied "right" direction
+- MUST include:
+  * What is at stake
+  * What CANNOT be changed
+  * What is uncertain
+  * What success could look like (without defining it)
+
+SECTION 3 — DECISION 1 (Orientation Decision):
+- Format: Multiple choice (3-4 options)
+- Each option represents a STRATEGIC STANCE, not a solution
+- CRITICAL RULE: There is no correct or incorrect option
+- Each option MUST be:
+  * Defensible
+  * Backed by clear rationale
+  * Lead to different downstream consequences
+
+DECISIONS 2 to ${stepCount - 1} (Analytical Decisions):
+- Format: Short written justification (5-7 lines)
+- Open-ended, no word-count pressure
+- The prompt must:
+  * Ask HOW and WHY
+  * NEVER ask which is the correct answer
+  * Encourage trade-off consideration
+- Each decision must build progressively on the previous ones
+
+DECISION ${stepCount} (Final Integrative Decision):
+- Format: Short written justification
+- MUST force synthesis of:
+  * Prior information
+  * Trade-offs
+  * Consequences of earlier decisions
+- The decision must feel CONSEQUENTIAL
+- NO "perfect equilibrium" outcomes
+- Realistic ambiguity is encouraged
+
+REFLECTION (Light):
+- ONE optional prompt
+- Examples:
+  * "Which factor influenced your decisions most?"
+  * "What would you explore differently next time?"
+- NO long reflections, NO essays
+
+=== SYSTEM INDICATORS (4 POC INDICATORS) ===
+Indicators must reflect:
+1. Team morale (teamMorale) — Team's emotional state and engagement
+2. Budget health (budgetHealth) — Financial health and resource availability
+3. Operational risk (operationalRisk) — Operational uncertainty/danger level
+4. Strategic flexibility (strategicFlexibility) — Adaptability and strategic options
+
+CRITICAL OPPORTUNITY-COST RULE:
+Every decision MUST move AT LEAST ONE indicator NEGATIVELY.
+- No "perfect" decisions without consequences
+- Every choice involves giving something up
+
+=== CONSEQUENCE & FEEDBACK TONE ===
+- Encouraging
+- Mentoring-oriented
+- NEVER evaluative
+- NEVER corrective
+- FORBIDDEN: "Correct", "Incorrect", "Better", "Optimal", "You should have..."
+
+=== S7.1 FOCUS CUE (REQUIRED on every decision) ===
+Every decision point MUST include a "focusCue" that:
+- Highlights 2-3 key dimensions (stakeholders, constraints, trade-offs, risks)
+- Stays NEUTRAL (does not steer toward a specific decision)
+- Is short (1-2 lines or 2-3 bullets)
+- Feels like mentoring ("here is how to frame the problem"), not instruction
+
+Acceptable formats for focusCue:
+- One sentence: "Before deciding, weigh the impact on the team, the timeline, and risk."
+- Bullets: "Focus on: team / time / risk."
+- Brief framing: "The main tension here is balancing priorities under pressure."
+
+IMPORTANT: focusCue NEVER implies a correct answer.
+
+=== S5.1 THINKING SCAFFOLD (REQUIRED on every decision) ===
+Every decision point MUST include a "thinkingScaffold" that:
+- Is an array of 2-3 SHORT bullets (max 6 words each)
+- Are reasoning dimensions: stakeholders / trade-offs / constraints / risk
+- NEVER suggest an answer, NEVER give "best practices", NEVER reach conclusions
+- Mentor tone: helps the student understand HOW to think about the question, not WHAT to choose
+
+Examples of thinkingScaffold:
+- ["Team impact", "Risk vs speed", "Short- vs long-term consequences"]
+- ["People affected", "Available resources", "Time constraints"]
+- ["Key stakeholders", "Main trade-offs", "Context boundaries"]
+
+IMPORTANT: thinkingScaffold NEVER contains imperative verbs or action suggestions.
+
+=== JSON OUTPUT FORMAT ===
+{
+  "title": "Compelling, specific title in English",
+  "description": "2-3 hook sentences that would excite students",
+  "domain": "Primary domain (e.g.: Crisis Management, Marketing, Operations, Ethics)",
+  "caseContext": "Full case context (120-180 words) — Harvard Business Case style",
+  "coreChallenge": "Core business challenge clearly articulated",
+  "decisionPoints": [
+    { "number": 1, "format": "multiple_choice", "prompt": "...", "options": ["A", "B", "C"], "requiresJustification": false, "includesReflection": false, "focusCue": "...", "thinkingScaffold": ["...", "...", "..."] },
+    { "number": 2, "format": "written", "prompt": "...", "requiresJustification": true, "includesReflection": false, "focusCue": "...", "thinkingScaffold": ["...", "...", "..."] },
+    // ... generate EXACTLY ${stepCount} decision points in total
+    { "number": ${stepCount}, "format": "written", "prompt": "final integrative decision...", "requiresJustification": true, "includesReflection": false, "focusCue": "...", "thinkingScaffold": ["...", "...", "..."] }
+  ],
+  "reflectionPrompt": "Reflection question at the end of the simulation (Step ${stepCount + 1}, separate from decisions)",
+  "indicators": [
+    { "id": "teamMorale", "label": "Team Morale", "value": 65, "description": "..." },
+    { "id": "budgetHealth", "label": "Budget Health", "value": 70, "description": "..." },
+    { "id": "operationalRisk", "label": "Operational Risk", "value": 50, "description": "..." },
+    { "id": "strategicFlexibility", "label": "Strategic Flexibility", "value": 60, "description": "..." }
+  ],
+  "role": "Specific player role",
+  "objective": "Clear mission objective",
+  "companyName": "Realistic company name",
+  "industry": "Specific industry",
+  "timelineContext": "Time-pressure context",
+  "keyConstraints": ["Constraint 1", "Constraint 2", "Constraint 3"],
+  "learningObjectives": ["Learning objective 1", "Objective 2", "Objective 3"],
+  "frameworks": [
+    {
+      "id": "fw_001",
+      "name": "Analytical framework name (e.g.: Stakeholder Analysis)",
+      "domainKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"]
+    },
+    {
+      "id": "fw_002",
+      "name": "Second relevant framework (e.g.: Cost-Benefit Analysis)",
+      "domainKeywords": ["term1", "term2", "term3", "term4"]
+    }
+  ],
+  "confidence": 85
+}
+
+=== INSTRUCTIONS FOR FRAMEWORKS ===
+- Generate between 1 and 4 analytical frameworks that are genuinely relevant to the case domain and decisions
+- Each framework must include 4-8 specific keywords a student would use when applying it
+- Framework names must be concrete and recognizable (e.g.: "SWOT Analysis", "Stakeholder Analysis", "Cost-Benefit Analysis", "Crisis Management Framework")
+- Keywords must reflect the real vocabulary of the framework applied to the case context
+- IDs must be unique: fw_001, fw_002, etc.
+
+IMPORTANT:
+- ALL content MUST be in ENGLISH (no Spanish words anywhere)
+- The case context must feel like a Harvard Business School case — professional and immersive
+- Do NOT include implicit correct answers
+- Each option in decision 1 must be equally defensible`;
+}
+
 export interface CanonicalCaseData {
   title: string;
   description: string;
@@ -293,28 +551,55 @@ export async function generateCanonicalCase(
   const durationMax = Math.round((effectiveSteps / 3) * 25);
   const isEn = language === "en";
 
-  const contextAddition = additionalContext 
-    ? `\n\nContexto adicional del profesor:\n${additionalContext}` 
+  const contextAddition = additionalContext
+    ? (isEn
+        ? `\n\nAdditional professor context:\n${additionalContext}`
+        : `\n\nContexto adicional del profesor:\n${additionalContext}`)
     : "";
 
-  const langDirective = isEn
-    ? `\n\nCRITICAL LANGUAGE OVERRIDE: Generate ALL content in ENGLISH. All titles, descriptions, prompts, options, contexts, constraints, objectives, framework names, and keywords MUST be in English. Zero Spanish.\nCRITICAL: Indicator labels MUST be in English. Example English labels: "Team Morale", "Budget", "Brand Reputation".\nCRITICAL: Framework names and keywords must also be in English (e.g., "Stakeholder Analysis", "Cost-Benefit Analysis", "SWOT Analysis").`
-    : `\n\nCRÍTICO: Los nombres de indicadores DEBEN estar en español. Ejemplo: "Moral del Equipo", "Presupuesto", "Reputación".\nCRÍTICO: Los nombres y palabras clave de los frameworks también deben estar en español.`;
+  // Phase 1b: pure-language prompts (no langDirective append). Each variant
+  // is fully in its target language to eliminate cross-language leakage.
+  const systemPrompt = isEn
+    ? buildCanonicalPromptEn(effectiveSteps)
+    : buildCanonicalPromptEs(effectiveSteps);
 
-  const response = await generateChatCompletion(
+  const userPrompt = isEn
+    ? `Create a canonical business case based on this topic/industry:\n\nTOPIC: ${topic}${contextAddition}\n\nGenerate a COMPLETE business case following the canonical structure, ALL in English.\nThe case should last ${durationMin}-${durationMax} minutes to complete.\nRemember: exactly ${effectiveSteps} decision points, no correct answers, mentoring tone.`
+    : `Crea un caso de negocios canónico basado en este tema/industria:\n\nTEMA: ${topic}${contextAddition}\n\nGenera un caso de negocios COMPLETO siguiendo la estructura canónica, TODO en español latinoamericano.\nEl caso debe durar ${durationMin}-${durationMax} minutos para completar.\nRecuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuestas correctas, tono de mentoría.`;
+
+  const callLLM = async () => generateChatCompletion(
     [
-      { role: "system", content: buildCanonicalPrompt(effectiveSteps) + langDirective },
-      { 
-        role: "user", 
-        content: isEn
-          ? `Create a canonical business case based on this topic/industry:\n\nTOPIC: ${topic}${contextAddition}\n\nGenerate a COMPLETE business case following the canonical structure, ALL in English.\nThe case should last ${durationMin}-${durationMax} minutes to complete.\nRemember: exactly ${effectiveSteps} decision points, no correct answers, mentoring tone.`
-          : `Crea un caso de negocios canónico basado en este tema/industria:\n\nTEMA: ${topic}${contextAddition}\n\nGenera un caso de negocios COMPLETO siguiendo la estructura canónica, TODO en español latinoamericano.\nEl caso debe durar ${durationMin}-${durationMax} minutos para completar.\nRecuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuestas correctas, tono de mentoría.`
-      },
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
     ],
     { responseFormat: "json", maxTokens: 4096 + (effectiveSteps > 3 ? (effectiveSteps - 3) * 512 : 0), agentName: "canonicalCaseGenerator" }
   );
 
-  const parsed = JSON.parse(response);
+  let response = await callLLM();
+  let parsed = JSON.parse(response);
+
+  // Phase 1b: post-gen language assertion. Sample user-facing strings and
+  // measure off-language token ratio. If above 10%, regenerate once and keep
+  // whichever attempt has the lower ratio.
+  const initialRatio = offLanguageRatio(parsed, isEn ? "en" : "es");
+  if (initialRatio > 0.10) {
+    console.warn(`[CanonicalCaseGenerator] Off-language content detected (target=${isEn ? "en" : "es"}, ratio=${initialRatio.toFixed(2)}). Regenerating...`);
+    try {
+      response = await callLLM();
+      const retryParsed = JSON.parse(response);
+      const retryRatio = offLanguageRatio(retryParsed, isEn ? "en" : "es");
+      if (retryRatio < initialRatio) {
+        parsed = retryParsed;
+        if (retryRatio > 0.10) {
+          console.error(`[CanonicalCaseGenerator] Persistent off-language content after retry (ratio=${retryRatio.toFixed(2)}). Using retry (lower ratio).`);
+        }
+      } else {
+        console.error(`[CanonicalCaseGenerator] Retry ratio (${retryRatio.toFixed(2)}) not better than initial (${initialRatio.toFixed(2)}). Keeping initial.`);
+      }
+    } catch (err) {
+      console.error("[CanonicalCaseGenerator] Language-assertion regeneration failed:", err);
+    }
+  }
   
   const defaultIndicators: Indicator[] = getCanonicalKPIs(language);
 
@@ -330,10 +615,22 @@ export async function generateCanonicalCase(
         "Piensa en cómo tus decisiones anteriores afectan esta elección final.",
       ];
   
+  // Phase 1b: locale-aware fallback strings to prevent Spanish leaking into EN cases.
+  const decisionPromptFallback = (n: number) => isEn ? `Decision ${n}` : `Decisión ${n}`;
+  const writtenPromptFallback = (n: number) => isEn
+    ? `Decision ${n} — Please provide your analysis`
+    : `Decisión ${n} - Por favor proporcione su análisis`;
+  const optionFallback = isEn
+    ? ["Option A", "Option B", "Option C"]
+    : ["Opción A", "Opción B", "Opción C"];
+  const scaffoldFallback = isEn
+    ? ["Key stakeholders", "Main trade-offs", "Future consequences"]
+    : ["Stakeholders clave", "Trade-offs principales", "Consecuencias futuras"];
+
   const decisionPoints: DecisionPoint[] = (parsed.decisionPoints || []).map((dp: any, index: number) => ({
     number: dp.number || index + 1,
     format: dp.format || (index === 0 ? "multiple_choice" : "written"),
-    prompt: dp.prompt || `Decisión ${index + 1}`,
+    prompt: dp.prompt || decisionPromptFallback(index + 1),
     options: dp.options || undefined,
     requiresJustification: dp.requiresJustification ?? (index > 0),
     includesReflection: dp.includesReflection ?? false,
@@ -346,12 +643,12 @@ export async function generateCanonicalCase(
     decisionPoints.push({
       number: num,
       format: num === 1 ? "multiple_choice" : "written",
-      prompt: `Decisión ${num} - Por favor proporcione su análisis`,
-      options: num === 1 ? ["Opción A", "Opción B", "Opción C"] : undefined,
+      prompt: writtenPromptFallback(num),
+      options: num === 1 ? optionFallback : undefined,
       requiresJustification: num > 1,
       includesReflection: false,
       focusCue: defaultFocusCues[(num - 1) % defaultFocusCues.length],
-      thinkingScaffold: ["Stakeholders clave", "Trade-offs principales", "Consecuencias futuras"],
+      thinkingScaffold: scaffoldFallback,
     });
   }
 
