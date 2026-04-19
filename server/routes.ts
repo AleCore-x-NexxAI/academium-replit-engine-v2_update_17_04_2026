@@ -174,6 +174,22 @@ const submitTurnSchema = z.object({
 export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
   await setupAuth(app);
 
+  // Dashboard cache (5-minute TTL). Hoisted so cache invalidation hooks can fire
+  // from upstream lifecycle events (turn completion, publish, summary regeneration).
+  const dashboardCache = new Map<string, { data: any; expiry: number }>();
+  function getCached(key: string) {
+    const entry = dashboardCache.get(key);
+    if (entry && entry.expiry > Date.now()) return entry.data;
+    return null;
+  }
+  function setCache(key: string, data: any) {
+    dashboardCache.set(key, { data, expiry: Date.now() + 5 * 60 * 1000 });
+  }
+  function invalidateDashboardCache(scenarioId: string) {
+    const keys = ["class-stats", "module-health", "depth-trajectory", "class-patterns", "students-summary"];
+    for (const k of keys) dashboardCache.delete(`${k}-${scenarioId}`);
+  }
+
   app.get("/api/auth/user", async (req: any, res) => {
     try {
       if (!req.isAuthenticated() || !req.user?.claims?.sub) {
@@ -774,6 +790,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
 
         await storage.updateSimulationSession(sessionId, sessionUpdate);
+
+        // Phase 1a: Invalidate professor dashboard cache when a session completes
+        // (game-over) or finishes its reflection step. Both transitions change the
+        // class-level analytics that downstream queries rely on.
+        if (turnResult.isGameOver || isReflectionStep) {
+          invalidateDashboardCache(session.scenarioId);
+        }
+
         return turnResult;
       };
 
@@ -1951,6 +1975,9 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         status: "published",
         publishedScenarioId: scenario.id,
       });
+
+      // Phase 1a: ensure no stale dashboard cache entries exist for the new scenario id.
+      invalidateDashboardCache(scenario.id);
 
       res.json({ scenario, draftId: draft.id });
     } catch (error) {
@@ -3325,16 +3352,6 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
     }
   });
 
-  const dashboardCache = new Map<string, { data: any; expiry: number }>();
-  function getCached(key: string) {
-    const entry = dashboardCache.get(key);
-    if (entry && entry.expiry > Date.now()) return entry.data;
-    return null;
-  }
-  function setCache(key: string, data: any) {
-    dashboardCache.set(key, { data, expiry: Date.now() + 5 * 60 * 1000 });
-  }
-
   const PROHIBITED_EN = /(\bcorrect\b|\bincorrect\b|good decision|bad decision|well done|\boptimal\b|\bideal\b|best option|should have|you should|\bconsider\b|needs? to|would benefit from|weak student|strong performer|struggling student|\bunfortunately\b|\bfortunately\b|\bsadly\b|\bsurprisingly\b|as expected|!)/i;
   const PROHIBITED_ES = /(\bcorrecto\b|\bincorrecto\b|buena decisi[oó]n|mala decisi[oó]n|bien hecho|\b[oó]ptimo\b|\bideal\b|mejor opci[oó]n|deber[ií]a haber|deber[ií]as|\bconsidera\b|\bnecesita\b|estudiante d[eé]bil|estudiante fuerte|\blamentablemente\b|\bafortunadamente\b|!)/i;
   function hasProhibited(text: string, isEn: boolean): boolean {
@@ -3516,8 +3533,7 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         processedSessions++;
       }
 
-      const cacheKeys = ["class-stats", "module-health", "depth-trajectory", "class-patterns"];
-      for (const k of cacheKeys) dashboardCache.delete(`${k}-${scenarioId}`);
+      invalidateDashboardCache(scenarioId);
 
       res.json({ processedSessions, processedTurns, errors, skipped, totalCompleted: completed.length });
     } catch (error) {
@@ -4037,18 +4053,69 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
         return { turn: i + 1, band: band.toLowerCase(), color };
       });
 
+      const isComplete = session.status === "completed";
       res.json({
         studentName: (session as any).user?.firstName
           ? `${(session as any).user.firstName} ${(session as any).user.lastName || ""}`.trim()
           : (session as any).user?.email || "Student",
         scenarioTitle: (session as any).scenario?.title || "",
-        completedAt: session.updatedAt,
+        status: session.status,
+        isComplete,
+        completedAt: isComplete ? session.updatedAt : null,
         dashboardSummary: state?.dashboard_summary || null,
         arc,
       });
     } catch (error) {
       console.error("Error getting session summary:", error);
       res.status(500).json({ message: "Failed to get session summary" });
+    }
+  });
+
+  // Phase 1a: Regenerate dashboard summary on demand. Used when generation
+  // failed silently during the reflection step or when the professor wants a
+  // fresh summary after data backfill.
+  app.post("/api/sessions/:sessionId/regenerate-summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const { sessionId } = req.params;
+      const sessionData = await verifySessionAccess(req, res, sessionId);
+      if (!sessionData) return;
+
+      const { session } = sessionData;
+      const state = (session.currentState as any) || {};
+      const logs = state.decisionEvidenceLogs || [];
+      const fwDetections = state.framework_detections || [];
+
+      if (logs.length === 0) {
+        return res.status(400).json({ message: "No evidence logs available to summarize" });
+      }
+
+      const scenario = await storage.getScenario(session.scenarioId);
+      const initialState = (scenario?.initialState as any) || {};
+      const frameworks = initialState.frameworks || [];
+      const language = initialState.language || (scenario as any)?.language || "es";
+
+      const { generateDashboardSummary } = await import("./agents/director");
+      const ctx: any = {
+        scenario: { ...scenario, frameworks },
+        language,
+        currentKpis: state.kpis,
+        indicators: state.indicators,
+        history: state.history || [],
+        turnCount: state.turnCount || logs.length,
+        decisionEvidenceLogs: logs,
+        framework_detections: fwDetections,
+      };
+
+      const newSummary = await generateDashboardSummary(ctx, logs, fwDetections, frameworks);
+
+      const mergedState = { ...state, dashboard_summary: newSummary };
+      await storage.updateSimulationSession(sessionId, { currentState: mergedState });
+      invalidateDashboardCache(session.scenarioId);
+
+      res.json({ dashboard_summary: newSummary });
+    } catch (error) {
+      console.error("Error regenerating session summary:", error);
+      res.status(500).json({ message: "Failed to regenerate summary" });
     }
   });
 
@@ -4141,10 +4208,12 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       const signalAverages: Record<string, number> = {};
       const turnSignals: any[] = [];
 
-      const frLogs = logs.filter((l: any) => !l.isMcq);
+      // Phase 1a: averages now include MCQ turns. MCQ turns can carry meaningful
+      // signals (e.g. tradeoffAwareness from option signatures) and excluding them
+      // produced contradictions between this view and the framework detector view.
       for (const sig of signalNames) {
-        const sum = frLogs.reduce((acc: number, l: any) => acc + (l.signals_detected?.[sig.key]?.quality ?? 0), 0);
-        signalAverages[sig.key === "justification" ? "analytical" : sig.key === "intent" ? "strategic" : sig.key === "tradeoffAwareness" ? "tradeoff" : sig.key === "stakeholderAwareness" ? "stakeholder" : "ethical"] = frLogs.length > 0 ? Math.round((sum / frLogs.length) * 10) / 10 : 0;
+        const sum = logs.reduce((acc: number, l: any) => acc + (l.signals_detected?.[sig.key]?.quality ?? 0), 0);
+        signalAverages[sig.key === "justification" ? "analytical" : sig.key === "intent" ? "strategic" : sig.key === "tradeoffAwareness" ? "tradeoff" : sig.key === "stakeholderAwareness" ? "stakeholder" : "ethical"] = logs.length > 0 ? Math.round((sum / logs.length) * 10) / 10 : 0;
       }
 
       for (let i = 0; i < logs.length; i++) {

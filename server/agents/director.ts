@@ -247,16 +247,22 @@ export async function processReflection(
   // failed to produce it (e.g. silent generation error or game-over path).
   let dashboardSummary = context.dashboard_summary;
   if (!dashboardSummary && (context.decisionEvidenceLogs?.length ?? 0) > 0) {
+    const frameworks = context.scenario.frameworks || [];
+    const logs = context.decisionEvidenceLogs ?? [];
+    const fwDetections = context.framework_detections ?? [];
     try {
-      const frameworks = context.scenario.frameworks || [];
       dashboardSummary = await generateDashboardSummary(
         context,
-        context.decisionEvidenceLogs ?? [],
-        context.framework_detections ?? [],
+        logs,
+        fwDetections,
         frameworks,
       );
     } catch (err) {
       console.error("[Director] Dashboard summary generation in reflection failed:", err);
+      // Phase 1a: Deterministic fallback so the professor always sees a summary
+      // for completed sessions even if the LLM-backed generator fails. The
+      // /api/sessions/:id/regenerate-summary endpoint can refresh later.
+      dashboardSummary = buildFallbackDashboardSummary(context, logs, fwDetections, frameworks);
     }
   }
   
@@ -1373,19 +1379,22 @@ export async function generateDashboardSummary(
     analytical: 0, strategic: 0, tradeoff: 0, stakeholder: 0, ethical: 0,
   };
 
-  const frTurns = evidenceLogs.filter(l => !l.isMcq);
-  if (frTurns.length > 0) {
+  // Phase 1a: averages now include MCQ turns. MCQ turns can carry meaningful
+  // tradeoff/stakeholder/ethical signals derived from option signatures, and
+  // excluding them produced verdict contradictions across dashboard surfaces.
+  if (evidenceLogs.length > 0) {
     const sums = { intent: 0, justification: 0, tradeoffAwareness: 0, stakeholderAwareness: 0, ethicalAwareness: 0 };
-    for (const log of frTurns) {
+    for (const log of evidenceLogs) {
       for (const sig of signalNames) {
         sums[sig] += log.signals_detected[sig]?.quality ?? 0;
       }
     }
-    signalAverages.analytical = Math.round((sums.justification / frTurns.length) * 10) / 10;
-    signalAverages.strategic = Math.round((sums.intent / frTurns.length) * 10) / 10;
-    signalAverages.tradeoff = Math.round((sums.tradeoffAwareness / frTurns.length) * 10) / 10;
-    signalAverages.stakeholder = Math.round((sums.stakeholderAwareness / frTurns.length) * 10) / 10;
-    signalAverages.ethical = Math.round((sums.ethicalAwareness / frTurns.length) * 10) / 10;
+    const n = evidenceLogs.length;
+    signalAverages.analytical = Math.round((sums.justification / n) * 10) / 10;
+    signalAverages.strategic = Math.round((sums.intent / n) * 10) / 10;
+    signalAverages.tradeoff = Math.round((sums.tradeoffAwareness / n) * 10) / 10;
+    signalAverages.stakeholder = Math.round((sums.stakeholderAwareness / n) * 10) / 10;
+    signalAverages.ethical = Math.round((sums.ethicalAwareness / n) * 10) / 10;
   }
 
   const frameworkSummary = frameworks.map(fw => {
@@ -1431,6 +1440,66 @@ Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin
       ? `Session showed ${highestSignal[0]} as the dominant reasoning pattern across ${evidenceLogs.length} turns.`
       : `La sesión mostró ${highestSignal[0]} como el patrón de razonamiento dominante en ${evidenceLogs.length} turnos.`;
   }
+
+  return { session_headline: sessionHeadline, signal_averages: signalAverages, framework_summary: frameworkSummary };
+}
+
+/**
+ * Phase 1a: Deterministic dashboard summary used as a fallback when the
+ * LLM-backed generator throws. Computes signal averages and framework levels
+ * directly from evidence logs (no LLM call) so completed sessions never end
+ * up with a missing `dashboard_summary`.
+ */
+export function buildFallbackDashboardSummary(
+  context: AgentContext,
+  evidenceLogs: import("@shared/schema").DecisionEvidenceLogEntry[],
+  frameworkDetections: import("@shared/schema").FrameworkDetection[][],
+  frameworks: import("@shared/schema").CaseFramework[],
+): import("@shared/schema").DashboardSummary {
+  const isEn = context.language === "en";
+  const signalNames = ["intent", "justification", "tradeoffAwareness", "stakeholderAwareness", "ethicalAwareness"] as const;
+  const signalAverages = { analytical: 0, strategic: 0, tradeoff: 0, stakeholder: 0, ethical: 0 };
+
+  if (evidenceLogs.length > 0) {
+    const sums = { intent: 0, justification: 0, tradeoffAwareness: 0, stakeholderAwareness: 0, ethicalAwareness: 0 };
+    for (const log of evidenceLogs) {
+      for (const sig of signalNames) {
+        sums[sig] += log.signals_detected?.[sig]?.quality ?? 0;
+      }
+    }
+    const n = evidenceLogs.length;
+    signalAverages.analytical = Math.round((sums.justification / n) * 10) / 10;
+    signalAverages.strategic = Math.round((sums.intent / n) * 10) / 10;
+    signalAverages.tradeoff = Math.round((sums.tradeoffAwareness / n) * 10) / 10;
+    signalAverages.stakeholder = Math.round((sums.stakeholderAwareness / n) * 10) / 10;
+    signalAverages.ethical = Math.round((sums.ethicalAwareness / n) * 10) / 10;
+  }
+
+  const frameworkSummary = frameworks.map(fw => {
+    let bestLevel: "explicit" | "implicit" | "not_evidenced" = "not_evidenced";
+    let bestTurn: number | null = null;
+    const levelPriority = { explicit: 3, implicit: 2, not_evidenced: 1 };
+    for (let turnIdx = 0; turnIdx < frameworkDetections.length; turnIdx++) {
+      const turnDetections = frameworkDetections[turnIdx] || [];
+      const det = turnDetections.find(d => d.framework_id === fw.id);
+      if (det && levelPriority[det.level] > levelPriority[bestLevel]) {
+        bestLevel = det.level;
+        bestTurn = turnIdx + 1;
+      }
+    }
+    return { framework_id: fw.id, best_level: bestLevel, turn_of_best_application: bestTurn };
+  });
+
+  const bandCounts: Record<string, number> = { INTEGRATED: 0, ENGAGED: 0, SURFACE: 0 };
+  for (const log of evidenceLogs) {
+    const band = (log.rds_band || "SURFACE").toUpperCase();
+    bandCounts[band] = (bandCounts[band] || 0) + 1;
+  }
+  const dominantBand = Object.entries(bandCounts).sort(([, a], [, b]) => b - a)[0]?.[0] || "SURFACE";
+
+  const sessionHeadline = isEn
+    ? `Session reasoning was predominantly ${dominantBand.toLowerCase()} across ${evidenceLogs.length} turns. Generated summary unavailable; deterministic fallback shown.`
+    : `El razonamiento de la sesión fue predominantemente ${dominantBand.toLowerCase()} en ${evidenceLogs.length} turnos. Resumen generado no disponible; se muestra un respaldo determinista.`;
 
   return { session_headline: sessionHeadline, signal_averages: signalAverages, framework_summary: frameworkSummary };
 }

@@ -44,7 +44,10 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "@/contexts/LanguageContext";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { RefreshCw } from "lucide-react";
 import { ScenarioStudentsTab } from "@/components/scenario-tabs/ScenarioStudentsTab";
 import { ScenarioControlTab } from "@/components/scenario-tabs/ScenarioControlTab";
 import type { Scenario } from "@shared/schema";
@@ -122,7 +125,9 @@ interface StudentsSummary {
 interface SessionSummaryData {
   studentName: string;
   scenarioTitle: string;
-  completedAt: string;
+  status: string;
+  isComplete: boolean;
+  completedAt: string | null;
   dashboardSummary: { session_headline?: string } | null;
   arc: ArcPoint[];
 }
@@ -663,10 +668,29 @@ function StatCard({ value, label, description, loading }: { value: string | numb
 
 function StudentSessionModal({ sessionId, isEn, onClose }: { sessionId: string; isEn: boolean; onClose: () => void }) {
   const [modalTab, setModalTab] = useState<"chat" | "debrief" | "signals" | "kpi">("chat");
+  const { toast } = useToast();
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["/api/sessions", sessionId, "summary"],
     enabled: !!sessionId,
+  });
+
+  const regenerateSummary = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/sessions/${sessionId}/regenerate-summary`).then(r => r.json()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "summary"] });
+      toast({
+        title: isEn ? "Summary regenerated" : "Resumen regenerado",
+        description: isEn ? "The session summary has been refreshed." : "El resumen de la sesión se actualizó.",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: isEn ? "Could not regenerate summary" : "No se pudo regenerar el resumen",
+        description: err?.message || (isEn ? "Try again in a moment." : "Inténtalo de nuevo en un momento."),
+        variant: "destructive",
+      });
+    },
   });
 
   const { data: chatHistory, isLoading: chatLoading } = useQuery({
@@ -720,9 +744,37 @@ function StudentSessionModal({ sessionId, isEn, onClose }: { sessionId: string; 
           </div>
           <div className="flex gap-2">
             <div className="flex-1 p-2.5 bg-muted/30 rounded-lg border border-dashed border-border">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide mb-1">{isEn ? "Session summary" : "Resumen de sesión"}</div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{isEn ? "Session summary" : "Resumen de sesión"}</div>
+                {!summaryLoading && summaryData && !summaryData.dashboardSummary?.session_headline && summaryData.isComplete && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => regenerateSummary.mutate()}
+                    disabled={regenerateSummary.isPending}
+                    data-testid="button-regenerate-summary"
+                  >
+                    {regenerateSummary.isPending
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <RefreshCw className="w-3 h-3" />}
+                    <span className="ml-1.5 text-[11px]">
+                      {isEn ? "Regenerate" : "Regenerar"}
+                    </span>
+                  </Button>
+                )}
+              </div>
               <div className="text-[11px] text-muted-foreground/80 leading-relaxed italic" data-testid="text-session-summary">
-                {summaryLoading ? <Skeleton className="h-8 w-full" /> : summaryData?.dashboardSummary?.session_headline || (isEn ? "Summary available when session is complete." : "Resumen disponible cuando la sesión esté completa.")}
+                {summaryLoading ? (
+                  <Skeleton className="h-8 w-full" />
+                ) : summaryData?.dashboardSummary?.session_headline ? (
+                  summaryData.dashboardSummary.session_headline
+                ) : summaryData?.completedAt ? (
+                  isEn
+                    ? "Summary generation did not complete for this session. Click Regenerate to try again."
+                    : "La generación del resumen no se completó para esta sesión. Haz clic en Regenerar para intentarlo de nuevo."
+                ) : (
+                  isEn ? "Summary available when session is complete." : "Resumen disponible cuando la sesión esté completa."
+                )}
               </div>
             </div>
             <div className="p-2.5 bg-muted/30 rounded-lg border border-dashed border-border min-w-[130px]">
