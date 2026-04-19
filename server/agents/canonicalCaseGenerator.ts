@@ -317,13 +317,13 @@ SECTION 1 — CASE CONTEXT (120-180 words):
   * Character arcs
   * Historical recaps
   * Academic theory explanations
-  * Hidden "right answer" hints
+  * Hints toward a preferred answer
 
 SECTION 2 — CORE BUSINESS CHALLENGE:
 - A single primary challenge
 - Clearly bounded (budget, time, resources, uncertainty)
 - No excessive technical jargon
-- No implied "right" direction
+- No preferred direction implied
 - MUST include:
   * What is at stake
   * What CANNOT be changed
@@ -333,7 +333,7 @@ SECTION 2 — CORE BUSINESS CHALLENGE:
 SECTION 3 — DECISION 1 (Orientation Decision):
 - Format: Multiple choice (3-4 options)
 - Each option represents a STRATEGIC STANCE, not a solution
-- CRITICAL RULE: There is no correct or incorrect option
+- CRITICAL RULE: All options are equally legitimate; no preferred option exists
 - Each option MUST be:
   * Defensible
   * Backed by clear rationale
@@ -344,7 +344,7 @@ DECISIONS 2 to ${stepCount - 1} (Analytical Decisions):
 - Open-ended, no word-count pressure
 - The prompt must:
   * Ask HOW and WHY
-  * NEVER ask which is the correct answer
+  * NEVER imply a preferred answer
   * Encourage trade-off consideration
 - Each decision must build progressively on the previous ones
 
@@ -355,7 +355,7 @@ DECISION ${stepCount} (Final Integrative Decision):
   * Trade-offs
   * Consequences of earlier decisions
 - The decision must feel CONSEQUENTIAL
-- NO "perfect equilibrium" outcomes
+- No frictionless outcomes
 - Realistic ambiguity is encouraged
 
 REFLECTION (Light):
@@ -381,8 +381,8 @@ Every decision MUST move AT LEAST ONE indicator NEGATIVELY.
 - Encouraging
 - Mentoring-oriented
 - NEVER evaluative
-- NEVER corrective
-- FORBIDDEN: "Correct", "Incorrect", "Better", "Optimal", "You should have..."
+- NEVER prescriptive
+- AVOID evaluative or directive lexicon (judgments of accuracy, comparative superiority, prescriptive obligations, or hindsight prescriptions)
 
 === S7.1 FOCUS CUE (REQUIRED on every decision) ===
 Every decision point MUST include a "focusCue" that:
@@ -396,13 +396,13 @@ Acceptable formats for focusCue:
 - Bullets: "Focus on: team / time / risk."
 - Brief framing: "The main tension here is balancing priorities under pressure."
 
-IMPORTANT: focusCue NEVER implies a correct answer.
+IMPORTANT: focusCue NEVER implies a preferred answer.
 
 === S5.1 THINKING SCAFFOLD (REQUIRED on every decision) ===
 Every decision point MUST include a "thinkingScaffold" that:
 - Is an array of 2-3 SHORT bullets (max 6 words each)
 - Are reasoning dimensions: stakeholders / trade-offs / constraints / risk
-- NEVER suggest an answer, NEVER give "best practices", NEVER reach conclusions
+- NEVER suggest an answer, NEVER prescribe established practices, NEVER reach conclusions
 - Mentor tone: helps the student understand HOW to think about the question, not WHAT to choose
 
 Examples of thinkingScaffold:
@@ -464,7 +464,7 @@ IMPORTANT: thinkingScaffold NEVER contains imperative verbs or action suggestion
 IMPORTANT:
 - ALL content MUST be in ENGLISH (no Spanish words anywhere)
 - The case context must feel like a Harvard Business School case — professional and immersive
-- Do NOT include implicit correct answers
+- Do NOT include implicit preferred answers
 - Each option in decision 1 must be equally defensible`;
 }
 
@@ -564,7 +564,7 @@ export async function generateCanonicalCase(
     : buildCanonicalPromptEs(effectiveSteps);
 
   const userPrompt = isEn
-    ? `Create a canonical business case based on this topic/industry:\n\nTOPIC: ${topic}${contextAddition}\n\nGenerate a COMPLETE business case following the canonical structure, ALL in English.\nThe case should last ${durationMin}-${durationMax} minutes to complete.\nRemember: exactly ${effectiveSteps} decision points, no correct answers, mentoring tone.`
+    ? `Create a canonical business case based on this topic/industry:\n\nTOPIC: ${topic}${contextAddition}\n\nGenerate a COMPLETE business case following the canonical structure, ALL in English.\nCase duration: ${durationMin}-${durationMax} minutes.\nRemember: exactly ${effectiveSteps} decision points, no preferred answers, mentoring tone.`
     : `Crea un caso de negocios canónico basado en este tema/industria:\n\nTEMA: ${topic}${contextAddition}\n\nGenera un caso de negocios COMPLETO siguiendo la estructura canónica, TODO en español latinoamericano.\nEl caso debe durar ${durationMin}-${durationMax} minutos para completar.\nRecuerda: ${effectiveSteps} puntos de decisión exactamente, sin respuestas correctas, tono de mentoría.`;
 
   const callLLM = async () => generateChatCompletion(
