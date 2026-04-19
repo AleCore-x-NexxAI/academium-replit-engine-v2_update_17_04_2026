@@ -14,7 +14,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { ObjectPermission } from "./objectAcl";
 import type { AgentContext, DomainExpertOutput, CausalExplanation, DisplayKPI } from "./agents/types";
 import { DEFAULT_DECISIONS } from "./agents/constants";
-import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts, TurnResponse, SimulationState, PedagogicalIntent } from "@shared/schema";
+import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts, TurnResponse, SimulationState, PedagogicalIntent, CaseFramework } from "@shared/schema";
 import { pedagogicalIntentSchema, pedagogicalIntentPatchSchema } from "@shared/schema";
 
 /**
@@ -537,7 +537,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(404).json({ message: "Scenario not found" });
       }
       const enrollmentCount = await storage.countScenarioEnrollments(req.params.id);
-      res.json({ ...scenario, enrollmentCount, isLocked: enrollmentCount > 0 });
+      // Phase 4: lock framework/intent editing once any session exists, not
+      // only when students are enrolled. Active or completed sessions both
+      // count — re-running inference or mutating frameworks mid-class would
+      // invalidate prior turn analysis.
+      const sessionCount = await storage.countScenarioSessions(req.params.id);
+      res.json({
+        ...scenario,
+        enrollmentCount,
+        sessionCount,
+        isLocked: enrollmentCount > 0 || sessionCount > 0,
+      });
     } catch (error) {
       console.error("Error fetching scenario:", error);
       res.status(500).json({ message: "Failed to fetch scenario" });
@@ -562,6 +572,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ...parseResult.data,
         authorId: userId,
       });
+      // Phase 4: if the new scenario already carries a pedagogicalIntent
+      // (set via canonical-case generation or imported), seed inferred
+      // suggestions immediately so professors see them on first edit.
+      if (scenario.pedagogicalIntent && scenario.pedagogicalIntent.teachingGoal) {
+        await runInferenceAndPersist(scenario.id, scenario.pedagogicalIntent, 0);
+      }
       res.status(201).json(scenario);
     } catch (error) {
       console.error("Error creating scenario:", error);
@@ -675,7 +691,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const fresh = await storage.getScenario(scenarioId);
       if (!fresh) return;
       const initialState = (fresh.initialState ?? {}) as InitialState;
-      const existing = (initialState.frameworks ?? []) as InitialState["frameworks"];
+      const all = (initialState.frameworks ?? []) as CaseFramework[];
+      // Phase 4: rebuild deterministically. Drop prior un-accepted inferred
+      // entries so tier transitions clear stale suggestions (e.g. moving
+      // from 1 anchor → 2 anchors must clear the Tier B picks). Accepted
+      // ones graduate to professor choice and are kept untouched.
+      const kept = all.filter((fw) => {
+        const isInferred =
+          fw.provenance === "inferred_from_anchor" ||
+          fw.provenance === "inferred_from_context" ||
+          fw.provenance === "inferred";
+        if (!isInferred) return true;
+        return fw.accepted_by_professor === true;
+      });
       const language: "es" | "en" = fresh.language === "en" ? "en" : "es";
       const { inferFrameworks } = await import("./agents/frameworkInference");
       const suggestions = await inferFrameworks(
@@ -685,11 +713,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           caseContext: initialState.caseContext ?? initialState.situationBackground ?? "",
         },
         intent,
-        existing ?? [],
+        kept,
         language,
       );
-      if (!suggestions.length) return;
-      const merged = [...(existing ?? []), ...suggestions];
+      const merged = [...kept, ...suggestions];
+      // Skip the write if the framework array is unchanged (same length and
+      // same canonical/temp ids in order) to avoid no-op DB writes.
+      const sameAsBefore =
+        merged.length === all.length &&
+        merged.every((m, i) => (m.canonicalId ?? m.id) === (all[i].canonicalId ?? all[i].id));
+      if (sameAsBefore) return;
       await storage.updateScenario(scenarioId, {
         initialState: { ...initialState, frameworks: merged },
       });
@@ -2396,6 +2429,12 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
 
       // Phase 1a: ensure no stale dashboard cache entries exist for the new scenario id.
       invalidateDashboardCache(scenario.id);
+
+      // Phase 4: seed inferred suggestions on the freshly published scenario
+      // when an intent was carried over from the draft.
+      if (scenario.pedagogicalIntent && scenario.pedagogicalIntent.teachingGoal) {
+        await runInferenceAndPersist(scenario.id, scenario.pedagogicalIntent, 0);
+      }
 
       res.json({ scenario, draftId: draft.id });
     } catch (error) {

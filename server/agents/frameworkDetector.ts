@@ -150,6 +150,17 @@ export async function detectFrameworks(
   // Filter to engine-eligible frameworks. accepted_by_professor === false
   // (only meaningful for inferred frameworks in Phase 4+) is excluded entirely.
   const eligible = frameworks.filter((fw) => fw.accepted_by_professor !== false);
+  // Phase 4 runtime guard: assert no inferred-unaccepted framework slipped
+  // into detection. If the filter removed entries, log them so the leak is
+  // visible (the filter still protects correctness — this just surfaces it).
+  if (eligible.length !== frameworks.length) {
+    const rejected = frameworks
+      .filter((fw) => fw.accepted_by_professor === false)
+      .map((fw) => `${fw.name}(${fw.canonicalId ?? fw.id})`);
+    console.warn(
+      `[frameworkDetector] Phase4 guard: excluded ${rejected.length} unaccepted suggestion(s) from detection: ${rejected.join(", ")}`,
+    );
+  }
   if (eligible.length === 0) return [];
 
   const inputLower = studentInput.toLowerCase();
