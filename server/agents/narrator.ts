@@ -183,7 +183,7 @@ function buildFrameworkResponseDirective(context: AgentContext): string {
   type Detected = { framework_id?: string; level: "explicit" | "implicit" | "not_evidenced"; confidence?: "low" | "medium" | "high" };
   const fwDimById = new Map<string, string | undefined>();
   for (const fw of (context.scenario.frameworks || [])) {
-    if (fw?.id) fwDimById.set(fw.id, (fw as any).primaryDimension);
+    if (fw?.id) fwDimById.set(fw.id, fw.primaryDimension);
   }
   const matchesDimension = (det: Detected): boolean => {
     if (!primaryDimension) return true; // no constraint available — fallback
