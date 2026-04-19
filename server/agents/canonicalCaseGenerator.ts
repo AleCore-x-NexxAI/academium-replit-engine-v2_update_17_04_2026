@@ -705,11 +705,21 @@ async function checkFrameworkCoverage(
   language: "es" | "en",
 ): Promise<{ ok: boolean; missingPrimary: string | null }> {
   if (frameworks.length === 0) return { ok: true, missingPrimary: null };
+  // If the intent declared a primary target framework but it is NOT present
+  // in the generated frameworks at all, the gate fails immediately. We do
+  // NOT silently fall back to frameworks[0] — that would mask the real
+  // problem (the case never anchored on the requested framework).
+  let primaryFw: CaseFramework | undefined;
+  if (primaryTargetCanonicalId) {
+    primaryFw = frameworks.find((f) => f.canonicalId === primaryTargetCanonicalId);
+    if (!primaryFw) {
+      return { ok: false, missingPrimary: primaryTargetCanonicalId };
+    }
+  } else {
+    primaryFw = frameworks[0];
+  }
   try {
     const { detectFrameworks } = await import("./frameworkDetector");
-    const primaryFw = primaryTargetCanonicalId
-      ? frameworks.find((f) => f.canonicalId === primaryTargetCanonicalId) ?? frameworks[0]
-      : frameworks[0];
     const emptySignals: any = {
       intent: { quality: "WEAK", detected: false, evidence: "" },
       justification: { quality: "WEAK", detected: false, evidence: "" },
@@ -717,18 +727,19 @@ async function checkFrameworkCoverage(
       stakeholderAwareness: { quality: "WEAK", detected: false, evidence: "" },
       ethicalAwareness: { quality: "WEAK", detected: false, evidence: "" },
     };
-    // Concatenate all decision text into a single pass so the semantic
-    // detector can reason holistically about the case.
-    const fullText = decisionPoints
-      .map((dp) => `${dp.prompt}\n${(dp.options ?? []).join("\n")}\n${dp.focusCue ?? ""}`)
-      .join("\n\n");
-    const detections = await detectFrameworks(fullText, emptySignals, frameworks, language);
-    const primaryHit = detections.some(
-      (d) => d.framework_id === primaryFw.id && d.level !== "not_evidenced",
-    );
-    return primaryHit
-      ? { ok: true, missingPrimary: null }
-      : { ok: false, missingPrimary: primaryFw.name };
+    // Phase 5 (§9.4) requires at least ONE decision to independently
+    // surface the primary target framework — concatenated-text detection
+    // can mask the case where no single decision evidences it. Run the
+    // semantic detector per decision and short-circuit on the first hit.
+    for (const dp of decisionPoints) {
+      const text = `${dp.prompt}\n${(dp.options ?? []).join("\n")}\n${dp.focusCue ?? ""}`;
+      const detections = await detectFrameworks(text, emptySignals, frameworks, language);
+      const hit = detections.some(
+        (d) => d.framework_id === primaryFw!.id && d.level !== "not_evidenced",
+      );
+      if (hit) return { ok: true, missingPrimary: null };
+    }
+    return { ok: false, missingPrimary: primaryFw.name };
   } catch (err) {
     console.warn("[canonicalCaseGenerator] checkFrameworkCoverage skipped due to error:", err);
     return { ok: true, missingPrimary: null };
