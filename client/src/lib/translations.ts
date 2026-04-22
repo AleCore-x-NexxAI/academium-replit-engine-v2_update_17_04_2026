@@ -288,7 +288,16 @@ const translations = {
     levelEmerging: { es: "Emergente", en: "Emerging" },
     levelNotEvidenced: { es: "Sin evidencia", en: "Not evidenced" },
     noEvidenceExtracted: { es: "No se extrajo evidencia específica.", en: "No specific evidence extracted." },
+    noSignalsYet: { es: "Aún no se han detectado señales de razonamiento.", en: "No reasoning signals detected yet." },
     quoteLanguageIndicatorTooltip: { es: "Cita en el idioma original del estudiante", en: "Quote in the student's original language" },
+  },
+
+  decisionDimensions: {
+    tooltipAnalytical: { en: "Data gathering, quantitative reasoning, and evidence-based diagnosis of the situation.", es: "Recopilación de datos, razonamiento cuantitativo y diagnóstico basado en evidencia de la situación." },
+    tooltipStrategic: { en: "Long-term positioning, competitive advantage, and resource allocation choices.", es: "Posicionamiento a largo plazo, ventaja competitiva y decisiones de asignación de recursos." },
+    tooltipStakeholder: { en: "Identifying affected parties, understanding their interests, and managing competing expectations.", es: "Identificar partes afectadas, comprender sus intereses y gestionar expectativas en competencia." },
+    tooltipEthical: { en: "Moral implications, fairness, transparency, and responsible decision-making considerations.", es: "Implicaciones morales, equidad, transparencia y consideraciones de toma de decisiones responsable." },
+    tooltipTradeoff: { en: "Evaluating competing alternatives, opportunity costs, and the tensions between conflicting goals.", es: "Evaluar alternativas en competencia, costos de oportunidad y las tensiones entre objetivos en conflicto." },
   },
 
   simulation: {

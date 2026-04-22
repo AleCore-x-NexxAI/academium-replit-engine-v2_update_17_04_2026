@@ -16,73 +16,7 @@ import type { AgentContext, DomainExpertOutput, CausalExplanation, DisplayKPI } 
 import { DEFAULT_DECISIONS } from "./agents/constants";
 import type { HistoryEntry, InsertScenario, InitialState, DraftConversationMessage, GeneratedScenarioData, AgentPrompts, TurnResponse, SimulationState, PedagogicalIntent, CaseFramework } from "@shared/schema";
 import { pedagogicalIntentSchema, pedagogicalIntentPatchSchema } from "@shared/schema";
-
-/**
- * Belt-and-suspenders helper: for reflection turns, copy any analytics fields that
- * processReflection may have left undefined back from the prior session state.
- * Both arguments are typed SimulationState — no unsafe casts needed.
- */
-function mergeReflectionAnalytics(target: SimulationState, prior: SimulationState): void {
-  if (!target.decisionEvidenceLogs?.length && prior.decisionEvidenceLogs?.length) {
-    target.decisionEvidenceLogs = prior.decisionEvidenceLogs;
-  }
-  if (!target.framework_detections?.length && prior.framework_detections?.length) {
-    target.framework_detections = prior.framework_detections;
-  }
-  if (!target.dashboard_summary && prior.dashboard_summary) {
-    target.dashboard_summary = prior.dashboard_summary;
-  } else if (target.dashboard_summary && prior.dashboard_summary) {
-    // Phase 1c (Section 6.4): defensive per-entry merge of framework_summary so
-    // any new optional fields (counts, framework_name, canonicalId, provenance,
-    // detection_method_distribution) that exist on the prior version survive
-    // when the reflection step writes a partial summary.
-    const tgt = target.dashboard_summary;
-    const prv = prior.dashboard_summary;
-    if (tgt.framework_summary && prv.framework_summary) {
-      tgt.framework_summary = tgt.framework_summary.map((entry) => {
-        const priorEntry = prv.framework_summary.find((p) => p.framework_id === entry.framework_id);
-        if (!priorEntry) return entry;
-        return {
-          ...priorEntry,
-          ...entry,
-          // For optional aggregate fields, prefer non-undefined values.
-          explicit_turns: entry.explicit_turns ?? priorEntry.explicit_turns,
-          implicit_turns: entry.implicit_turns ?? priorEntry.implicit_turns,
-          not_evidenced_turns: entry.not_evidenced_turns ?? priorEntry.not_evidenced_turns,
-          framework_name: entry.framework_name ?? priorEntry.framework_name,
-          canonicalId: entry.canonicalId ?? priorEntry.canonicalId,
-          provenance: entry.provenance ?? priorEntry.provenance,
-          detection_method_distribution:
-            entry.detection_method_distribution ?? priorEntry.detection_method_distribution,
-        };
-      });
-    }
-  }
-  if (
-    (!target.indicatorAccumulation || Object.keys(target.indicatorAccumulation).length === 0) &&
-    prior.indicatorAccumulation && Object.keys(prior.indicatorAccumulation).length > 0
-  ) {
-    target.indicatorAccumulation = prior.indicatorAccumulation;
-  }
-  if (
-    (!target.nudgeCounters || Object.keys(target.nudgeCounters).length === 0) &&
-    prior.nudgeCounters && Object.keys(prior.nudgeCounters).length > 0
-  ) {
-    target.nudgeCounters = prior.nudgeCounters;
-  }
-  if (
-    (!target.hintCounters || Object.keys(target.hintCounters).length === 0) &&
-    prior.hintCounters && Object.keys(prior.hintCounters).length > 0
-  ) {
-    target.hintCounters = prior.hintCounters;
-  }
-  if (!target.integrityFlags?.length && prior.integrityFlags?.length) {
-    target.integrityFlags = prior.integrityFlags;
-  }
-  if (!target.lastTurnNarrative && prior.lastTurnNarrative) {
-    target.lastTurnNarrative = prior.lastTurnNarrative;
-  }
-}
+import { mergeReflectionAnalytics } from "./mergeReflectionAnalytics";
 
 // Phase 1c (Section 6.4): inline assertion guard for mergeReflectionAnalytics.
 // Runs once at module load in non-production envs. Verifies the new
@@ -2157,15 +2091,25 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
 
       const { FRAMEWORK_REGISTRY } = await import("./agents/frameworkRegistry");
       const isEn = lang === "en";
-      const result = FRAMEWORK_REGISTRY.map((e) => ({
-        canonicalId: e.canonicalId,
-        canonicalName: isEn ? e.canonicalName_en : e.canonicalName_es,
-        aliases: e.aliases,
-        disciplines: e.disciplines,
-        primaryDimension: e.primaryDimension,
-        conceptualDescription: isEn ? e.conceptualDescription_en : e.conceptualDescription_es,
-        coreConcepts: isEn ? e.coreConcepts_en : e.coreConcepts_es,
-      }));
+      const result = FRAMEWORK_REGISTRY.map((e) => {
+        let disciplineDescriptions: Record<string, string> | undefined;
+        if (e.disciplineDescriptions) {
+          disciplineDescriptions = {};
+          for (const [disc, pair] of Object.entries(e.disciplineDescriptions)) {
+            disciplineDescriptions[disc] = isEn ? pair.en : pair.es;
+          }
+        }
+        return {
+          canonicalId: e.canonicalId,
+          canonicalName: isEn ? e.canonicalName_en : e.canonicalName_es,
+          aliases: e.aliases,
+          disciplines: e.disciplines,
+          primaryDimension: e.primaryDimension,
+          conceptualDescription: isEn ? e.conceptualDescription_en : e.conceptualDescription_es,
+          coreConcepts: isEn ? e.coreConcepts_en : e.coreConcepts_es,
+          disciplineDescriptions,
+        };
+      });
       if (isEn) registryCacheEn = result; else registryCacheEs = result;
       registryCacheTime = now;
       res.json(result);
@@ -5121,18 +5065,33 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
 
       for (let i = 0; i < logs.length; i++) {
         const log = logs[i];
-        const signals = signalKeys.map(key => {
-          const quality: number = log.signals_detected?.[key]?.quality ?? 0;
-          const extractedText: string = log.signals_detected?.[key]?.extracted_text || "";
+        const signals = signalKeys
+          .map(key => {
+            const quality: number = log.signals_detected?.[key]?.quality ?? 0;
+            const extractedText: string = log.signals_detected?.[key]?.extracted_text || "";
+            const confidence: number | undefined = log.signals_detected?.[key]?.confidence;
+            const marginalEvidence: boolean | undefined = log.signals_detected?.[key]?.marginal_evidence;
 
-          return {
-            key,
-            quality,
-            extracted_text: extractedText,
-            sessionLanguage,
-          };
-        });
-        turnSignals.push({ number: i + 1, signals });
+            return {
+              key,
+              quality,
+              extracted_text: extractedText,
+              sessionLanguage,
+              ...(confidence !== undefined ? { confidence } : {}),
+              ...(marginalEvidence !== undefined ? { marginalEvidence } : {}),
+            };
+          })
+          .filter(sig => {
+            const txt = sig.extracted_text.trim();
+            if (txt.length === 0) return false;
+            const lower = txt.toLowerCase();
+            if (lower === "no specific evidence extracted." || lower === "no se extrajo evidencia específica.") return false;
+            if (txt.length <= 3) return false;
+            return true;
+          });
+        if (signals.length > 0) {
+          turnSignals.push({ number: i + 1, signals });
+        }
       }
 
       res.json({ signalAverages, sessionLanguage, turns: turnSignals });

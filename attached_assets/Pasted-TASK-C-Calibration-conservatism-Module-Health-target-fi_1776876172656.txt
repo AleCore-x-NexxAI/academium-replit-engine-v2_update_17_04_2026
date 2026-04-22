@@ -1,0 +1,228 @@
+TASK C — Calibration conservatism: Module Health target-first split, transferring threshold, Applied Course Theory threshold, semantic implicit floor
+Context
+Testing log T-003B (2026-04-20) documented the engine over-crediting vague student work. Concrete evidence: with two completed sessions on the same RegionMart scenario — one strong student, one vague-minimal — Module Health flagged Porter's Generic Strategies, SWOT Analysis, and Cost-Benefit Analysis as "Transferring" at the class level, and Applied Course Theory showed 2/2. The vague student should not pull class-level transfer upward to "transferring" on frameworks they barely touched. Root causes in the code:
+
+routes.ts:4428 — Module Health status uses raw rate: rate >= 0.60 = transferring. A student counts toward appliedCount with any implicit detection at any confidence. Two students both getting weak-implicit SWOT = rate 1.0 = transferring.
+routes.ts:4344 — Applied Course Theory counts a student if ANY turn has ANY detection with level === "explicit" || level === "implicit". No confidence floor. A single implicit-low anywhere flips the student to "applied."
+frameworkDetector.ts Tier 2 semantic check — LLM returns applied: true, confidence: "medium" even on 8-word student inputs. There is no minimum-input-length floor.
+Module Health output does not separate target frameworks (from pedagogicalIntent.targetFrameworks) from suggested/inferred ones. Packet §11.5 requires a target-first rendering.
+
+This task fixes all four as a coherent calibration pass.
+Scope
+C1. §11.5 Module Health target-first rendering
+Target file: server/routes.ts, handler for POST /api/scenarios/:scenarioId/module-health (line 4375).
+Current response shape (simplified): { frameworks: [...], classDebriefOpener: null }.
+New response shape:
+ts{
+  target: FrameworkModuleHealth[];    // Frameworks in pedagogicalIntent.targetFrameworks
+  suggested: FrameworkModuleHealth[]; // All other tracked frameworks (legacy, explicit non-target, inferred-if-any-somehow-exist)
+  classDebriefOpener: string | null;
+}
+Where each FrameworkModuleHealth keeps its existing fields plus an explicit detection_method_distribution: { keyword: number; semantic: number; signal_pattern: number; consistency_promoted: number }.
+Classification:
+
+A framework is target if its canonicalId (or id if no canonicalId) matches an entry in scenario.pedagogicalIntent.targetFrameworks[].canonicalId.
+If no pedagogicalIntent on scenario (legacy), classify every framework with provenance === "explicit" as target and the rest as suggested.
+Everything else goes to suggested.
+
+UI change in client/src/pages/ScenarioDashboard.tsx Module Health section (find via grep -n "module-health\|moduleHealth" client/src/):
+
+Render target[] first under a header: EN "Target frameworks" / ES "Marcos objetivo" (translation keys moduleHealth.targetSection / moduleHealth.suggestedSection).
+Render suggested[] second under a separate header. If suggested.length === 0, hide the entire suggested section including header.
+Below each framework card, render the detection_method_distribution as a small muted row: Detection breakdown: 2 semantic · 1 keyword · 0 signal · 0 consistency (bilingual).
+
+C2. Confidence-weighted "transferring" threshold
+Same handler, around line 4402-4428.
+Replace the current rate calculation:
+tsconst rate = completed.length > 0 ? appliedCount / completed.length : 0;
+let status: string;
+if (rate >= 0.60) status = "transferring";
+else if (rate >= 0.20) status = "developing";
+else if (rate > 0) status = "not_yet_evidenced";
+else status = "absent";
+With a confidence-weighted score calculated per session and per framework:
+ts// Per-framework, per-session score:
+// 1.0 if any detection for the framework in that session is explicit OR (implicit AND confidence === "high")
+// 0.5 if any detection is implicit AND confidence === "medium"
+// 0.0 if only implicit-low OR signal_pattern OR consistency_promoted OR not_evidenced OR no detection
+//
+// weightedScore for the framework = sum(session scores) / completed.length
+Implementation: inside the for (const s of completed) loop (line 4408), maintain a sessionScore = 0 that starts at 0 and is updated as you scan detections. Track the best detection for this framework in this session; compute sessionScore after the session loop finishes.
+Thresholds on weightedScore:
+
+weightedScore >= 0.60 → "transferring"
+weightedScore >= 0.30 → "developing"
+weightedScore > 0 → "not_yet_evidenced"
+weightedScore === 0 → "absent"
+
+Surface BOTH rate (old raw) AND weightedScore (new) in the FrameworkModuleHealth response so the UI can show either. Default display uses weightedScore.
+Also add appliedCount_weighted_sum: number and completed: number to the response so the UI can show "2 of 3 students reached medium+ application" with honest denominators.
+C3. Applied Course Theory threshold tightening
+Same file routes.ts, around line 4344 (inside POST /api/scenarios/:scenarioId/class-stats).
+Current:
+tsconst hasApplied = fwDetections.some((turnDetections: any[]) =>
+  turnDetections?.some(
+    (d: any) =>
+      eligibleIds.has(d.framework_id) &&
+      (d.level === "explicit" || d.level === "implicit"),
+  ),
+);
+Replace with:
+tsconst hasApplied = fwDetections.some((turnDetections: any[]) =>
+  turnDetections?.some(
+    (d: any) =>
+      eligibleIds.has(d.framework_id) &&
+      (
+        d.level === "explicit" ||
+        (d.level === "implicit" && (d.confidence === "medium" || d.confidence === "high"))
+      ),
+  ),
+);
+Implicit-low, signal_pattern, consistency_promoted, not_evidenced do NOT count toward Applied Course Theory.
+C4. Semantic implicit floor for short/vague inputs
+Target file: server/agents/frameworkDetector.ts, Tier 2 semantic handling around line 345.
+After the existing quotedReasoning-in-studentInput check passes and BEFORE pushing the detection, apply the following word-count floors:
+tsconst inputWordCount = studentInput.trim().split(/\s+/).filter(w => w.length > 0).length;
+
+// Floor A: <15 words → downgrade any semantic verdict to confidence "low"
+if (inputWordCount < 15 && v.applied) {
+  v.confidence = "low";
+  console.info(`[frameworkDetector] §T-003B floor: downgraded ${fw.name} to low confidence (input word count=${inputWordCount}).`);
+}
+
+// Floor B: <10 words → reject semantic implicit entirely
+if (inputWordCount < 10 && v.applied) {
+  console.info(`[frameworkDetector] §T-003B floor: rejected ${fw.name} semantic verdict (input too short, word count=${inputWordCount}).`);
+  // Skip the push and fall through to Tier 3 or not_evidenced.
+  continue;
+}
+Apply BEFORE the detection push on line 348.
+Also adjust the not_evidenced emission at line 400 so when the reject is due to the short-input floor, the reasoning field reads:
+
+EN: "Input too short (fewer than 10 words) to sustain a semantic implicit detection."
+ES: "Entrada demasiado corta (menos de 10 palabras) para sostener una detección semántica implícita."
+
+C5. Register the calibration changes in the compatibility manifest
+Target file: compatibility-manifest.json.
+
+Bump version from v3.0-phase-1c to v3.0-phase-6a.
+Add entry for module-health.target-suggested-split:
+
+json  {
+    "id": "module-health.target-split",
+    "uiSurface": "client/src/pages/ScenarioDashboard.tsx :: Module Health target/suggested sections",
+    "endpoint": { "path": "/api/scenarios/:scenarioId/module-health", "method": "POST" },
+    "stateField": "currentState.framework_detections + scenario.pedagogicalIntent.targetFrameworks",
+    "writtenBy": "server/routes.ts",
+    "validatedFields": ["framework_detections", "pedagogicalIntent.targetFrameworks", "detection_method_distribution", "weightedScore", "rate"]
+  }
+
+Add entry for class-stats.applied-course-theory-strict:
+
+json  {
+    "id": "class-stats.applied-course-theory-strict",
+    "uiSurface": "client/src/pages/ScenarioDashboard.tsx :: AnalyticsTab AppliedCourseTheory",
+    "endpoint": { "path": "/api/scenarios/:scenarioId/class-stats", "method": "POST" },
+    "stateField": "currentState.framework_detections",
+    "writtenBy": "server/routes.ts",
+    "validatedFields": ["framework_detections.level", "framework_detections.confidence"]
+  }
+
+Run npx tsx scripts/validate-manifest.ts. Exit 0.
+
+C6. Unit tests for the calibration changes
+Add these tests under server/__tests__/:
+
+calibration.moduleHealth.test.ts: mock two completed sessions on a scenario with Porter as target and SWOT as suggested. Session 1: Porter explicit high, SWOT implicit medium. Session 2: Porter implicit low, SWOT implicit low. Expected: Porter weightedScore = (1.0 + 0.0) / 2 = 0.5 → "developing". SWOT weightedScore = (0.5 + 0.0) / 2 = 0.25 → "not_yet_evidenced". Response has target: [Porter] and suggested: [SWOT].
+calibration.appliedCourseTheory.test.ts: mock a scenario with Porter tracked. Session 1: only implicit-low Porter → hasApplied should be FALSE. Session 2: explicit Porter → TRUE. Session 3: implicit-medium Porter → TRUE. Session 4: implicit-high Porter → TRUE. Session 5: signal_pattern Porter → FALSE. Session 6: consistency_promoted Porter → FALSE. Assert appliedCourseTheory counts 3/6.
+calibration.semanticFloor.test.ts: with a stubbed semanticFrameworkCheck that always returns applied: true, confidence: "medium", quotedReasoning: "<the input>":
+
+Input 8 words → detector returns not_evidenced (Floor B rejects).
+Input 12 words → detector returns implicit with confidence: "low" (Floor A downgrades).
+Input 20 words → detector returns implicit with confidence: "medium" (unchanged).
+
+
+
+All three tests run under npm test and pass.
+Preserve (absolute)
+
+All TASK A + TASK B changes.
+dashboardCache TTL at 5 * 60 * 1000 in routes.ts:275. DO NOT reduce to 60s. This is an explicit override of packet §3.1 by prior decision.
+buildEligibleSet legacy provenance === "explicit" fallback in frameworkConsistency.ts:59.
+Porter regression fail-loud behavior.
+No .github/workflows/ directory.
+The cross-discipline picker UX from TASK A.
+Per-discipline descriptions from TASK B.
+All 5 dimension tooltips from TASK B.
+Reasoning-signals endpoint behavior from TASK B (no "no evidence extracted" rows).
+Existing consistency_promoted detections at Phase-6 calibration level — they still exist in the data, they just don't count toward Applied Course Theory or Module Health status. They DO remain visible in detection_method_distribution so the professor can see the chain of reasoning.
+All of §9.4 quality gates.
+confidence field on FrameworkDetection (already exists, preserve the enum "high" | "medium" | "low").
+
+Acceptance gate
+
+Module Health target/suggested split
+
+Create a scenario with pedagogicalIntent.targetFrameworks = [Porter's Generic Strategies] and add SWOT via the wizard's framework picker BUT outside the target scope (e.g., as an additional professor-picked framework — if the data model only allows target frameworks, this step is N/A and only Porter appears in target).
+Actually simpler gate: create a scenario with Porter as the only target framework via pedagogical intent. Also manually attach SWOT as an extra tracked framework (edit via API or UI if possible). Run two sessions. Call the Module Health endpoint. Response has target: [Porter] and suggested: [SWOT]. UI renders Target section first.
+
+
+Confidence-weighted transferring
+
+Two sessions, both with Porter implicit-low. Module Health weightedScore for Porter = 0 → status "absent" (NOT "transferring" — old logic would have marked it "transferring" because rate = 1.0).
+Two sessions, one with Porter implicit-medium and one with Porter implicit-low. weightedScore = 0.25 → "not_yet_evidenced".
+Two sessions, both with Porter explicit. weightedScore = 1.0 → "transferring".
+
+
+Applied Course Theory stricter
+
+One session with only implicit-low detections across all tracked frameworks. appliedCourseTheory = { n: 0, m: 1 }.
+One session with one implicit-medium detection. appliedCourseTheory = { n: 1, m: 1 }.
+
+
+Semantic short-input floor
+
+Run the unit test calibration.semanticFloor.test.ts. All three cases pass.
+Live test: complete a student session where the student writes 8-word Porter-shaped responses ("niche market, focus, less competition, works"). Module Health Porter weightedScore for that session = 0 (floor rejected the detection).
+
+
+Manifest version bumped
+
+compatibility-manifest.json version is v3.0-phase-6a.
+Two new entries present.
+npx tsx scripts/validate-manifest.ts passes.
+
+
+Unit tests
+
+npm test passes, including the three new calibration test files.
+Existing Porter 3-case regression still passes.
+
+
+T-003B-style end-to-end re-test
+
+Recreate T-003B: same scenario, one strong student, one vague student. After both complete:
+
+Applied Course Theory: 1/2, not 2/2.
+Module Health for Porter: transferring ONLY IF the strong student reached explicit or implicit-medium+. Otherwise not-transferring.
+Module Health for SWOT (if vague student's SWOT detection is implicit-low and strong student's is implicit-medium): weightedScore ≈ 0.25, status "not_yet_evidenced". Does NOT say transferring.
+Module Health for Cost-Benefit on the vague student: rejected by short-input floor if applicable; otherwise implicit-low which scores 0.
+
+
+Reasoning-signals tab on the vague-student session: no "no specific evidence extracted" rows (from TASK B).
+Record a before/after comparison: what the dashboard looked like BEFORE Task C (simulated with current main) vs. AFTER.
+
+
+No regression on the strong student
+
+A single strong-student session on a Porter-anchored scenario still yields Porter "transferring" (single session, score 1.0 → weightedScore 1.0 → transferring).
+
+
+
+Report
+
+Diff stats per file.
+The three new unit test files with their output.
+A side-by-side JSON dump: Module Health response for a 2-student scenario BEFORE and AFTER this task (can be synthesized from saved dashboards).
+Confirmation compatibility manifest bumped and validates.
+Confirmation T-003B end-to-end re-test shows improved conservatism.

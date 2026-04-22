@@ -1116,10 +1116,15 @@ function ReasoningSignalsTab({ data, loading, isEn }: { data: ReasoningSignalsDa
           </TableRow>
         </TableHeader>
         <TableBody>
-          {turns.flatMap((turn) =>
+          {turns.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-6">
+                {t("scenarioDashboard.noSignalsYet")}
+              </TableCell>
+            </TableRow>
+          ) : turns.flatMap((turn) =>
             turn.signals.map((sig, si) => {
-              const hasQuote = !!sig.extracted_text;
-              const quoteLangDiffers = hasQuote && sig.sessionLanguage !== language;
+              const quoteLangDiffers = sig.sessionLanguage !== language;
               return (
                 <TableRow key={`${turn.number}-${si}`}>
                   {si === 0 && <TableCell rowSpan={turn.signals.length} className="text-[11px] font-medium text-muted-foreground align-top">T{turn.number}</TableCell>}
@@ -1130,22 +1135,18 @@ function ReasoningSignalsTab({ data, loading, isEn }: { data: ReasoningSignalsDa
                     </span>
                   </TableCell>
                   <TableCell className="text-[11px] text-muted-foreground/70 italic">
-                    {hasQuote ? (
-                      <span className="inline-flex items-center gap-1.5 flex-wrap">
-                        <span>{sig.extracted_text}</span>
-                        {quoteLangDiffers && (
-                          <span
-                            className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border not-italic font-medium shrink-0"
-                            title={t("scenarioDashboard.quoteLanguageIndicatorTooltip")}
-                            data-testid="badge-quote-language"
-                          >
-                            {sig.sessionLanguage.toUpperCase()}
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      t("scenarioDashboard.noEvidenceExtracted")
-                    )}
+                    <span className="inline-flex items-center gap-1.5 flex-wrap">
+                      <span>{sig.extracted_text}</span>
+                      {quoteLangDiffers && (
+                        <span
+                          className="text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border not-italic font-medium shrink-0"
+                          title={t("scenarioDashboard.quoteLanguageIndicatorTooltip")}
+                          data-testid="badge-quote-language"
+                        >
+                          {sig.sessionLanguage.toUpperCase()}
+                        </span>
+                      )}
+                    </span>
                   </TableCell>
                 </TableRow>
               );

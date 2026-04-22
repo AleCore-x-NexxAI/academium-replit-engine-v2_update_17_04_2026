@@ -18,11 +18,16 @@ The backend is an Express.js (Node.js) REST API, using PostgreSQL with Drizzle O
 ### Feature Specifications
 The platform incorporates a robust turn processing pipeline, including a 6-gate input classifier, a signal extractor scoring 5 reasoning signals, and a director orchestrating various agents. It includes a Framework Detector for analytical frameworks and a Debrief Question Generator targeting low-scoring signals. A Dashboard Summary Generator provides session-level analytics for professors. Simulations are structured with configurable decision points and reflection steps, utilizing "thinking scaffolds." Indicators have directionality (e.g., `up_better`/`down_better`) influencing UI displays. Role-Based Access Control (RBAC) manages user permissions.
 
-### Framework Registry (Task #75)
-- `server/agents/frameworkRegistry.ts` contains 42 curated bilingual framework entries across 6 disciplines (business, marketing, finance, operations, human_resources, strategy), each with `disciplines: string[]`, bilingual names/descriptions/concepts, `primaryDimension`, and aliases for resolution.
+### Framework Registry (Task #75 + TASK B)
+- `server/agents/frameworkRegistry.ts` contains 41 curated bilingual framework entries across 6 disciplines (business, marketing, finance, operations, human_resources, strategy), each with `disciplines: string[]`, bilingual names/descriptions/concepts, `primaryDimension`, aliases, and `disciplineDescriptions` (per-discipline EN/ES blurbs, 25-60 words each).
 - `resolveFrameworkName()` handles Porter disambiguation (Five Forces vs Generic Strategies) via alias matching.
-- `GET /api/frameworks/registry?language=en|es` endpoint with 1hr server-side TTL cache returns registry for the wizard picker.
-- The CanonicalCaseCreator wizard uses a grouped 6-discipline accordion picker with 3-item max selection, cross-discipline disable+tooltip for same-framework-under-different-discipline, preview cards, and labeled dimension dropdowns in DecisionDimensionsEditor.
+- `GET /api/frameworks/registry?language=en|es` endpoint with 1hr server-side TTL cache returns registry for the wizard picker, including `disciplineDescriptions` flattened to requested language.
+- The CanonicalCaseCreator wizard uses a grouped 6-discipline accordion picker with 3-item max selection, cross-discipline disable+tooltip for same-framework-under-different-discipline, preview cards showing discipline-specific descriptions in tooltips, and labeled dimension dropdowns in DecisionDimensionsEditor with HelpCircle tooltips for each dimension.
+- DecisionDimensionsEditor shows contextual tooltips for all 5 academic dimensions (analytical, strategic, stakeholder, ethical, tradeoff) via HelpCircle icons next to the primary dimension label.
+- Reasoning-signals tab filters out placeholder/empty `extracted_text` server-side and shows "No reasoning signals detected yet" when no valid signals exist.
+- `mergeReflectionAnalytics` extracted to `server/mergeReflectionAnalytics.ts` with unit tests in `server/__tests__/mergeReflectionAnalytics.test.ts` (12 tests).
+- Signal extractor propagates optional `confidence` and `marginalEvidence` fields to the reasoning-signals endpoint.
+- Registry validation script: `server/scripts/validateRegistry.ts`.
 - Regression tests: `server/__tests__/frameworkRegistry.regression.test.ts` (5 Porter resolution tests).
 
 ### Pedagogical Intent Hardening (Task #92)

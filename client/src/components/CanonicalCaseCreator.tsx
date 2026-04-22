@@ -58,6 +58,7 @@ interface RegistryFramework {
   primaryDimension: string;
   conceptualDescription: string;
   coreConcepts: string[];
+  disciplineDescriptions?: Record<string, string>;
 }
 
 interface SelectedFramework {
@@ -699,9 +700,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                               const selectedElsewhere = selectedFrameworks.some(f => f.canonicalId === fw.canonicalId && f.discipline !== disc);
                               const fwSelected = selectedInThisDiscipline || selectedElsewhere;
                               const disabled = !discSelected || selectedElsewhere || (!fwSelected && fwAtCap);
-                              const truncDesc = fw.conceptualDescription.length > 140
-                                ? fw.conceptualDescription.slice(0, 137) + "..."
-                                : fw.conceptualDescription;
+                              const rawDesc = fw.disciplineDescriptions?.[disc] ?? fw.conceptualDescription;
+                              const truncDesc = rawDesc.length > 140
+                                ? rawDesc.slice(0, 137) + "..."
+                                : rawDesc;
                               const row = (
                                 <div
                                   key={fw.canonicalId}
@@ -823,9 +825,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                     })}
                     {selectedFrameworks.map((sel) => {
                       const fw = !sel.isCustom ? registryData.find(r => r.canonicalId === sel.canonicalId) : null;
-                      const truncDesc = fw && fw.conceptualDescription.length > 120
-                        ? fw.conceptualDescription.slice(0, 117) + "..."
-                        : fw?.conceptualDescription ?? "";
+                      const rawSelDesc = fw ? (fw.disciplineDescriptions?.[sel.discipline] ?? fw.conceptualDescription) : "";
+                      const truncDesc = rawSelDesc.length > 120
+                        ? rawSelDesc.slice(0, 117) + "..."
+                        : rawSelDesc;
                       return (
                         <Card
                           key={`f-${sel.canonicalId}`}

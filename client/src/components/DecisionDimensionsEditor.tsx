@@ -7,7 +7,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Plus, Trash2, HelpCircle } from "lucide-react";
 import type { AcademicDimension } from "@shared/schema";
 
 export interface DecisionDimensionEntry {
@@ -34,6 +39,29 @@ const DIMENSIONS: AcademicDimension[] = [
 ];
 
 const SENTINEL_NONE = "__none__";
+
+const DIMENSION_TOOLTIP_KEYS: Record<AcademicDimension, { en: string; es: string }> = {
+  analytical: {
+    en: "Data gathering, quantitative reasoning, and evidence-based diagnosis of the situation.",
+    es: "Recopilación de datos, razonamiento cuantitativo y diagnóstico basado en evidencia de la situación.",
+  },
+  strategic: {
+    en: "Long-term positioning, competitive advantage, and resource allocation choices.",
+    es: "Posicionamiento a largo plazo, ventaja competitiva y decisiones de asignación de recursos.",
+  },
+  stakeholder: {
+    en: "Identifying affected parties, understanding their interests, and managing competing expectations.",
+    es: "Identificar partes afectadas, comprender sus intereses y gestionar expectativas en competencia.",
+  },
+  ethical: {
+    en: "Moral implications, fairness, transparency, and responsible decision-making considerations.",
+    es: "Implicaciones morales, equidad, transparencia y consideraciones de toma de decisiones responsable.",
+  },
+  tradeoff: {
+    en: "Evaluating competing alternatives, opportunity costs, and the tensions between conflicting goals.",
+    es: "Evaluar alternativas en competencia, costos de oportunidad y las tensiones entre objetivos en conflicto.",
+  },
+};
 
 function dimensionLabel(d: AcademicDimension, language: "es" | "en"): string {
   const labels: Record<AcademicDimension, { en: string; es: string }> = {
@@ -135,9 +163,20 @@ export function DecisionDimensionsEditor({
                   </Select>
                 </div>
                 <div className="col-span-5 space-y-1">
-                  <Label className="text-xs font-medium">
-                    {language === "en" ? "Primary dimension *" : "Dimensión primaria *"}
-                  </Label>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs font-medium">
+                      {language === "en" ? "Primary dimension *" : "Dimensión primaria *"}
+                    </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground cursor-help" data-testid={`tooltip-dim-primary-${idx}`} />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        <p className="font-semibold">{dimensionLabel(entry.primaryDimension, language)}</p>
+                        <p>{DIMENSION_TOOLTIP_KEYS[entry.primaryDimension][language]}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Select
                     value={entry.primaryDimension}
                     onValueChange={(v) => updateEntry(idx, { primaryDimension: v as AcademicDimension })}
