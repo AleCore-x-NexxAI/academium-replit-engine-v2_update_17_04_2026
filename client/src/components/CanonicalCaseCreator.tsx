@@ -1033,15 +1033,10 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                     setShowValidation(true);
                     return;
                   }
+                  setShowValidation(false);
                   generateMutation.mutate();
                 }}
-                disabled={
-                  !topic.trim()
-                  || teachingGoal.trim().length < 20
-                  || selectedDisciplines.length === 0
-                  || courseContext.trim().length < 20
-                  || generateMutation.isPending
-                }
+                disabled={generateMutation.isPending}
                 className="w-full h-12 text-base"
                 data-testid="button-generate-draft"
               >
