@@ -67,6 +67,10 @@ interface FrameworkHealth {
   deeperDescription: string;
   canonicalId?: string;
   detection_method_distribution?: Record<string, number>;
+  rate?: number;
+  weightedScore?: number;
+  appliedCount_weighted_sum?: number;
+  completed?: number;
 }
 
 interface FrameworkSection {
@@ -271,6 +275,25 @@ function DistributionStrip({
           <span>{v}</span>
         </span>
       ))}
+    </div>
+  );
+}
+
+function DetectionBreakdownRow({ fw }: { fw: FrameworkHealth }) {
+  const { t } = useTranslation();
+  const dist = fw.detection_method_distribution;
+  if (!dist) return null;
+  const sem = dist.semantic || 0;
+  const kw = dist.keyword || 0;
+  const sig = dist.signal_pattern || 0;
+  const cons = dist.consistency_promoted || 0;
+  return (
+    <div className="text-[10px] text-muted-foreground/70 mt-1.5" data-testid={`breakdown-${fw.id}`}>
+      <span>{t("scenarioDashboard.detectionBreakdown")} </span>
+      <span>{sem} {t("scenarioDashboard.detectionSemantic")}</span>
+      <span> · {kw} {t("scenarioDashboard.detectionKeyword")}</span>
+      <span> · {sig} {t("scenarioDashboard.detectionSignal")}</span>
+      <span> · {cons} {t("scenarioDashboard.detectionConsistency")}</span>
     </div>
   );
 }
@@ -535,7 +558,7 @@ function AnalyticsTab({
                           <div className="text-[11px] font-medium text-muted-foreground mb-1.5">{fw.name}</div>
                           <StatusBadge status={fw.status} />
                           <div className="text-[11px] text-muted-foreground/80 mt-1.5 leading-snug italic">{fw.description}</div>
-                          <DistributionStrip dist={fw.detection_method_distribution} testid={`dist-${fw.id}`} className="mt-1.5" />
+                          <DetectionBreakdownRow fw={fw} />
                         </div>
                       ))}
                     </div>
@@ -558,7 +581,7 @@ function AnalyticsTab({
                           <div className="text-[11px] font-medium text-muted-foreground mb-1.5">{fw.name}</div>
                           <StatusBadge status={fw.status} />
                           <div className="text-[11px] text-muted-foreground/80 mt-1.5 leading-snug italic">{fw.description}</div>
-                          <DistributionStrip dist={fw.detection_method_distribution} testid={`dist-${fw.id}`} className="mt-1.5" />
+                          <DetectionBreakdownRow fw={fw} />
                         </div>
                       ))}
                     </div>

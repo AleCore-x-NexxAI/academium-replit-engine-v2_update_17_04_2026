@@ -1,5 +1,5 @@
 {
-  "version": "v3.0-phase-1c",
+  "version": "v3.0-phase-6a",
   "description": "Compatibility manifest binding dashboard UI surfaces to engine endpoints, state fields, and writers. Phase 1c first draft. Each later phase extends this file as new fields are added. Validate via `npx tsx scripts/validate-manifest.ts`.",
   "notes": [
     "reasoning-arc and key-pattern were not split into their own endpoints in this phase; they are computed inline within /api/sessions/:sessionId/summary and /api/scenarios/:scenarioId/students-summary. Documented as part of session-summary.modal and students-summary.table per task adjustment.",
@@ -93,6 +93,22 @@
       "stateField": "currentState.dashboard_summary",
       "writtenBy": "server/routes.ts",
       "validatedFields": ["dashboard_summary", "generation_status"]
+    },
+    {
+      "id": "module-health.target-split",
+      "uiSurface": "client/src/pages/ScenarioDashboard.tsx :: Module Health target/suggested sections",
+      "endpoint": { "path": "/api/scenarios/:scenarioId/module-health", "method": "POST" },
+      "stateField": "currentState.framework_detections + scenario.pedagogicalIntent.targetFrameworks",
+      "writtenBy": "server/routes.ts",
+      "validatedFields": ["framework_detections", "pedagogicalIntent", "detection_method_distribution", "confidence"]
+    },
+    {
+      "id": "class-stats.applied-course-theory-strict",
+      "uiSurface": "client/src/pages/ScenarioDashboard.tsx :: AnalyticsTab AppliedCourseTheory",
+      "endpoint": { "path": "/api/scenarios/:scenarioId/class-stats", "method": "POST" },
+      "stateField": "currentState.framework_detections",
+      "writtenBy": "server/routes.ts",
+      "validatedFields": ["framework_detections", "confidence"]
     }
   ]
 }

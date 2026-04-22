@@ -4295,9 +4295,13 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
           const fwDetections = state?.framework_detections || [];
           const hasApplied = fwDetections.some((turnDetections: any[]) =>
             turnDetections?.some(
-              (d: any) =>
-                eligibleIds.has(d.framework_id) &&
-                (d.level === "explicit" || d.level === "implicit"),
+              (d: any) => {
+                if (!eligibleIds.has(d.framework_id)) return false;
+                const dm = d.detection_method || "keyword";
+                if (dm === "signal_pattern" || dm === "consistency_promoted") return false;
+                return d.level === "explicit" ||
+                  (d.level === "implicit" && (d.confidence === "medium" || d.confidence === "high"));
+              },
             ),
           );
           if (hasApplied) n++;
@@ -4348,14 +4352,14 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
 
       const frameworkResults = await Promise.all(frameworks.map(async (fw: any) => {
         let appliedCount = 0;
+        let weightedSum = 0;
         const evidenceTexts: string[] = [];
-        // Phase 6 §6: detection_method_distribution per framework, aggregated
-        // across every detection across every completed session.
         const methodDist: Record<string, number> = {};
         for (const s of completed) {
           const state = s.session.currentState as any;
           const fwDetections: any[][] = state?.framework_detections || [];
           let applied = false;
+          let sessionScore = 0;
           for (const turnDets of fwDetections) {
             const det = turnDets?.find((d: any) => d.framework_id === fw.id);
             if (det) {
@@ -4365,16 +4369,26 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
                 applied = true;
                 if (det.evidence) evidenceTexts.push(det.evidence);
               }
+              const dm = det.detection_method || "keyword";
+              if (dm !== "signal_pattern" && dm !== "consistency_promoted") {
+                if (det.level === "explicit" || (det.level === "implicit" && det.confidence === "high")) {
+                  sessionScore = Math.max(sessionScore, 1.0);
+                } else if (det.level === "implicit" && det.confidence === "medium") {
+                  sessionScore = Math.max(sessionScore, 0.5);
+                }
+              }
             }
           }
           if (applied) appliedCount++;
+          weightedSum += sessionScore;
         }
 
         const rate = completed.length > 0 ? appliedCount / completed.length : 0;
+        const weightedScore = completed.length > 0 ? weightedSum / completed.length : 0;
         let status: string;
-        if (rate >= 0.60) status = "transferring";
-        else if (rate >= 0.20) status = "developing";
-        else if (rate > 0) status = "not_yet_evidenced";
+        if (weightedScore >= 0.60) status = "transferring";
+        else if (weightedScore >= 0.30) status = "developing";
+        else if (weightedScore > 0) status = "not_yet_evidenced";
         else status = "absent";
 
         let description: string;
@@ -4406,6 +4420,10 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
           deeperDescription,
           canonicalId: fw.canonicalId || fw.id,
           detection_method_distribution: methodDist,
+          rate,
+          weightedScore,
+          appliedCount_weighted_sum: weightedSum,
+          completed: completed.length,
         };
       }));
 
@@ -4430,10 +4448,11 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
         const meta = fwById.get(f.id);
         return meta?.provenance === "explicit";
       };
+      const hasIntent = targetIds.size > 0;
       const isTarget = (f: { id: string; canonicalId?: string; name: string }) =>
-        isInIntent(f) && isExplicitProvenance(f);
-      const targetList = targetIds.size > 0 ? frameworkResults.filter(isTarget) : [];
-      const suggestedList = targetIds.size > 0 ? frameworkResults.filter(f => !isTarget(f)) : [];
+        hasIntent ? isInIntent(f) : isExplicitProvenance(f);
+      const targetList = frameworkResults.filter(isTarget);
+      const suggestedList = frameworkResults.filter(f => !isTarget(f));
 
       // Phase 6 §6: per-section aggregate detection_method_distribution.
       // Use REAL detection-method keys (keyword, semantic, signal_pattern,

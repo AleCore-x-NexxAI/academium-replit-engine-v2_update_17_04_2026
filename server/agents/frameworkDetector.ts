@@ -342,24 +342,37 @@ export async function detectFrameworks(
 
   const inputLower = studentInput.toLowerCase();
 
+  const globalInputWordCount = studentInput.trim().split(/\s+/).filter(w => w.length > 0).length;
+
   for (const fw of needsSemantic) {
     const v = semanticById.get(fw.id);
+    let semanticFloorRejected = false;
     if (v && v.applied) {
-      detections.push({
-        framework_id: fw.id,
-        framework_name: fw.name,
-        level: "implicit",
-        evidence: language === "en"
-          ? `Student wrote: "${v.quotedReasoning}" — applying ${fw.name} conceptually without naming it.`
-          : `El estudiante escribió: "${v.quotedReasoning}" — aplicando ${fw.name} conceptualmente sin nombrarlo.`,
-        confidence: v.confidence,
-        detection_method: "semantic",
-        reasoning: v.explanation || (language === "en"
-          ? `Semantic alignment with ${fw.name}.`
-          : `Alineación semántica con ${fw.name}.`),
-        canonicalId: fw.canonicalId || fw.id,
-      });
-      continue;
+      if (globalInputWordCount < 10) {
+        console.info(`[frameworkDetector] §T-003B floor: rejected ${fw.name} semantic verdict (input too short, word count=${globalInputWordCount}).`);
+        semanticFloorRejected = true;
+      } else {
+        if (globalInputWordCount < 15) {
+          v.confidence = "low";
+          console.info(`[frameworkDetector] §T-003B floor: downgraded ${fw.name} to low confidence (input word count=${globalInputWordCount}).`);
+        }
+
+        detections.push({
+          framework_id: fw.id,
+          framework_name: fw.name,
+          level: "implicit",
+          evidence: language === "en"
+            ? `Student wrote: "${v.quotedReasoning}" — applying ${fw.name} conceptually without naming it.`
+            : `El estudiante escribió: "${v.quotedReasoning}" — aplicando ${fw.name} conceptualmente sin nombrarlo.`,
+          confidence: v.confidence,
+          detection_method: "semantic",
+          reasoning: v.explanation || (language === "en"
+            ? `Semantic alignment with ${fw.name}.`
+            : `Alineación semántica con ${fw.name}.`),
+          canonicalId: fw.canonicalId || fw.id,
+        });
+        continue;
+      }
     }
 
     // Tier 3: signal-pattern fallback (only when semantic didn't fire).
@@ -406,9 +419,13 @@ export async function detectFrameworks(
         : `No se detectó evidencia directa o indirecta de aplicación del marco ${fw.name} en esta respuesta.`,
       confidence: "low",
       detection_method: "none",
-      reasoning: language === "en"
-        ? `Tier 1 (keyword) and Tier 2 (semantic) returned no match.`
-        : `Tier 1 (palabra clave) y Tier 2 (semántico) no devolvieron coincidencias.`,
+      reasoning: semanticFloorRejected
+        ? (language === "en"
+          ? `Input too short (fewer than 10 words) to sustain a semantic implicit detection.`
+          : `Entrada demasiado corta (menos de 10 palabras) para sostener una detección semántica implícita.`)
+        : (language === "en"
+          ? `Tier 1 (keyword) and Tier 2 (semantic) returned no match.`
+          : `Tier 1 (palabra clave) y Tier 2 (semántico) no devolvieron coincidencias.`),
       canonicalId: fw.canonicalId || fw.id,
     });
   }
