@@ -1588,8 +1588,8 @@ export async function generateDashboardSummary(
   const lowestSignal = [...candidateEntries].sort(([,a], [,b]) => a - b)[0];
 
   // Phase 1b: explicit superlative ban for session_headline (en + es).
-  const BANNED_SUPERLATIVES_EN = ["excellent", "amazing", "great", "fantastic", "outstanding", "brilliant", "superb", "wonderful", "perfect"];
-  const BANNED_SUPERLATIVES_ES = ["excelente", "increíble", "increible", "fantástico", "fantastico", "extraordinario", "sobresaliente", "magnífico", "magnifico", "perfecto", "asombroso", "estupendo"];
+  const BANNED_SUPERLATIVES_EN = ["excellent", "amazing", "great", "fantastic", "outstanding", "brilliant", "superb", "wonderful", "perfect", "impressive", "remarkable", "sophisticated", "thoughtful", "thorough", "nuanced"];
+  const BANNED_SUPERLATIVES_ES = ["excelente", "increíble", "increible", "fantástico", "fantastico", "extraordinario", "sobresaliente", "magnífico", "magnifico", "perfecto", "asombroso", "estupendo", "impresionante", "notable", "sofisticado", "sofisticada", "reflexivo", "reflexiva", "exhaustivo", "exhaustiva", "matizado", "matizada"];
   const bannedList = [...BANNED_SUPERLATIVES_EN, ...BANNED_SUPERLATIVES_ES];
   // Unicode-aware boundary check: \b is not reliable for accented chars in JS,
   // so we test with explicit non-letter lookarounds via a manual scan.
@@ -1635,12 +1635,12 @@ export async function generateDashboardSummary(
 Reasoning arc: ${bandSummary}
 Highest signal: ${highestSignal[0]} (avg ${highestSignal[1]})
 Lowest signal: ${lowestSignal[0]} (avg ${lowestSignal[1]})
-Rules: Observation only. Identify ONE strength OR ONE gap (not both). No evaluative lexicon (judgments of accuracy, valence labels, praise phrases, prescriptive obligations, comparative superlatives, emotional adverbs). No exclamation marks. No labels for student capability. SUPERLATIVES BANNED — never use any of: ${BANNED_SUPERLATIVES_EN.join(", ")}. Write in English.`
+Rules: Observation only. Identify ONE strength OR ONE gap (not both). No evaluative lexicon (judgments of accuracy, valence labels, praise phrases, prescriptive obligations, comparative superlatives, emotional adverbs). No exclamation marks. No labels for student capability. SUPERLATIVES BANNED — never use any of: ${BANNED_SUPERLATIVES_EN.join(", ")}. Also banned phrases: "deep analysis", "deep reasoning", "deep understanding", "deep thinking", "deep insight". Write in English.`
     : `Escribe un resumen de 1-2 oraciones para el profesor sobre esta sesión.
 Arco de razonamiento: ${bandSummary}
 Señal más alta: ${highestSignal[0]} (promedio ${highestSignal[1]})
 Señal más baja: ${lowestSignal[0]} (promedio ${lowestSignal[1]})
-Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin léxico evaluativo (juicios de acierto, etiquetas de valencia, frases de elogio, obligaciones prescriptivas, superlativos comparativos, adverbios emocionales). Sin signos de exclamación. Sin etiquetas de capacidad del estudiante. SUPERLATIVOS PROHIBIDOS — nunca uses ninguno de: ${BANNED_SUPERLATIVES_ES.join(", ")}. Escribe en español.`;
+Reglas: Solo observación. Identifica UNA fortaleza O UNA brecha (no ambas). Sin léxico evaluativo (juicios de acierto, etiquetas de valencia, frases de elogio, obligaciones prescriptivas, superlativos comparativos, adverbios emocionales). Sin signos de exclamación. Sin etiquetas de capacidad del estudiante. SUPERLATIVOS PROHIBIDOS — nunca uses ninguno de: ${BANNED_SUPERLATIVES_ES.join(", ")}. Frases también prohibidas: "análisis profundo", "razonamiento profundo", "comprensión profunda", "pensamiento profundo". Escribe en español.`;
 
   let sessionHeadline: string;
   try {

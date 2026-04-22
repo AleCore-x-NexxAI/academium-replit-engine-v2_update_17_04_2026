@@ -22,8 +22,18 @@ The platform incorporates a robust turn processing pipeline, including a 6-gate 
 - `server/agents/frameworkRegistry.ts` contains 42 curated bilingual framework entries across 6 disciplines (business, marketing, finance, operations, human_resources, strategy), each with `disciplines: string[]`, bilingual names/descriptions/concepts, `primaryDimension`, and aliases for resolution.
 - `resolveFrameworkName()` handles Porter disambiguation (Five Forces vs Generic Strategies) via alias matching.
 - `GET /api/frameworks/registry?language=en|es` endpoint with 1hr server-side TTL cache returns registry for the wizard picker.
-- The CanonicalCaseCreator wizard uses a grouped 6-discipline accordion picker with 3-item max selection, cross-discipline warning banner, preview cards, and labeled dimension dropdowns in DecisionDimensionsEditor.
+- The CanonicalCaseCreator wizard uses a grouped 6-discipline accordion picker with 3-item max selection, cross-discipline disable+tooltip for same-framework-under-different-discipline, preview cards, and labeled dimension dropdowns in DecisionDimensionsEditor.
 - Regression tests: `server/__tests__/frameworkRegistry.regression.test.ts` (5 Porter resolution tests).
+
+### Pedagogical Intent Hardening (Task #92)
+- Required fields: teachingGoal (≥20 chars), targetDisciplines (≥1), courseContext (≥20 chars). Server validates at POST /api/canonical-case/generate with accumulated 400 errors. Client shows inline errors after first Generate attempt.
+- `PedagogicalIntent.targetDisciplines?: string[]` added to schema + Zod. Client sends `selectedDisciplines` array in generate payload.
+- `buildIntentBlock` in canonicalCaseGenerator.ts now emits: coreConcepts per framework from registry, DISCIPLINE ANCHORING block, TRADEOFF REALISM block.
+- Post-gen gate 5b flags `discipline_coverage_missing` when no generated framework maps to a selected discipline.
+- Auto-inference (`inferFrameworks`) disabled in routes.ts `runInferenceAndPersist`; `frameworkInference.ts` file preserved.
+- Narrator `PROHIBITED_PATTERNS` expanded with 14 new entries (impressive, remarkable, sophisticated, thoughtful, thorough, nuanced, deep+qualifier, ES equivalents). `scanProhibitedLanguage` exported for testing.
+- Director `BANNED_SUPERLATIVES_EN/ES` expanded; headline prompt adds "deep analysis/reasoning/..." ban phrases.
+- Unit test: `server/__tests__/narrator.prohibitedLanguage.test.ts` (6 cases).
 
 ### Professor Dashboard (Part C)
 The professor dashboard at `/scenarios/:scenarioId/dashboard` provides a 3-tab view (Analytics/Students/Control) with:

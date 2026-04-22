@@ -73,6 +73,7 @@ export interface PedagogicalIntent {
     primaryDimension: AcademicDimension;
     secondaryDimension?: AcademicDimension;
   }>;
+  targetDisciplines?: string[];
   courseContext?: string;
   reasoningConstraint?: string;
   professorNotes?: string;
@@ -737,6 +738,7 @@ export const pedagogicalIntentSchema = z.object({
   targetFrameworks: z.array(targetFrameworkSchema).default([]),
   targetCompetencies: z.array(z.enum(["C1", "C2", "C3", "C4", "C5"])).default([]),
   decisionDimensions: z.array(decisionDimensionSchema).optional(),
+  targetDisciplines: z.array(z.string()).optional(),
   courseContext: z.string().optional(),
   reasoningConstraint: z.string().optional(),
   professorNotes: z.string().optional(),

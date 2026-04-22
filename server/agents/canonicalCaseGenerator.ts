@@ -27,6 +27,7 @@ import { generateChatCompletion } from "../openai";
 import { POC_VERSION, STRUCTURE_LOCK_NOTICE, DEFAULT_DECISIONS, MIN_DECISIONS, MAX_DECISIONS } from "./constants";
 import { sanitizeFrameworks, mergeRegeneratedKeywords } from "./frameworkKeywordSanitizer";
 import { assignDecisionDimensions, dimensionConstraintFor, type DecisionDimension } from "./academicDimensions";
+import { FRAMEWORK_REGISTRY as _FRAMEWORK_REGISTRY } from "./frameworkRegistry";
 
 /**
  * Phase 1b: lightweight language-leakage detector. Returns the share of
@@ -564,8 +565,16 @@ function buildIntentBlock(
       lines.push("FRAMEWORK ANCHORING — the case MUST be designed so students can apply these frameworks. Surface their core concepts in the case context, decisions, and option text:");
       for (const fw of intent.targetFrameworks) {
         lines.push(`  • ${fw.name} (canonicalId=${fw.canonicalId})`);
+        const regEntry = _FRAMEWORK_REGISTRY.find(e => e.canonicalId === fw.canonicalId);
+        if (regEntry?.coreConcepts_en?.length) {
+          lines.push(`    ↳ Core concepts to surface: ${regEntry.coreConcepts_en.join(", ")}`);
+        }
       }
       lines.push("Generate `frameworks` array containing entries for ALL of the above plus any additional analytical frameworks naturally surfaced by the case.");
+    }
+    if (intent.targetDisciplines?.length) {
+      lines.push("");
+      lines.push(`DISCIPLINE ANCHORING — the case MUST exercise frameworks and reasoning patterns native to the following discipline(s): ${intent.targetDisciplines.join(", ")}. When the pedagogical intent has no specific target frameworks, pull frameworks from within these disciplines into the generated \`frameworks\` array.`);
     }
     if (intent.targetCompetencies?.length) {
       lines.push("");
@@ -579,6 +588,8 @@ function buildIntentBlock(
     }
     lines.push("");
     lines.push("Each decision in the JSON output MUST include: `primaryDimension`, `dimensionRationale` (1-2 sentences explaining why this decision exercises that dimension), and `targetFrameworkIds` (array of framework `id`s the decision should surface). Keep `tradeoffSignature` populated whenever primaryDimension is `tradeoff`.");
+    lines.push("");
+    lines.push("TRADEOFF REALISM — whenever a decision's primaryDimension is \"tradeoff\", the decision prompt MUST name a concrete cost AND a concrete benefit in the student-visible text. `tradeoffSignature.dimension`, `tradeoffSignature.cost`, and `tradeoffSignature.benefit` are all required and non-empty.");
     if (intent.reasoningConstraint) {
       lines.push("");
       lines.push(`REASONING CONSTRAINT — students will be evaluated under this rule: ${intent.reasoningConstraint}. Decision prompts must respect this constraint.`);
@@ -605,8 +616,16 @@ function buildIntentBlock(
     lines.push("ANCLAJE EN FRAMEWORKS — el caso DEBE diseñarse para que los estudiantes puedan aplicar estos marcos. Haz que sus conceptos centrales aparezcan en el contexto, las decisiones y las opciones:");
     for (const fw of intent.targetFrameworks) {
       lines.push(`  • ${fw.name} (canonicalId=${fw.canonicalId})`);
+      const regEntry = _FRAMEWORK_REGISTRY.find(e => e.canonicalId === fw.canonicalId);
+      if (regEntry?.coreConcepts_es?.length) {
+        lines.push(`    ↳ Conceptos centrales a destacar: ${regEntry.coreConcepts_es.join(", ")}`);
+      }
     }
     lines.push("Genera el arreglo `frameworks` con entradas para TODOS los anteriores más cualquier marco adicional que surja naturalmente del caso.");
+  }
+  if (intent.targetDisciplines?.length) {
+    lines.push("");
+    lines.push(`ANCLAJE DISCIPLINAR — el caso DEBE ejercitar marcos y patrones de razonamiento nativos de la(s) siguiente(s) disciplina(s): ${intent.targetDisciplines.join(", ")}. Cuando la intención pedagógica no tiene frameworks objetivo específicos, extrae frameworks de estas disciplinas para el arreglo \`frameworks\` generado.`);
   }
   if (intent.targetCompetencies?.length) {
     lines.push("");
@@ -620,6 +639,8 @@ function buildIntentBlock(
   }
   lines.push("");
   lines.push("Cada decisión en el JSON DEBE incluir: `primaryDimension`, `dimensionRationale` (1-2 oraciones explicando por qué esta decisión ejercita esa dimensión), y `targetFrameworkIds` (arreglo de `id`s de frameworks que la decisión debe surfacear). Mantén `tradeoffSignature` poblado siempre que primaryDimension sea `tradeoff`.");
+  lines.push("");
+  lines.push("REALISMO DE TRADEOFF — cuando la primaryDimension de una decisión es \"tradeoff\", el prompt de la decisión DEBE nombrar un costo concreto Y un beneficio concreto en el texto visible al estudiante. `tradeoffSignature.dimension`, `tradeoffSignature.cost` y `tradeoffSignature.benefit` son todos obligatorios y no pueden estar vacíos.");
   if (intent.reasoningConstraint) {
     lines.push("");
     lines.push(`RESTRICCIÓN DE RAZONAMIENTO — los estudiantes serán evaluados bajo esta regla: ${intent.reasoningConstraint}. Los prompts deben respetar esta restricción.`);
@@ -1045,7 +1066,7 @@ export async function generateCanonicalCase(
   // unresolved names get a stable custom_<hash> id derived from the name.
   // We dedup by canonicalId, preferring the entry with more semantic fields
   // (e.g. registry-resolved over LLM-only) and merging keyword arrays.
-  const { resolveFrameworkName } = await import("./frameworkRegistry");
+  const { resolveFrameworkName, FRAMEWORK_REGISTRY } = await import("./frameworkRegistry");
   const { customCanonicalId } = await import("./frameworkBootMigration");
   const effectiveLangForResolver: "es" | "en" = isEn ? "en" : "es";
 
@@ -1220,6 +1241,23 @@ export async function generateCanonicalCase(
     const reCheck = await checkFrameworkCoverage(decisionPoints, finalFrameworks, primaryTargetCanonical, effectiveLang);
     if (!reCheck.ok) {
       decisionPoints[0].qualityFlags = [...(decisionPoints[0].qualityFlags ?? []), "framework_coverage_primary_missing"];
+    }
+  }
+
+  // Gate 5b: discipline coverage — when targetFrameworks is empty but
+  // targetDisciplines is present, at least one generated framework must map
+  // to a selected discipline via the registry. Flag if not.
+  if (
+    (!pedagogicalIntent.targetFrameworks || pedagogicalIntent.targetFrameworks.length === 0) &&
+    pedagogicalIntent.targetDisciplines &&
+    pedagogicalIntent.targetDisciplines.length > 0
+  ) {
+    const coveredByDisc = finalFrameworks.some(fw => {
+      const regEntry = _FRAMEWORK_REGISTRY.find(e => e.canonicalId === (fw.canonicalId ?? fw.id));
+      return regEntry?.disciplines?.some(d => pedagogicalIntent.targetDisciplines!.includes(d));
+    });
+    if (!coveredByDisc) {
+      decisionPoints[0].qualityFlags = [...(decisionPoints[0].qualityFlags ?? []), "discipline_coverage_missing"];
     }
   }
 

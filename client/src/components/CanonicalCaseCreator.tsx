@@ -191,6 +191,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
   const [isEditing, setIsEditing] = useState(false);
   const [conceptTags, setConceptTags] = useState<string[]>([]);
   const [conceptTagInput, setConceptTagInput] = useState("");
+  const [showValidation, setShowValidation] = useState(false);
   const [frameworks, setFrameworks] = useState<CaseFramework[]>([]);
   const [frameworkNameInput, setFrameworkNameInput] = useState("");
   const [keywordSuggestions, setKeywordSuggestions] = useState<Record<string, string[]>>({});
@@ -326,6 +327,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
           targetFrameworks: selectedFrameworks.map(f => ({ canonicalId: f.canonicalId, name: f.name })),
           targetCompetencies: intentCompetencies,
           decisionDimensions: intentDimensions.length > 0 ? intentDimensions : undefined,
+          targetDisciplines: selectedDisciplines,
           courseContext: courseContext.trim() || undefined,
           reasoningConstraint: reasoningConstraint.trim() || undefined,
           professorNotes: professorNotes.trim() || undefined,
@@ -622,6 +624,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   className="min-h-[80px]"
                   data-testid="input-teaching-goal"
                 />
+                {showValidation && teachingGoal.trim().length < 20 && (
+                  <p className="text-xs text-destructive mt-1" data-testid="error-teaching-goal">
+                    {t("canonicalCase.validationTeachingGoalRequired")}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -688,24 +695,26 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                               </p>
                             )}
                             {fws.map((fw) => {
-                              const fwSelected = selectedFrameworks.some(f => f.canonicalId === fw.canonicalId);
-                              const disabled = !discSelected || (!fwSelected && fwAtCap);
+                              const selectedInThisDiscipline = selectedFrameworks.some(f => f.canonicalId === fw.canonicalId && f.discipline === disc);
+                              const selectedElsewhere = selectedFrameworks.some(f => f.canonicalId === fw.canonicalId && f.discipline !== disc);
+                              const fwSelected = selectedInThisDiscipline || selectedElsewhere;
+                              const disabled = !discSelected || selectedElsewhere || (!fwSelected && fwAtCap);
                               const truncDesc = fw.conceptualDescription.length > 140
                                 ? fw.conceptualDescription.slice(0, 137) + "..."
                                 : fw.conceptualDescription;
-                              return (
+                              const row = (
                                 <div
                                   key={fw.canonicalId}
-                                  className="flex items-center gap-2 py-1"
+                                  className={`flex items-center gap-2 py-1 ${selectedElsewhere ? "opacity-40" : ""}`}
                                   data-testid={`picker-fw-${fw.canonicalId}`}
                                 >
                                   <Checkbox
-                                    checked={fwSelected}
+                                    checked={selectedInThisDiscipline}
                                     disabled={disabled}
                                     onCheckedChange={() => toggleFramework(fw, disc)}
                                     data-testid={`checkbox-fw-${fw.canonicalId}`}
                                   />
-                                  <span className={`text-sm flex-1 ${disabled && !fwSelected ? "opacity-50" : ""}`}>
+                                  <span className={`text-sm flex-1 ${disabled && !selectedInThisDiscipline ? "opacity-50" : ""}`}>
                                     {fw.canonicalName}
                                   </span>
                                   <Tooltip>
@@ -721,6 +730,19 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                                   </Tooltip>
                                 </div>
                               );
+                              if (selectedElsewhere) {
+                                return (
+                                  <Tooltip key={fw.canonicalId}>
+                                    <TooltipTrigger asChild>
+                                      {row}
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-xs text-xs">
+                                      {t("canonicalCase.frameworkAlreadySelectedElsewhere")}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              }
+                              return row;
                             })}
 
                             {/* Other / Otro row */}
@@ -766,6 +788,12 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                     );
                   })}
                 </div>
+
+                {showValidation && selectedDisciplines.length === 0 && (
+                  <p className="text-xs text-destructive mt-1" data-testid="error-disciplines">
+                    {t("canonicalCase.validationDisciplineRequired")}
+                  </p>
+                )}
 
                 {selectedFrameworks.length >= MAX_FRAMEWORKS && (
                   <p className="text-xs text-muted-foreground mt-1" data-testid="text-frameworks-at-cap">
@@ -886,15 +914,21 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="course-context" className="text-sm font-semibold">
-                    {language === "en" ? "Course context (optional)" : "Contexto del curso (opcional)"}
+                    {language === "en" ? "Course context *" : "Contexto del curso *"}
                   </Label>
-                  <Input
+                  <Textarea
                     id="course-context"
                     value={courseContext}
                     onChange={(e) => setCourseContext(e.target.value)}
-                    placeholder={language === "en" ? "e.g., 2nd year MBA Strategy" : "ej.: Estrategia MBA 2do año"}
+                    placeholder={language === "en" ? "e.g., 2nd year MBA Strategy — students have covered basic financial analysis and market sizing." : "ej.: Estrategia MBA 2do año — los estudiantes han cubierto análisis financiero básico y dimensionamiento de mercado."}
+                    className="min-h-[60px]"
                     data-testid="input-course-context"
                   />
+                  {showValidation && courseContext.trim().length < 20 && (
+                    <p className="text-xs text-destructive mt-1" data-testid="error-course-context">
+                      {t("canonicalCase.validationCourseContextRequired")}
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="reasoning-constraint" className="text-sm font-semibold">
@@ -988,8 +1022,18 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 
             <div className="pt-4">
               <Button
-                onClick={() => generateMutation.mutate()}
-                disabled={!topic.trim() || !teachingGoal.trim() || selectedDisciplines.length === 0 || generateMutation.isPending}
+                onClick={() => {
+                  const valid = topic.trim().length > 0
+                    && teachingGoal.trim().length >= 20
+                    && selectedDisciplines.length > 0
+                    && courseContext.trim().length >= 20;
+                  if (!valid) {
+                    setShowValidation(true);
+                    return;
+                  }
+                  generateMutation.mutate();
+                }}
+                disabled={generateMutation.isPending}
                 className="w-full h-12 text-base"
                 data-testid="button-generate-draft"
               >

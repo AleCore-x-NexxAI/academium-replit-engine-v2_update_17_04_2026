@@ -1,0 +1,196 @@
+TASK B — Per-discipline framework descriptions, 5-dimension hover tooltips, reasoning-signals tab cleanup, §6.4/§6.5 completeness verification
+Context
+Two UX affordances are missing that directly shape how a professor trusts the tool. First, every framework in the registry has a single conceptualDescription_en/es field; the picker tooltip shows the same text whether SWOT appears under Strategy or under Marketing. Professors need discipline-specific explanations: SWOT-in-Marketing surfaces the brand/positioning angle, SWOT-in-Strategy surfaces the competitive-positioning angle. Second, the five academic dimensions in DecisionDimensionsEditor appear as unlabeled dropdown options — the professor can pick "analytical" without knowing what it means or how it affects the generated case. Third, testing log T-003B shows the reasoning-signals tab still renders "no specific evidence extracted" placeholder rows and has occasional language leakage on T1/MCQ turns. Fourth, §6.4 and §6.5 (mergeReflectionAnalytics coverage of new fields, signal extractor structured output with confidence + marginal evidence) must be verified and completed.
+Scope
+B1. Per-discipline framework descriptions (registry extension)
+Target file: server/agents/frameworkRegistry.ts.
+Extend the RegistryEntry interface (around line 10):
+tsexport interface RegistryEntry {
+  // ... existing fields ...
+  disciplines: string[];
+  disciplineDescriptions?: {
+    [discipline: string]: {
+      en: string;
+      es: string;
+    };
+  };
+}
+For every one of the 42 entries, populate disciplineDescriptions with a 1–2 sentence blurb per discipline the entry belongs to (per its disciplines[] array). Requirements:
+
+Every discipline in the entry's disciplines[] gets a matching key in disciplineDescriptions.
+Each description is 25–60 words, bilingual (en and es).
+Write discipline-specific lenses. Example for SWOT (disciplines: strategy, marketing):
+
+strategy.en: "In strategic analysis, SWOT frames internal Strengths and Weaknesses against external Opportunities and Threats to identify positioning gaps and competitive leverage points. Used to connect capability assessment with strategic choice."
+strategy.es: Spanish equivalent.
+marketing.en: "In marketing, SWOT is applied to a brand, segment, or campaign — mapping what the brand owns (Strengths), where it's exposed (Weaknesses), market openings (Opportunities), and competitive or consumer shifts (Threats)."
+marketing.es: Spanish equivalent.
+
+
+For every other framework, write equivalent discipline-specific blurbs. Do not copy-paste the generic conceptualDescription text. If you cannot write a meaningfully different discipline-specific blurb for a given framework (it really is the same lens regardless of discipline), write a shorter discipline-contextualized sentence that at least mentions the discipline by name (e.g., "In finance, NPV is used to...").
+
+After completion, run a sanity check: for every entry, every discipline in disciplines[] must have a non-empty en and es string in disciplineDescriptions. Fail the build if any are missing.
+Expose disciplineDescriptions in the resolver endpoint and the /api/frameworks/registry?language=en|es response. The registry response for each framework entry must include:
+json{
+  "canonicalId": "...",
+  "canonicalName": "...",
+  "disciplines": [...],
+  "disciplineDescriptions": {
+    "strategy": "In strategic analysis, SWOT...",   // flattened to requested language
+    "marketing": "In marketing, SWOT is applied..."
+  },
+  "conceptualDescription": "...",  // generic, kept as fallback
+  "coreConcepts": [...],
+  "recognitionSignals": [...]
+}
+B2. Picker tooltip renders discipline-specific description
+Target file: client/src/components/CanonicalCaseCreator.tsx, around the framework row rendering (currently line 690-723 — the <Tooltip> / <HelpCircle> block).
+
+Compute the description to show: const description = fw.disciplineDescriptions?.[disc] ?? fw.conceptualDescription;
+Replace truncDesc input (line 693-695) with the discipline-scoped description. Truncation logic stays.
+The <p> inside <TooltipContent> renders truncDesc. The second <p> with fw.coreConcepts.slice(0, 4).join(", ") stays (core concepts don't change by discipline).
+
+B3. 5-dimension hover tooltips in DecisionDimensionsEditor
+Target file: client/src/components/DecisionDimensionsEditor.tsx.
+Currently the primary dimension dropdown renders labels like "Analytical (C1)" without any explanation. Add a hover tooltip on each SelectItem (or next to each option) with the following content. Use the existing HelpIcon component style or the shadcn Tooltip. Bilingual, routed through translations.ts.
+Translation keys (new, under decisionDimensions.tooltip.*):
+
+analytical.en: "Analytical decisions require the student to reason from data or trace a causal chain. The generated prompt will contain at least one numeric data point or explicit cause-effect claim, and the focus cue will push the student to explain why."
+analytical.es: Spanish equivalent.
+strategic.en: "Strategic decisions require the student to prioritize across multiple defensible paths under a long-horizon lens. The generated prompt will present at least two viable strategies with distinct downstream consequences."
+strategic.es: Spanish equivalent.
+stakeholder.en: "Stakeholder decisions must affect at least two parties with distinct interests. The generated prompt names the parties and invites the student to weigh impact on at least one of them."
+stakeholder.es: Spanish equivalent.
+ethical.en: "Ethical decisions frame a tension between two legitimate goods — not villain vs. victim. The generated prompt states both sides defensibly, without moralizing."
+ethical.es: Spanish equivalent.
+tradeoff.en: "Tradeoff decisions name both a concrete cost and a concrete benefit pulling in opposite directions. The generated prompt states both explicitly in the visible text — no post-submission surprises."
+tradeoff.es: Spanish equivalent.
+
+Implementation:
+
+Next to the "Primary dimension *" Label (line 138), render a small <HelpCircle> icon with a Tooltip whose content changes based on the currently-selected primary dimension. When no dimension is selected, show a generic tooltip: "Each dimension shapes how the generated decision prompt is structured."
+Additionally, in the <SelectContent> (line 149-155), make each <SelectItem> display the full per-dimension tooltip on hover (or an inline info icon beside it). Use HoverCard from shadcn if a tooltip-inside-a-select conflicts with portal behavior.
+The existing help text at line 113-117 (Primary/Secondary explanation) stays. The new tooltips are additive.
+Toggle language: tooltips must render in the current language. No English leakage when toggled to Spanish.
+
+B4. Reasoning-signals tab — never render "no evidence extracted" placeholders
+Target files:
+
+server/routes.ts, endpoint GET /api/sessions/:sessionId/reasoning-signals (currently around line 5087).
+Whatever client component renders the reasoning-signals tab (likely in ScenarioDashboard.tsx).
+
+Behavior changes:
+
+In the server endpoint, when assembling rows: if sig.extracted_text is empty, whitespace-only, or matches any of these literal values (case-insensitive, trimmed):
+
+"no specific evidence extracted"
+"no se extrajo evidencia específica"
+"no evidence"
+"sin evidencia"
+"(no evidence collected)"
+"(sin evidencia recopilada)"
+
+...then omit the row entirely from the response. Do not render a placeholder. The response contract becomes: reasoning-signals rows are present only when they represent actual student evidence.
+If sig.extracted_text is present and substantive (more than 3 non-whitespace characters), use it verbatim. Do NOT translate the student's quote server-side — the student wrote what they wrote; the quote renders in their original language. Labels surrounding the quote (signal name, quality tier) follow scenario.language via existing i18n.
+For MCQ turns (where decisionPoint.format === "multiple_choice"), the reasoning-signals row uses the option text the student picked plus the option's tradeoffSignature.cost/benefit summary (if present). Render the row as: {signal_label}: "{option_text}". Do not run free-response evidence extraction on MCQ turns and do not render "no specific evidence extracted."
+
+Client-side change (reasoning-signals tab rendering): if the endpoint returns zero rows for a turn, render a single small italic line: EN "No student text was recorded for this turn (MCQ turn or blank response)." / ES equivalent. Do not render a broken table.
+B5. §6.4 — mergeReflectionAnalytics covers new fields
+Target file: server/routes.ts around line 24 (per packet reference).
+Verify that mergeReflectionAnalytics copies:
+
+framework_detections entries including: level, confidence, detection_method, reasoning, canonicalId, evidence.
+dashboard_summary with the new shape including framework_summary[].explicit_turns, .implicit_turns, .not_evidenced_turns, .canonicalId, .framework_name, .provenance, .detection_method_distribution.
+Any consistency-promoted detections (those with detection_method === "consistency_promoted").
+
+If any field is dropped during merge, fix it. Add a unit test under server/__tests__/mergeReflectionAnalytics.test.ts that creates a reflection state with every new field populated, merges it against an empty base, and asserts all fields survive. Test must run under npm test.
+B6. §6.5 — Signal extractor structured output
+Target file: server/agents/signalExtractor.ts.
+The packet requires the signal extractor to return, per signal, both quality + extracted_text (current) AND confidence + marginalEvidence (new).
+Audit: grep for the return shape. If the extractor already returns confidence and marginalEvidence (e.g., the T-003B fix added them), do nothing. If either is missing:
+
+Extend the return interface SignalExtractionResult (or the per-signal shape) with:
+
+ts  confidence: "high" | "medium" | "low";
+  marginalEvidence?: string[];  // Specific tokens or phrases that drove the quality assignment, used by frameworkConsistency.ts
+
+Populate these from the LLM's response. Extend the LLM prompt to request both: per signal, return {quality, extracted_text, confidence, marginal_evidence: [...] }.
+frameworkConsistency.ts already uses quality — no change needed there. But ensure the new confidence field is exposed to the /api/sessions/:sessionId/reasoning-signals endpoint so the client can surface it later (just propagate, do not render yet).
+
+B7. §3.3 analytics language leakage — reasoning-signals tab
+The commit 31beea9 fixed language consistency for professor dashboard analytics generally, but T-003B still logs mixed-language artifacts in reasoning-signals. Root cause: the extractor can produce extracted_text in Spanish when scenario language is English (legitimate — student wrote in Spanish), AND some server-side labels are hardcoded in ES.
+After B4 is in (no server-side translation of student quotes), audit the reasoning-signals endpoint and the client tab for ANY hardcoded Spanish-only or English-only strings in labels, column headers, or default messages. Route every one through translations.ts under reasoningSignals.* keys. The acceptance test: toggle UI to EN → every label in the reasoning-signals tab is in English. Toggle to ES → every label in Spanish. Student quotes inside the rows render in whatever language the student wrote, regardless of toggle.
+Preserve
+
+All of TASK A's changes.
+Registry disciplines: string[] arrays on every entry (populated in commit 060df97).
+The existing conceptualDescription_en/es / coreConcepts / recognitionSignals fields on each entry (they remain as fallbacks).
+dashboardCache TTL at 5 * 60 * 1000.
+No .github/workflows/.
+Porter regression fail-loud.
+All UI labels that already route through translations.ts.
+
+Acceptance gate
+
+Per-discipline descriptions populated
+
+Add a test script scripts/validate-registry.ts that iterates FRAMEWORK_REGISTRY and asserts: for every entry, for every discipline in disciplines[], disciplineDescriptions[discipline].en and .es both exist and are non-empty strings at least 25 characters long. Run it: npx tsx scripts/validate-registry.ts. Exit code 0.
+
+
+Picker tooltip differs by discipline
+
+Open the wizard. Select Strategy + Marketing. Expand Strategy. Hover SWOT's help icon. Capture tooltip text.
+Expand Marketing. Hover SWOT's help icon. Capture tooltip text.
+The two texts differ substantively (not just whitespace). Screenshot both.
+
+
+Dimension tooltips
+
+Open the scenario editor / wizard. Open the dimensions editor. Click "Add dimension". The "Primary dimension" dropdown is visible. Hover the help icon next to the label → generic tooltip appears. Select "Analytical (C1)". The tooltip updates to the analytical explanation above. Test all 5 dimensions.
+Toggle language to Spanish. Re-test: all tooltips render in Spanish, no English leakage.
+
+
+Reasoning-signals: no placeholder rows
+
+Run a student session where one turn is MCQ (should be T1 by default in 3-decision cases) and another turn is a very short written response (< 10 words).
+Open the reasoning-signals tab for that session.
+Verify: no row contains "no specific evidence extracted" or Spanish equivalent. MCQ turn either shows the option-text row or nothing (as designed). Short-response turn shows rows only where extracted_text is substantive.
+
+
+Reasoning-signals: student quote not server-translated
+
+Run a student session in an English scenario with a student who writes in Spanish ("Quiero enfocarme en el nicho"). Open the reasoning-signals tab. Row extracted_text renders verbatim in Spanish. Label "Justification quality" / whatever is in English.
+Toggle the tab to Spanish (if a toggle exists) → labels switch to Spanish, quote still in Spanish (unchanged).
+
+
+§6.4 mergeReflectionAnalytics test
+
+npm test -- mergeReflectionAnalytics passes. Test covers every new field.
+
+
+§6.5 Signal extractor output
+
+Inspect the response from a real signal extraction (e.g., via a debug route or log). Each signal has quality, extracted_text, confidence, marginalEvidence (the last may be an empty array for weak signals — just not absent).
+
+
+Language leakage audit
+
+Grep the reasoning-signals endpoint and client tab for hardcoded Spanish OR English strings. Every user-visible label is either (a) from translations.ts, or (b) the student's verbatim text. Report any exception.
+
+
+Regression
+
+Porter 3-case regression passes.
+npx tsx scripts/validate-manifest.ts passes.
+No UI regression in the wizard (TASK A behavior still works).
+
+
+
+Report
+
+Diff stats per file.
+Paste of scripts/validate-registry.ts output.
+Two screenshots of the picker tooltip (SWOT under Strategy vs. Marketing).
+Screenshots of the 5 dimension tooltips (EN + ES).
+Output of the reasoning-signals endpoint for one MCQ turn and one short-response turn.
+Confirmation all gate items pass.

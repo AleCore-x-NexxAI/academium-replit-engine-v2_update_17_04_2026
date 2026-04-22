@@ -698,19 +698,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         if (!isInferred) return true;
         return fw.accepted_by_professor === true;
       });
-      const language: "es" | "en" = fresh.language === "en" ? "en" : "es";
-      const { inferFrameworks } = await import("./agents/frameworkInference");
-      const suggestions = await inferFrameworks(
-        {
-          topic: fresh.title,
-          domain: fresh.domain,
-          caseContext: initialState.caseContext ?? initialState.situationBackground ?? "",
-        },
-        intent,
-        kept,
-        language,
-      );
-      const merged = [...kept, ...suggestions];
+      // §7 skipped per decision 2026-04-22: professors explicitly choose frameworks; no auto-inference.
+      const merged = [...kept];
       // Skip the write if the framework array is unchanged (same length and
       // same canonical/temp ids in order) to avoid no-op DB writes.
       const sameAsBefore =
@@ -2002,6 +1991,20 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       }
 
       const { topic, additionalContext, tradeoffFocus, customTradeoff, stepCount, language: caseLang, pedagogicalIntent } = parseResult.data;
+
+      const fieldErrors: Record<string, string> = {};
+      if (!pedagogicalIntent.teachingGoal || pedagogicalIntent.teachingGoal.trim().length < 20) {
+        fieldErrors.teachingGoal = "canonicalCase.validation.teachingGoalRequired";
+      }
+      if (!pedagogicalIntent.targetDisciplines || pedagogicalIntent.targetDisciplines.length === 0) {
+        fieldErrors.targetDisciplines = "canonicalCase.validation.disciplineRequired";
+      }
+      if (!pedagogicalIntent.courseContext || pedagogicalIntent.courseContext.trim().length < 20) {
+        fieldErrors.courseContext = "canonicalCase.validation.courseContextRequired";
+      }
+      if (Object.keys(fieldErrors).length > 0) {
+        return res.status(400).json({ message: "Validation failed", errors: fieldErrors });
+      }
 
       const tradeoffParts: string[] = [];
       if (tradeoffFocus && tradeoffFocus.length > 0) {

@@ -28,9 +28,23 @@ const PROHIBITED_PATTERNS = [
   /\bsurprisingly\b/i,
   /\bsorprendentemente\b/i,
   /!/,
+  /\bimpressive\b/i,
+  /\bimpresionante\b/i,
+  /\bremarkable\b/i,
+  /\bnotable\b/i,
+  /\bsophisticated\b/i,
+  /\bsofisticad[oa]\b/i,
+  /\bthoughtful\b/i,
+  /\breflexiv[oa]\b/i,
+  /\bthorough\b/i,
+  /\bexhaustiv[oa]\b/i,
+  /\bnuanced\b/i,
+  /\bmatizad[oa]\b/i,
+  /\bdeep\b(?=\s+(analysis|reasoning|understanding|thinking|insight))/i,
+  /\bprofund[oa]\b(?=\s+(análisis|razonamiento|comprensión|pensamiento))/i,
 ];
 
-function scanProhibitedLanguage(text: string): string[] {
+export function scanProhibitedLanguage(text: string): string[] {
   const violations: string[] = [];
   for (const pattern of PROHIBITED_PATTERNS) {
     if (pattern.test(text)) {
