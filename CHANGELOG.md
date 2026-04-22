@@ -10,6 +10,43 @@ All notable changes to Academium are documented here. Sections refer to
   the UI per Section 14.10's 12 acceptance criteria. Once the run is
   archived, this section is replaced by `## [v3.0-milestone] — YYYY-MM-DD`.
 
+### Fixed — T-002A: semantic framework detection reliability (Task #80)
+- `server/agents/frameworkDetector.ts` — three targeted fixes:
+  - **Substring normalisation guard**: anti-hallucination quote check now compares
+    both sides after NFKC, lowercase, smart-quote fold, dash fold, whitespace
+    collapse and leading/trailing punctuation strip.  Valid LLM quotes that differ
+    only by capitalisation, smart quotes or trailing punctuation are no longer
+    incorrectly rejected as hallucinations.
+  - **Registry hydration**: before building the semantic prompt, any framework
+    missing `conceptualDescription` or `recognitionSignals` is hydrated from
+    `getRegistryEntryById(canonicalId)`.  Frameworks with no rubric in either
+    source skip the semantic tier and emit a structured `console.warn` (no silent
+    `not_evidenced` anymore).
+  - **Tier-1 keyword tightening**: only multi-word domain keywords now qualify as
+    explicit Tier-1 triggers; single-word generic terms (`focus`, `positioning`,
+    `niche`, etc.) are reserved for the Tier-3 signal-pattern fallback so they no
+    longer pre-empt the semantic tier on vague matches.  Framework name and aliases
+    remain Tier-1 triggers.  The sync backfill path mirrors this tightening.
+  - **Observable failures**: JSON parse errors, empty `verdicts` arrays, and
+    per-framework missing verdicts now emit a single structured `console.warn` per
+    event (framework name + reason) instead of silently returning `not_evidenced`.
+- `server/routes.ts` — new endpoint
+  `POST /api/admin/scenarios/:scenarioId/redetect-frameworks` (professor + admin
+  auth).  Uses the full async `detectFrameworks` path (Tier 1 + Tier 2 semantic +
+  Tier 3) to rewrite `framework_detections` in `simulation_sessions.currentState`
+  for all completed sessions.  Accepts `?sessionId=` to scope to one session and
+  `?force=true` to reprocess sessions that already have detections.  Invalidates
+  the dashboard cache on completion.
+- `server/__tests__/frameworkDetection.regression.test.ts` — three T-002A
+  regression cases added:
+  - **(d)** normalisation guard: LLM-style smart-quoted / recapitalised quote must
+    not trigger the hallucination rejection path.
+  - **(e)** registry hydration: a `CaseFramework` with no `conceptualDescription`
+    / `recognitionSignals` but a valid `canonicalId` must hydrate from the registry
+    and still have the semantic tier fire.
+  - **(f)** no-rubric skip: a framework with no rubric and no `canonicalId` must
+    not crash; it falls through to `not_evidenced` with a structured warning.
+
 ### Added — Section 14 verification scaffolding (Task #69)
 - `server/__tests__/frameworkDetection.regression.test.ts` — Section 14.2
   Porter regression suite. Three live-LLM cases:

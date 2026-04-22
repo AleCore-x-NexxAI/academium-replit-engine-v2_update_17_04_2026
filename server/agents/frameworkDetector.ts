@@ -1,6 +1,7 @@
 import type { CaseFramework, FrameworkDetection } from "@shared/schema";
 import type { SignalExtractionResult } from "./types";
 import { generateChatCompletion } from "../openai";
+import { getRegistryEntryById } from "./frameworkRegistry";
 
 const MIN_QUALITY_MAP: Record<string, number> = { WEAK: 1, PRESENT: 2, STRONG: 3 };
 
@@ -21,6 +22,84 @@ function sanitizeExplanation(text: string, language: "es" | "en"): string {
   return out.replace(/\s{2,}/g, " ").trim();
 }
 
+/**
+ * Exported for unit testing only — not part of the public API.
+ * Normalize a string for loose substring matching.
+ * Applies NFKC, lowercase, smart-quote folding, dash folding, whitespace
+ * collapse, and leading/trailing punctuation strip so that LLM-normalised
+ * quotes (different capitalisation, smart quotes, collapsed whitespace, trailing
+ * period) still satisfy the anti-hallucination guard.
+ */
+export function normalizeForMatch(s: string): string {
+  return s
+    .normalize("NFKC")
+    .toLowerCase()
+    // Fold smart/curly single quotes to ASCII apostrophe
+    .replace(/[\u2018\u2019\u201a\u201b\u2032\u2035\u02bc]/g, "'")
+    // Fold smart/curly double quotes to ASCII quote
+    .replace(/[\u201c\u201d\u201e\u201f\u2033\u2036]/g, '"')
+    // Fold em/en dashes and horizontal bar to ASCII hyphen
+    .replace(/[\u2013\u2014\u2015\u2212]/g, "-")
+    // Collapse whitespace (tabs, newlines, multiple spaces)
+    .replace(/\s+/g, " ")
+    // Strip leading and trailing sentence-ending punctuation only.
+    // We target periods, commas, semicolons, colons, and ellipsis characters —
+    // NOT quotes or apostrophes, which may be meaningful parts of the text and
+    // are folded identically on both sides of the comparison anyway.
+    .replace(/^[\s.,;:!?\u2026]+/, "")
+    .replace(/[\s.,;:!?\u2026]+$/, "")
+    .trim();
+}
+
+/**
+ * Return true when `quote` is found inside `input` using normalised comparison.
+ * Rejects empty quotes (hallucination guard still intact — just tolerates
+ * normal LLM typographic variation).
+ */
+function normalizedIncludes(input: string, quote: string): boolean {
+  if (!quote) return false;
+  const normInput = normalizeForMatch(input);
+  const normQuote = normalizeForMatch(quote);
+  if (!normQuote) return false;
+  return normInput.includes(normQuote);
+}
+
+/**
+ * Hydrate a CaseFramework's rubric fields from the canonical registry when the
+ * case record is missing them.  Returns a new object (never mutates the
+ * original); returns the original unchanged when nothing needs hydrating.
+ */
+function hydrateFromRegistry(fw: CaseFramework, language: "es" | "en"): CaseFramework {
+  const hasDesc = !!fw.conceptualDescription?.trim();
+  const hasSignals = !!(fw.recognitionSignals && fw.recognitionSignals.length > 0);
+  if (hasDesc && hasSignals) return fw;
+  if (!fw.canonicalId) return fw;
+
+  const entry = getRegistryEntryById(fw.canonicalId);
+  if (!entry) return fw;
+
+  const isEn = language === "en";
+  return {
+    ...fw,
+    conceptualDescription: hasDesc
+      ? fw.conceptualDescription
+      : (isEn ? entry.conceptualDescription_en : entry.conceptualDescription_es),
+    recognitionSignals: hasSignals
+      ? fw.recognitionSignals
+      : (isEn ? entry.recognitionSignals_en : entry.recognitionSignals_es),
+  };
+}
+
+/**
+ * A keyword is a Tier-1 trigger only if it is multi-word (contains a space).
+ * Single-word terms like "focus", "strategy", "niche" are too generic and would
+ * short-circuit the semantic tier, producing false positives.  They are still
+ * used in the Tier-3 signal-pattern fallback via additionalKeywords / domainKeywords.
+ */
+function isTier1Keyword(kw: string): boolean {
+  return kw.trim().includes(" ");
+}
+
 interface SemanticVerdict {
   framework_id: string;
   applied: boolean;
@@ -33,6 +112,10 @@ interface SemanticVerdict {
  * Phase 2 (§4.4): batched semantic check across tracked frameworks.
  * One gpt-4o-mini call per turn covering all candidates. JSON output, ≤256 tokens
  * per framework slot kept low so total stays inside the 1.5s latency budget.
+ *
+ * Frameworks without a usable rubric (no conceptualDescription and no
+ * recognitionSignals after registry hydration) are excluded from the LLM call
+ * and logged so the gap is visible.
  */
 async function semanticFrameworkCheck(
   studentInput: string,
@@ -41,8 +124,30 @@ async function semanticFrameworkCheck(
 ): Promise<SemanticVerdict[]> {
   if (frameworks.length === 0) return [];
 
+  // Partition into usable (has rubric) and unusable (no rubric after hydration).
+  const usable: CaseFramework[] = [];
+  const noRubric: CaseFramework[] = [];
+  for (const fw of frameworks) {
+    const hasDesc = !!fw.conceptualDescription?.trim();
+    const hasSignals = !!(fw.recognitionSignals && fw.recognitionSignals.length > 0);
+    if (hasDesc || hasSignals) {
+      usable.push(fw);
+    } else {
+      noRubric.push(fw);
+    }
+  }
+
+  if (noRubric.length > 0) {
+    const names = noRubric.map((fw) => `${fw.name}(${fw.canonicalId ?? fw.id})`).join(", ");
+    console.warn(
+      `[semanticFrameworkCheck] Skipping semantic tier for ${noRubric.length} framework(s) with no rubric: ${names}`,
+    );
+  }
+
+  if (usable.length === 0) return [];
+
   const isEn = language === "en";
-  const list = frameworks
+  const list = usable
     .map((fw, i) => {
       const desc = fw.conceptualDescription?.trim() || (isEn
         ? `A framework called "${fw.name}".`
@@ -76,7 +181,7 @@ Reglas:
     ? `Student input:\n"""${studentInput}"""\n\nFrameworks to evaluate:\n${list}\n\nReturn JSON: {"verdicts":[{"framework_id":"...","applied":true|false,"confidence":"high|medium|low","quotedReasoning":"...","explanation":"..."}]}`
     : `Input del estudiante:\n"""${studentInput}"""\n\nMarcos a evaluar:\n${list}\n\nDevuelve JSON: {"verdicts":[{"framework_id":"...","applied":true|false,"confidence":"high|medium|low","quotedReasoning":"...","explanation":"..."}]}`;
 
-  const maxTokens = Math.min(1024, 128 + frameworks.length * 96);
+  const maxTokens = Math.min(1024, 128 + usable.length * 96);
 
   let parsed: any;
   try {
@@ -89,16 +194,21 @@ Reglas:
     );
     parsed = JSON.parse(response);
   } catch (err) {
-    console.error("[semanticFrameworkCheck] LLM call failed:", err);
+    const names = usable.map((fw) => fw.name).join(", ");
+    console.warn(`[semanticFrameworkCheck] LLM call or JSON parse failed for [${names}]: ${err}`);
+    return [];
+  }
+
+  if (!Array.isArray(parsed?.verdicts) || parsed.verdicts.length === 0) {
+    const names = usable.map((fw) => fw.name).join(", ");
+    console.warn(`[semanticFrameworkCheck] Empty or missing verdicts array for [${names}]`);
     return [];
   }
 
   const verdicts: SemanticVerdict[] = [];
-  if (!Array.isArray(parsed?.verdicts)) return [];
-
   for (const v of parsed.verdicts) {
     if (!v || typeof v.framework_id !== "string") continue;
-    const fw = frameworks.find((f) => f.id === v.framework_id);
+    const fw = usable.find((f) => f.id === v.framework_id);
     if (!fw) continue;
 
     const applied = v.applied === true;
@@ -107,13 +217,15 @@ Reglas:
     let quoted = typeof v.quotedReasoning === "string" ? v.quotedReasoning.trim() : "";
     const explanation = sanitizeExplanation(typeof v.explanation === "string" ? v.explanation : "", language);
 
-    // Substring assertion: reject the verdict if the quote is not an exact
-    // substring of the student input. Per packet §4.4 this is a hard guard
-    // against hallucinated quotes.
+    // Anti-hallucination guard: reject the verdict if the (normalised) quote is
+    // not found in the (normalised) student input.  We normalise both sides so
+    // that smart quotes, capitalisation differences, collapsed whitespace, and
+    // trailing punctuation introduced by the LLM do not discard valid verdicts.
     if (applied) {
-      // Strict, verbatim, case-sensitive substring assertion (packet hard rule).
-      if (!quoted || !studentInput.includes(quoted)) {
-        console.warn(`[semanticFrameworkCheck] Rejecting verdict for ${fw.name}: quotedReasoning is not a substring of student input.`);
+      if (!normalizedIncludes(studentInput, quoted)) {
+        console.warn(
+          `[semanticFrameworkCheck] Rejecting verdict for ${fw.name}: quotedReasoning not found in student input (even after normalisation). quote="${quoted.substring(0, 60)}"`,
+        );
         verdicts.push({
           framework_id: fw.id,
           applied: false,
@@ -128,13 +240,25 @@ Reglas:
     verdicts.push({ framework_id: fw.id, applied, confidence, quotedReasoning: quoted, explanation });
   }
 
+  // Warn for any usable framework that got no verdict back from the LLM.
+  for (const fw of usable) {
+    if (!verdicts.find((v) => v.framework_id === fw.id)) {
+      console.warn(
+        `[semanticFrameworkCheck] No verdict returned by LLM for ${fw.name}(${fw.id}). Treating as not applied.`,
+      );
+    }
+  }
+
   return verdicts;
 }
 
 /**
  * Phase 2 detection. Three tiers, in order:
- *   (a) explicit-keyword (regex, confidence high)
- *   (b) semantic LLM check using framework.conceptualDescription
+ *   (a) explicit-keyword (regex, confidence high) — only multi-word keywords
+ *       and the framework name/aliases fire here; single-word generic terms
+ *       are reserved for the Tier-3 signal-pattern fallback.
+ *   (b) semantic LLM check using framework.conceptualDescription and
+ *       recognitionSignals, hydrated from the canonical registry when missing.
  *   (c) signal-pattern fallback (confidence low)
  *
  * Frameworks with `accepted_by_professor === false` are excluded entirely.
@@ -163,18 +287,29 @@ export async function detectFrameworks(
   }
   if (eligible.length === 0) return [];
 
-  const inputLower = studentInput.toLowerCase();
   const detections: FrameworkDetection[] = [];
   const needsSemantic: CaseFramework[] = [];
 
-  // Tier 1: explicit keyword/name match.
+  // Tier 1: explicit keyword/name/alias match.
+  // Only multi-word domain keywords qualify as Tier-1 triggers; single-word
+  // terms are too generic and would pre-empt the semantic tier.
   for (const fw of eligible) {
-    const keywordMatch = fw.domainKeywords.find((kw) =>
+    // Multi-word domain keywords only in Tier 1.
+    const tier1Keywords = fw.domainKeywords.filter(isTier1Keyword);
+    const keywordMatch = tier1Keywords.find((kw) =>
       new RegExp(`\\b${escapeRegex(kw)}\\b`, "i").test(studentInput),
     );
+    // Name match is always Tier 1.
     const nameMatch = new RegExp(`\\b${escapeRegex(fw.name)}\\b`, "i").test(studentInput);
-    if (nameMatch || keywordMatch) {
-      const matchedTerm = nameMatch ? fw.name : (keywordMatch || fw.name);
+    // Alias match is Tier 1 for multi-word aliases (single-word aliases like
+    // "rbv" are distinctive enough but let them through too since they're
+    // canonical identifiers, not generic vocabulary).
+    const aliasMatch = (fw.aliases || []).find((alias) =>
+      new RegExp(`\\b${escapeRegex(alias)}\\b`, "i").test(studentInput),
+    );
+
+    if (nameMatch || keywordMatch || aliasMatch) {
+      const matchedTerm = nameMatch ? fw.name : (keywordMatch || aliasMatch || fw.name);
       const snippet = extractSnippet(studentInput, matchedTerm);
       detections.push({
         framework_id: fw.id,
@@ -196,11 +331,16 @@ export async function detectFrameworks(
   }
 
   // Tier 2: batched semantic check for the remainder.
+  // Hydrate rubric from the canonical registry for any framework that is
+  // missing conceptualDescription or recognitionSignals.
   let semantic: SemanticVerdict[] = [];
   if (needsSemantic.length > 0) {
-    semantic = await semanticFrameworkCheck(studentInput, needsSemantic, language);
+    const hydrated = needsSemantic.map((fw) => hydrateFromRegistry(fw, language));
+    semantic = await semanticFrameworkCheck(studentInput, hydrated, language);
   }
   const semanticById = new Map(semantic.map((v) => [v.framework_id, v]));
+
+  const inputLower = studentInput.toLowerCase();
 
   for (const fw of needsSemantic) {
     const v = semanticById.get(fw.id);
@@ -223,6 +363,7 @@ export async function detectFrameworks(
     }
 
     // Tier 3: signal-pattern fallback (only when semantic didn't fire).
+    // Uses all domainKeywords (including single-word) in the keyword check.
     if (fw.signalPattern) {
       const minQ = MIN_QUALITY_MAP[fw.signalPattern.minQuality] ?? 2;
       const signalMap: Record<string, number> = {
@@ -235,6 +376,7 @@ export async function detectFrameworks(
       const allMet = fw.signalPattern.requiredSignals.every((sig) => (signalMap[sig] ?? 0) >= minQ);
       const additionalKws = fw.signalPattern.additionalKeywords || [];
       const hasAdditional = additionalKws.some((kw) => inputLower.includes(kw.toLowerCase()));
+      // In Tier 3, all domainKeywords (including single-word) are fair game.
       if (allMet && (hasAdditional || fw.domainKeywords.some((kw) => inputLower.includes(kw.toLowerCase())))) {
         const sigList = fw.signalPattern.requiredSignals.join(", ");
         detections.push({
@@ -247,8 +389,8 @@ export async function detectFrameworks(
           confidence: "low",
           detection_method: "signal_pattern",
           reasoning: language === "en"
-            ? `Signal-pattern fallback: required signals ${sigList} met at quality ≥ ${fw.signalPattern.minQuality}.`
-            : `Fallback de patrón de señales: señales requeridas ${sigList} cumplidas con calidad ≥ ${fw.signalPattern.minQuality}.`,
+            ? `Signal-pattern fallback (Tier 3): required signals ${sigList} met at quality ≥ ${fw.signalPattern.minQuality}.`
+            : `Fallback de patrón de señales (Tier 3): señales requeridas ${sigList} cumplidas con calidad ≥ ${fw.signalPattern.minQuality}.`,
           canonicalId: fw.canonicalId || fw.id,
         });
         continue;
@@ -279,7 +421,10 @@ export async function detectFrameworks(
 
 /**
  * Synchronous variant for offline backfill paths that cannot await an LLM
- * (admin /backfill-analysis endpoint). Falls back to keyword + signal-pattern.
+ * (admin /backfill-analysis endpoint). Falls back to keyword + signal-pattern only;
+ * the semantic LLM tier does NOT run here.  Uses the same Tier-1 multi-word-keyword
+ * tightening and alias matching as the async version.  Registry hydration is not
+ * applied because there is no semantic call to feed the rubric into.
  */
 export function detectFrameworksSync(
   studentInput: string,
@@ -292,12 +437,18 @@ export function detectFrameworksSync(
   const inputLower = studentInput.toLowerCase();
 
   return eligible.map((fw): FrameworkDetection => {
-    const keywordMatch = fw.domainKeywords.find((kw) =>
+    // Tier 1: multi-word keywords, name, and aliases.
+    const tier1Keywords = fw.domainKeywords.filter(isTier1Keyword);
+    const keywordMatch = tier1Keywords.find((kw) =>
       new RegExp(`\\b${escapeRegex(kw)}\\b`, "i").test(studentInput),
     );
     const nameMatch = new RegExp(`\\b${escapeRegex(fw.name)}\\b`, "i").test(studentInput);
-    if (nameMatch || keywordMatch) {
-      const matchedTerm = nameMatch ? fw.name : (keywordMatch || fw.name);
+    const aliasMatch = (fw.aliases || []).find((alias) =>
+      new RegExp(`\\b${escapeRegex(alias)}\\b`, "i").test(studentInput),
+    );
+
+    if (nameMatch || keywordMatch || aliasMatch) {
+      const matchedTerm = nameMatch ? fw.name : (keywordMatch || aliasMatch || fw.name);
       const snippet = extractSnippet(studentInput, matchedTerm);
       return {
         framework_id: fw.id,
@@ -314,6 +465,7 @@ export function detectFrameworksSync(
         canonicalId: fw.canonicalId || fw.id,
       };
     }
+    // Tier 3 only (no semantic in sync path): all domainKeywords allowed.
     if (fw.signalPattern) {
       const minQ = MIN_QUALITY_MAP[fw.signalPattern.minQuality] ?? 2;
       const sm: Record<string, number> = {

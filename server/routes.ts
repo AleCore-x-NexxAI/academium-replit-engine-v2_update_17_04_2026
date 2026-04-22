@@ -4142,6 +4142,124 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
     }
   });
 
+  /**
+   * POST /api/admin/scenarios/:scenarioId/redetect-frameworks
+   *
+   * Async (full-semantic) re-detection routine for sessions whose stored
+   * framework verdicts may be stale (e.g. `not_evidenced` on every turn despite
+   * clear signal extractor hits).  Replaces `framework_detections` in
+   * `simulation_sessions.currentState` for all completed sessions in the
+   * scenario.  Uses the real async `detectFrameworks` path (Tier 1 + Tier 2
+   * semantic + Tier 3 signal-pattern), unlike the sync backfill endpoint.
+   *
+   * Query params:
+   *   - sessionId (optional) — restrict to a single session.
+   *   - force=true           — reprocess even sessions that already have detections.
+   */
+  app.post("/api/admin/scenarios/:scenarioId/redetect-frameworks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      if (!user || (user.role !== "admin" && user.role !== "professor")) {
+        return res.status(403).json({ message: "Admin or professor access required" });
+      }
+
+      const { scenarioId } = req.params;
+      const scenario = await storage.getScenario(scenarioId);
+      if (!scenario) return res.status(404).json({ message: "Scenario not found" });
+      if (scenario.authorId !== userId && user.role !== "admin") {
+        return res.status(403).json({ message: "Not authorized for this scenario" });
+      }
+
+      const forceParam = req.query.force === "true";
+      const filterSessionId = req.query.sessionId as string | undefined;
+
+      const initialState = scenario.initialState as any;
+      const language: "es" | "en" = initialState?.language || (scenario as any).language || "es";
+      const frameworks: CaseFramework[] = initialState?.frameworks || [];
+
+      if (frameworks.length === 0) {
+        return res.json({ processedSessions: 0, processedTurns: 0, errors: 0, skipped: 0, message: "No frameworks on this scenario" });
+      }
+
+      const sessionsData = await getSessionsWithTurns(scenarioId);
+      const completed = sessionsData.filter(
+        (s) => s.session.status === "completed" && (!filterSessionId || s.session.id === filterSessionId),
+      );
+
+      const { detectFrameworks: detectFw } = await import("./agents/frameworkDetector");
+      const { checkConsistency } = await import("./agents/frameworkConsistency");
+
+      let processedSessions = 0, processedTurns = 0, errors = 0, skipped = 0;
+
+      for (const s of completed) {
+        const existingState = (s.session.currentState as any) || {};
+        const existingFwDets: any[][] = existingState.framework_detections || [];
+
+        if (!forceParam && existingFwDets.length >= s.turns.length && existingFwDets.length > 0) {
+          skipped++;
+          continue;
+        }
+
+        const newFwDets: any[][] = [];
+        let sessionAborted = false;
+
+        for (const turn of s.turns) {
+          try {
+            const agentResp: any = turn.agentResponse || {};
+            const updatedState = agentResp.updatedState || {};
+            const lastLog = updatedState.decisionEvidenceLogs?.[updatedState.decisionEvidenceLogs.length - 1];
+            const signalsDetected = lastLog?.signals_detected;
+            const isMcq = lastLog?.isMcq === true;
+
+            if (!signalsDetected) {
+              console.warn(`[RedetectFw] Session ${s.session.id} turn ${turn.turnNumber}: no signals, using empty detections`);
+              newFwDets.push([]);
+              continue;
+            }
+
+            if (isMcq || !turn.studentInput) {
+              newFwDets.push([]);
+              continue;
+            }
+
+            const rawDets = await detectFw(turn.studentInput, signalsDetected, frameworks, language);
+            const { detections: fwDets } = checkConsistency(
+              signalsDetected,
+              rawDets,
+              frameworks,
+              (scenario as any).pedagogicalIntent ?? undefined,
+            );
+            newFwDets.push(fwDets);
+            processedTurns++;
+          } catch (err) {
+            console.error(`[RedetectFw] Failed turn ${turn.turnNumber} session ${s.session.id}:`, err);
+            sessionAborted = true;
+            errors++;
+            break;
+          }
+        }
+
+        if (sessionAborted) continue;
+
+        const mergedState = {
+          ...existingState,
+          framework_detections: newFwDets,
+        };
+
+        await storage.updateSimulationSession(s.session.id, { currentState: mergedState });
+        processedSessions++;
+      }
+
+      invalidateDashboardCache(scenarioId);
+
+      res.json({ processedSessions, processedTurns, errors, skipped, totalCompleted: completed.length });
+    } catch (error) {
+      console.error("[RedetectFw] Fatal error:", error);
+      res.status(500).json({ message: "Re-detection failed", error: String(error) });
+    }
+  });
+
   app.post("/api/scenarios/:scenarioId/class-stats", isAuthenticated, async (req: any, res) => {
     try {
       const { scenarioId } = req.params;
