@@ -49,11 +49,13 @@ function determineTurnPosition(context: AgentContext): TurnPosition {
 }
 
 /**
- * Phase 1b: word-range scaled to the student's response length.
- * Per-band ceilings preserved (160/130/100); upper bound = studentWords*4
- * clamped at the band ceiling so a 12-word answer cannot demand >48 words.
- * Lower bound preserves the original floor but never exceeds the new max
- * (so the band is always feasible).
+ * T-002: word-range scaled to the student's response length.
+ * Per-band ceilings preserved (160/130/100); upper bound = studentWords*2.5
+ * clamped at the band ceiling so a 12-word answer cannot demand >30 words.
+ * Lower bound comes purely from the scaled max (×0.6) — the band's base floor
+ * is NOT preserved for short inputs so brief answers produce brief consequences.
+ * The base floor only kicks in once the student writes enough words that the
+ * scaled max would naturally exceed it.
  */
 function getRDSWordRange(
   rdsBand: RDSBand | undefined,
@@ -67,9 +69,19 @@ function getRDSWordRange(
     default: baseMin = 80; baseMax = 100; break;
   }
   if (studentWords <= 0) return { min: baseMin, max: baseMax };
-  const scaledMax = Math.min(baseMax, studentWords * 4);
-  const min = Math.min(baseMin, Math.max(1, Math.floor(scaledMax * 0.7)));
-  return { min, max: scaledMax };
+  const scaledMax = Math.min(baseMax, studentWords * 2.5);
+  // When scaledMax reaches or exceeds the band's base floor, restore the full
+  // base floor so long-turn richness is not degraded (addresses T-002 reviewer
+  // concern about INTEGRATED min dropping from 130→78 for long inputs).
+  // For short inputs where scaledMax < baseMin, the floor comes purely from
+  // scaledMax × 0.6 so brief actions produce brief consequences.
+  const rawMin = scaledMax >= baseMin
+    ? baseMin
+    : Math.max(1, Math.floor(scaledMax * 0.6));
+  // Practical floor: the 4-element structure always needs at least ~20 words
+  // even for extremely short inputs (1-2 words), so we never go below 20.
+  const min = Math.max(20, rawMin);
+  return { min, max: Math.max(min + 1, Math.round(scaledMax)) };
 }
 
 function countWords(text: string): number {
@@ -293,6 +305,8 @@ REGLAS:
 - NUNCA moralices — presenta hechos y consecuencias
 - Tono calmado, profesional, académico
 - Presenta intercambios, no juicios
+- PROPORCIONALIDAD DE LONGITUD: La longitud de la narrativa debe ser proporcional a la longitud de la acción del estudiante. Si la acción es corta (1-2 oraciones), cada elemento narrativo debe ser 1 oración concisa. No rellenes ni recapitules para alcanzar una longitud mayor.
+- PROPORCIONALIDAD DE PROFUNDIDAD (CRÍTICO): Iguala la profundidad analítica de la narrativa a la profundidad analítica del estudiante. Si el estudiante nombró 1 consideración vaga, haz emerger 1 consecuencia simple — NO fabriques múltiples reacciones de stakeholders, cadenas causales elaboradas, ni datos nuevos sofisticados solo para "llenar" la estructura de 4 elementos. Si el razonamiento del estudiante es rico y específico, la cadena de consecuencias puede desplegarse con más matices. Los 4 elementos son mínimos de PRESENCIA, no mínimos de RIQUEZA: cuando la entrada es vaga, cada elemento puede ser una sola cláusula breve. Está prohibido manufacturar profundidad que el estudiante no produjo.
 
 ESTRUCTURA DE 4 ELEMENTOS (OBLIGATORIA):
 1. RESULTADO OBSERVABLE: Concreto, específico, causal, NO evaluativo
@@ -349,6 +363,16 @@ export async function generateNarrative(
     ? "POSICIÓN: ÚLTIMA decisión. Referir trayectoria acumulada de TODAS las decisiones. NO incluir implicación futura. Mostrar coherencia/tensión de las decisiones."
     : "POSICIÓN: INTERMEDIA. Referir ≥1 elemento de consecuencias previas. Incluir implicación futura. Compounding activo.";
 
+  // T-002: brevity + depth-matching directive for short student inputs (< 20 words).
+  // The depth half is the most important rule: do not manufacture analytical depth
+  // the student did not produce. The 4 elements remain present, but each can be a
+  // single short clause.
+  const brevityDirective = studentWords > 0 && studentWords < 20
+    ? (isEn
+        ? `BREVITY + DEPTH MATCH (CRITICAL): The student's action was very short (${studentWords} words) and likely shallow. Keep each of the 4 elements to ONE sentence — and more importantly, do NOT manufacture analytical depth the student did not produce. If they named 1 vague consideration, surface 1 simple consequence; do NOT invent multiple stakeholder reactions, sophisticated new data, or elaborate causal chains just to fill the structure. The 4 elements are minimums of PRESENCE, not RICHNESS.`
+        : `BREVEDAD + IGUALACIÓN DE PROFUNDIDAD (CRÍTICO): La acción del estudiante fue muy corta (${studentWords} palabras) y probablemente superficial. Mantén cada uno de los 4 elementos en UNA oración — y más importante, NO fabriques profundidad analítica que el estudiante no produjo. Si nombró 1 consideración vaga, haz emerger 1 consecuencia simple; NO inventes múltiples reacciones de stakeholders, datos nuevos sofisticados, ni cadenas causales elaboradas solo para llenar la estructura. Los 4 elementos son mínimos de PRESENCIA, no de RIQUEZA.`)
+    : "";
+
   const userPrompt = `
 ESCENARIO: "${context.scenario.title}"
 DOMINIO: ${context.scenario.domain}
@@ -365,6 +389,7 @@ ${frameworkResponseDirective}
 
 RIQUEZA NARRATIVA (${rdsBand || "SURFACE"}): ${wordRange.min}-${wordRange.max} palabras.
 ${complexity}
+${brevityDirective ? `\n${brevityDirective}` : ""}
 
 ${stakeholderNames ? `STAKEHOLDERS DISPONIBLES: ${stakeholderNames}` : ""}
 ${indicatorContext ? `DOMINIOS DE INDICADORES: ${indicatorContext}` : ""}
