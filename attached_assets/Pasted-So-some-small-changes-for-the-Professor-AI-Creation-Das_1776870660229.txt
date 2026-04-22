@@ -1,0 +1,16 @@
+So some small changes for the Professor AI Creation Dashboard.
+In the dashboard right now, we have target frameworks, and people can choose either a big framework like:
+- business
+- marketing
+- finance
+- operation
+- human resources
+- strategy
+Strategy is not like the category, but if they click one of those categories, it already counts as 0, 1, or 3.
+What we finally figured out with Alejandro is:
+- There are two counters below target frameworks:
+- One that is 0 to 2, so people can choose two major categories. For example, one would be they choose major category business and major category marketing. They can just choose one; it's okay, business, for example, but they have to choose a minimum of one. Another counter on the right is about choosing the frameworks. If they click business and marketing from the two bigger main categories, they can only select frameworks from business and marketing and up to three. If they chose business and marketing and want to select a framework from finance, operation, human resources, or strategy, they can't. When they click two categories, the rest are grayed out and they can't click them unless they unclick one.
+- The other counter is about the frameworks. When they click three, they can click another one, and the rest get grayed out. On the try gear frameworks, maybe put also a question mark that says how this works.
+- Also, on this AI creation dashboard for the teachers, there is a list of frameworks. In each list of frameworks, there is one thing that says "other". For example, they click business and see the business frameworks that they see there. They don't like them, so they click "other" and can type the framework that they want. It doesn't matter; it can be free text, and then that is given to the AI agent that generates the case. It's given as the teacher type "other" and type this framework, but he typed it in the business category.
+- There is also a small square that is optional, saying "notes: is there anything you would like the AI to know?". For example, if you would want your students to do this or focus on this, say something like "you can tell the AI if there's something that hasn't been responded to with the things that we said before", so it has this extra node to generate.
+Plan all of this and let's proceed with those changes.
