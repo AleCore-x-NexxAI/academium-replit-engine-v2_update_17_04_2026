@@ -263,21 +263,15 @@ const submitTurnSchema = z.object({
 export async function registerRoutes(httpServer: Server, app: Express): Promise<void> {
   await setupAuth(app);
 
-  // Dashboard cache (5-minute TTL). Hoisted so cache invalidation hooks can fire
-  // from upstream lifecycle events (turn completion, publish, summary regeneration).
-  const dashboardCache = new Map<string, { data: any; expiry: number }>();
-  function getCached(key: string) {
-    const entry = dashboardCache.get(key);
-    if (entry && entry.expiry > Date.now()) return entry.data;
-    return null;
-  }
-  function setCache(key: string, data: any) {
-    dashboardCache.set(key, { data, expiry: Date.now() + 5 * 60 * 1000 });
-  }
-  function invalidateDashboardCache(scenarioId: string) {
-    const keys = ["class-stats", "module-health", "depth-trajectory", "class-patterns", "students-summary"];
-    for (const k of keys) dashboardCache.delete(`${k}-${scenarioId}`);
-  }
+  // Dashboard cache — race-safe version-token implementation lives in
+  // server/dashboardCache.ts. See that module for the full race description
+  // and the contract each analytics endpoint must follow.
+  const {
+    getCacheVersion,
+    getCached,
+    setCacheIfVersionUnchanged,
+    invalidateDashboardCache,
+  } = await import("./dashboardCache");
 
   app.get("/api/auth/user", async (req: any, res) => {
     try {
@@ -4266,6 +4260,10 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
       const cached = getCached(`class-stats-${scenarioId}`);
       if (cached) return res.json(cached);
 
+      // Snapshot version before any async DB work so we can detect a
+      // concurrent invalidation and skip the stale write (see dashboardCache.ts).
+      const cacheVersion = getCacheVersion(scenarioId);
+
       const auth = await verifyScenarioOwner(req, res, scenarioId);
       if (!auth) return;
 
@@ -4332,7 +4330,7 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
         biggestDropPoint,
         appliedCourseTheory,
       };
-      setCache(`class-stats-${scenarioId}`, result);
+      setCacheIfVersionUnchanged(`class-stats-${scenarioId}`, scenarioId, cacheVersion, result);
       res.json(result);
     } catch (error) {
       console.error("Error computing class stats:", error);
@@ -4346,6 +4344,9 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
       const cached = getCached(`module-health-${scenarioId}`);
       if (cached) return res.json(cached);
 
+      // Snapshot version before any async DB work (see dashboardCache.ts).
+      const cacheVersion = getCacheVersion(scenarioId);
+
       const auth = await verifyScenarioOwner(req, res, scenarioId);
       if (!auth) return;
 
@@ -4357,7 +4358,7 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
 
       if (frameworks.length === 0) {
         const result = { frameworks: [], classDebriefOpener: null };
-        setCache(`module-health-${scenarioId}`, result);
+        setCacheIfVersionUnchanged(`module-health-${scenarioId}`, scenarioId, cacheVersion, result);
         return res.json(result);
       }
 
@@ -4540,7 +4541,7 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
         suggestedSection,
         classDebriefOpener,
       };
-      setCache(`module-health-${scenarioId}`, result);
+      setCacheIfVersionUnchanged(`module-health-${scenarioId}`, scenarioId, cacheVersion, result);
       res.json(result);
     } catch (error) {
       console.error("Error computing module health:", error);
@@ -4554,6 +4555,9 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
       const cached = getCached(`depth-trajectory-${scenarioId}`);
       if (cached) return res.json(cached);
 
+      // Snapshot version before any async DB work (see dashboardCache.ts).
+      const cacheVersion = getCacheVersion(scenarioId);
+
       const auth = await verifyScenarioOwner(req, res, scenarioId);
       if (!auth) return;
 
@@ -4564,7 +4568,7 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
 
       if (completed.length === 0) {
         const result = { points: [], annotations: [] };
-        setCache(`depth-trajectory-${scenarioId}`, result);
+        setCacheIfVersionUnchanged(`depth-trajectory-${scenarioId}`, scenarioId, cacheVersion, result);
         return res.json(result);
       }
 
@@ -4647,7 +4651,7 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
       }
 
       const result = { points, annotations };
-      setCache(`depth-trajectory-${scenarioId}`, result);
+      setCacheIfVersionUnchanged(`depth-trajectory-${scenarioId}`, scenarioId, cacheVersion, result);
       res.json(result);
     } catch (error) {
       console.error("Error computing depth trajectory:", error);
@@ -4660,6 +4664,9 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
       const { scenarioId } = req.params;
       const cached = getCached(`class-patterns-${scenarioId}`);
       if (cached) return res.json(cached);
+
+      // Snapshot version before any async DB work (see dashboardCache.ts).
+      const cacheVersion = getCacheVersion(scenarioId);
 
       const auth = await verifyScenarioOwner(req, res, scenarioId);
       if (!auth) return;
@@ -4741,7 +4748,7 @@ Responde en español. Retorna solo JSON: {"keywords":["..."],"coreConcepts":["..
       patterns.sort((a, b) => b.rate - a.rate);
 
       const result = { patterns };
-      setCache(`class-patterns-${scenarioId}`, result);
+      setCacheIfVersionUnchanged(`class-patterns-${scenarioId}`, scenarioId, cacheVersion, result);
       res.json(result);
     } catch (error) {
       console.error("Error computing class patterns:", error);
