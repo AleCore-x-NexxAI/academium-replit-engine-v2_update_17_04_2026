@@ -731,13 +731,15 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                                 </div>
                               );
                               if (selectedElsewhere) {
+                                const otherDisc = selectedFrameworks.find(f => f.canonicalId === fw.canonicalId && f.discipline !== disc)?.discipline ?? "";
+                                const otherDiscLabel = DISCIPLINE_LABELS_MAP[otherDisc]?.[language] ?? otherDisc;
                                 return (
                                   <Tooltip key={fw.canonicalId}>
                                     <TooltipTrigger asChild>
                                       {row}
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="max-w-xs text-xs">
-                                      {t("canonicalCase.frameworkAlreadySelectedElsewhere")}
+                                      {t("canonicalCase.frameworkAlreadySelectedElsewhere", { discipline: otherDiscLabel })}
                                     </TooltipContent>
                                   </Tooltip>
                                 );
@@ -1033,7 +1035,13 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   }
                   generateMutation.mutate();
                 }}
-                disabled={generateMutation.isPending}
+                disabled={
+                  !topic.trim()
+                  || teachingGoal.trim().length < 20
+                  || selectedDisciplines.length === 0
+                  || courseContext.trim().length < 20
+                  || generateMutation.isPending
+                }
                 className="w-full h-12 text-base"
                 data-testid="button-generate-draft"
               >

@@ -1994,13 +1994,13 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
 
       const fieldErrors: Record<string, string> = {};
       if (!pedagogicalIntent.teachingGoal || pedagogicalIntent.teachingGoal.trim().length < 20) {
-        fieldErrors.teachingGoal = "canonicalCase.validation.teachingGoalRequired";
+        fieldErrors.teachingGoal = "canonicalCase.validationTeachingGoalRequired";
       }
       if (!pedagogicalIntent.targetDisciplines || pedagogicalIntent.targetDisciplines.length === 0) {
-        fieldErrors.targetDisciplines = "canonicalCase.validation.disciplineRequired";
+        fieldErrors.targetDisciplines = "canonicalCase.validationDisciplineRequired";
       }
       if (!pedagogicalIntent.courseContext || pedagogicalIntent.courseContext.trim().length < 20) {
-        fieldErrors.courseContext = "canonicalCase.validation.courseContextRequired";
+        fieldErrors.courseContext = "canonicalCase.validationCourseContextRequired";
       }
       if (Object.keys(fieldErrors).length > 0) {
         return res.status(400).json({ message: "Validation failed", errors: fieldErrors });
