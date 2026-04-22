@@ -75,6 +75,7 @@ export interface PedagogicalIntent {
   }>;
   courseContext?: string;
   reasoningConstraint?: string;
+  professorNotes?: string;
 }
 
 export type AcademicDimension =
@@ -738,6 +739,7 @@ export const pedagogicalIntentSchema = z.object({
   decisionDimensions: z.array(decisionDimensionSchema).optional(),
   courseContext: z.string().optional(),
   reasoningConstraint: z.string().optional(),
+  professorNotes: z.string().optional(),
 });
 
 // PATCH accepts partials; teachingGoal cannot be cleared once set.

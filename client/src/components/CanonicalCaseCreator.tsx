@@ -48,6 +48,7 @@ import { DecisionDimensionsEditor } from "@/components/DecisionDimensionsEditor"
 import { useTranslation } from "@/contexts/LanguageContext";
 import type { GeneratedScenarioData, DecisionPoint, Indicator, CaseFramework, AcademicDimension } from "@shared/schema";
 import { Trash2, BookMarked } from "lucide-react";
+import { customCanonicalId } from "@/lib/customCanonicalId";
 
 interface RegistryFramework {
   canonicalId: string;
@@ -59,7 +60,12 @@ interface RegistryFramework {
   coreConcepts: string[];
 }
 
-type PickerSelection = { type: "framework" | "discipline"; id: string };
+interface SelectedFramework {
+  canonicalId: string;
+  name: string;
+  discipline: string;
+  isCustom?: boolean;
+}
 
 const DISCIPLINE_ORDER = ["business", "marketing", "finance", "operations", "human_resources", "strategy"] as const;
 
@@ -72,7 +78,8 @@ const DISCIPLINE_LABELS_MAP: Record<string, { en: string; es: string }> = {
   strategy: { en: "Strategy", es: "Estrategia" },
 };
 
-const MAX_PICKER_SELECTIONS = 3;
+const MAX_DISCIPLINES = 2;
+const MAX_FRAMEWORKS = 3;
 
 interface CanonicalCaseCreatorProps {
   onScenarioPublished: () => void;
@@ -163,8 +170,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
 }, ref) => {
   const [topic, setTopic] = useState("");
   const [teachingGoal, setTeachingGoal] = useState("");
-  const [intentFrameworks, setIntentFrameworks] = useState<Array<{ canonicalId: string | null; name: string }>>([]);
-  const [pickerSelections, setPickerSelections] = useState<PickerSelection[]>([]);
+  const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>([]);
+  const [selectedFrameworks, setSelectedFrameworks] = useState<SelectedFramework[]>([]);
+  const [customFrameworkActive, setCustomFrameworkActive] = useState<Record<string, boolean>>({});
+  const [customFrameworkInputs, setCustomFrameworkInputs] = useState<Record<string, string>>({});
+  const [professorNotes, setProfessorNotes] = useState("");
   const [expandedDisciplines, setExpandedDisciplines] = useState<Record<string, boolean>>({});
   const [intentCompetencies, setIntentCompetencies] = useState<Array<"C1" | "C2" | "C3" | "C4" | "C5">>([]);
   const [intentDimensions, setIntentDimensions] = useState<
@@ -196,20 +206,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     },
   });
 
-  useEffect(() => {
-    if (registryData && pickerSelections.length > 0) {
-      const newIntentFrameworks = pickerSelections
-        .filter(s => s.type === "framework")
-        .map(s => {
-          const fw = registryData.find(r => r.canonicalId === s.id);
-          return { canonicalId: s.id, name: fw?.canonicalName ?? s.id };
-        });
-      setIntentFrameworks(newIntentFrameworks);
-    } else if (pickerSelections.length === 0) {
-      setIntentFrameworks([]);
-    }
-  }, [pickerSelections, registryData]);
-
   const registryByDiscipline = useCallback(() => {
     if (!registryData) return {};
     const groups: Record<string, RegistryFramework[]> = {};
@@ -221,18 +217,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     }
     return groups;
   }, [registryData]);
-
-  const crossDisciplineWarning = useCallback((): string[] | null => {
-    if (!registryData) return null;
-    const fwSelections = pickerSelections.filter(s => s.type === "framework");
-    if (fwSelections.length < 2) return null;
-    const allDisciplines = new Set<string>();
-    for (const sel of fwSelections) {
-      const fw = registryData.find(r => r.canonicalId === sel.id);
-      if (fw) fw.disciplines.forEach(d => allDisciplines.add(d));
-    }
-    return allDisciplines.size >= 2 ? Array.from(allDisciplines) : null;
-  }, [pickerSelections, registryData]);
 
   const fetchKeywordSuggestions = useCallback(async (fw: CaseFramework) => {
     setSuggestingKeywords(prev => ({ ...prev, [fw.id]: true }));
@@ -274,14 +258,53 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
     }
   }));
 
-  const togglePickerSelection = useCallback((sel: PickerSelection) => {
-    setPickerSelections(prev => {
-      const exists = prev.some(s => s.type === sel.type && s.id === sel.id);
-      if (exists) return prev.filter(s => !(s.type === sel.type && s.id === sel.id));
-      if (prev.length >= MAX_PICKER_SELECTIONS) return prev;
-      return [...prev, sel];
+  const toggleDiscipline = useCallback((disc: string) => {
+    setSelectedDisciplines(prev => {
+      const exists = prev.includes(disc);
+      if (exists) {
+        // Remove frameworks tied only to this discipline.
+        setSelectedFrameworks(fwPrev => fwPrev.filter(f => f.discipline !== disc));
+        setCustomFrameworkActive(c => ({ ...c, [disc]: false }));
+        setCustomFrameworkInputs(c => ({ ...c, [disc]: "" }));
+        return prev.filter(d => d !== disc);
+      }
+      if (prev.length >= MAX_DISCIPLINES) return prev;
+      return [...prev, disc];
     });
   }, []);
+
+  const toggleFramework = useCallback((fw: { canonicalId: string; canonicalName: string }, discipline: string) => {
+    setSelectedFrameworks(prev => {
+      const exists = prev.some(f => f.canonicalId === fw.canonicalId);
+      if (exists) return prev.filter(f => f.canonicalId !== fw.canonicalId);
+      if (prev.length >= MAX_FRAMEWORKS) return prev;
+      return [...prev, { canonicalId: fw.canonicalId, name: fw.canonicalName, discipline }];
+    });
+  }, []);
+
+  const removeFramework = useCallback((canonicalId: string) => {
+    setSelectedFrameworks(prev => {
+      const removed = prev.find(f => f.canonicalId === canonicalId);
+      if (removed?.isCustom) {
+        setCustomFrameworkInputs(c => ({ ...c, [removed.discipline]: "" }));
+        setCustomFrameworkActive(c => ({ ...c, [removed.discipline]: false }));
+      }
+      return prev.filter(f => f.canonicalId !== canonicalId);
+    });
+  }, []);
+
+  const commitCustomFramework = useCallback(async (discipline: string) => {
+    const name = (customFrameworkInputs[discipline] ?? "").trim();
+    if (!name) return;
+    if (selectedFrameworks.some(f => f.discipline === discipline && f.isCustom)) return;
+    if (selectedFrameworks.length >= MAX_FRAMEWORKS) return;
+    const id = await customCanonicalId(name);
+    setSelectedFrameworks(prev => {
+      if (prev.some(f => f.canonicalId === id)) return prev;
+      if (prev.length >= MAX_FRAMEWORKS) return prev;
+      return [...prev, { canonicalId: id, name, discipline, isCustom: true }];
+    });
+  }, [customFrameworkInputs, selectedFrameworks]);
 
   const COMPETENCY_LABELS: Record<"C1" | "C2" | "C3" | "C4" | "C5", string> = {
     C1: language === "en" ? "C1 Analytical" : "C1 Analítica",
@@ -300,11 +323,12 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
         language,
         pedagogicalIntent: {
           teachingGoal: teachingGoal.trim(),
-          targetFrameworks: intentFrameworks,
+          targetFrameworks: selectedFrameworks.map(f => ({ canonicalId: f.canonicalId, name: f.name })),
           targetCompetencies: intentCompetencies,
           decisionDimensions: intentDimensions.length > 0 ? intentDimensions : undefined,
           courseContext: courseContext.trim() || undefined,
           reasoningConstraint: reasoningConstraint.trim() || undefined,
+          professorNotes: professorNotes.trim() || undefined,
         },
       });
       return response.json() as Promise<GenerateResponse>;
@@ -601,12 +625,22 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-semibold">
-                  {language === "en" ? "Target frameworks (optional)" : "Frameworks objetivo (opcional)"}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {pickerSelections.length} / {MAX_PICKER_SELECTIONS} {language === "en" ? "selected" : "seleccionados"}
-                </p>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-semibold">
+                      {language === "en" ? "Target frameworks (optional)" : "Frameworks objetivo (opcional)"}
+                    </Label>
+                    <HelpIcon content={t("canonicalCase.pickerHelp")} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" data-testid="counter-disciplines">
+                      {t("canonicalCase.disciplineCounter")}: {selectedDisciplines.length} / {MAX_DISCIPLINES}
+                    </Badge>
+                    <Badge variant="secondary" data-testid="counter-frameworks">
+                      {t("canonicalCase.frameworkCounter")}: {selectedFrameworks.length} / {MAX_FRAMEWORKS}
+                    </Badge>
+                  </div>
+                </div>
 
                 <div className="border rounded-md divide-y">
                   {DISCIPLINE_ORDER.map((disc) => {
@@ -614,19 +648,20 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                     const fws = groups[disc] ?? [];
                     const isExpanded = !!expandedDisciplines[disc];
                     const discLabel = DISCIPLINE_LABELS_MAP[disc]?.[language] ?? disc;
-                    const discSelected = pickerSelections.some(s => s.type === "discipline" && s.id === disc);
-                    const selectedInGroup = fws.filter(fw =>
-                      pickerSelections.some(s => s.type === "framework" && s.id === fw.canonicalId)
-                    ).length;
-                    const atCap = pickerSelections.length >= MAX_PICKER_SELECTIONS;
+                    const discSelected = selectedDisciplines.includes(disc);
+                    const discAtCap = selectedDisciplines.length >= MAX_DISCIPLINES;
+                    const fwAtCap = selectedFrameworks.length >= MAX_FRAMEWORKS;
+                    const selectedInGroup = selectedFrameworks.filter(f => f.discipline === disc).length;
+                    const customActive = !!customFrameworkActive[disc];
+                    const hasCustomSelected = selectedFrameworks.some(f => f.discipline === disc && f.isCustom);
 
                     return (
                       <div key={disc} data-testid={`picker-group-${disc}`}>
                         <div className="flex items-center gap-2 p-3">
                           <Checkbox
                             checked={discSelected}
-                            disabled={!discSelected && atCap}
-                            onCheckedChange={() => togglePickerSelection({ type: "discipline", id: disc })}
+                            disabled={!discSelected && discAtCap}
+                            onCheckedChange={() => toggleDiscipline(disc)}
                             data-testid={`checkbox-discipline-${disc}`}
                           />
                           <button
@@ -647,10 +682,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                         </div>
                         {isExpanded && (
                           <div className="pl-8 pr-3 pb-3 space-y-1">
+                            {!discSelected && (
+                              <p className="text-xs text-muted-foreground italic py-1">
+                                {t("canonicalCase.selectDisciplineFirst")}
+                              </p>
+                            )}
                             {fws.map((fw) => {
-                              const fwSelected = pickerSelections.some(
-                                s => s.type === "framework" && s.id === fw.canonicalId
-                              );
+                              const fwSelected = selectedFrameworks.some(f => f.canonicalId === fw.canonicalId);
+                              const disabled = !discSelected || (!fwSelected && fwAtCap);
                               const truncDesc = fw.conceptualDescription.length > 140
                                 ? fw.conceptualDescription.slice(0, 137) + "..."
                                 : fw.conceptualDescription;
@@ -662,13 +701,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                                 >
                                   <Checkbox
                                     checked={fwSelected}
-                                    disabled={!fwSelected && atCap}
-                                    onCheckedChange={() =>
-                                      togglePickerSelection({ type: "framework", id: fw.canonicalId })
-                                    }
+                                    disabled={disabled}
+                                    onCheckedChange={() => toggleFramework(fw, disc)}
                                     data-testid={`checkbox-fw-${fw.canonicalId}`}
                                   />
-                                  <span className={`text-sm flex-1 ${!fwSelected && atCap ? "opacity-50" : ""}`}>
+                                  <span className={`text-sm flex-1 ${disabled && !fwSelected ? "opacity-50" : ""}`}>
                                     {fw.canonicalName}
                                   </span>
                                   <Tooltip>
@@ -685,6 +722,44 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                                 </div>
                               );
                             })}
+
+                            {/* Other / Otro row */}
+                            <div className="flex items-center gap-2 py-1" data-testid={`picker-fw-other-${disc}`}>
+                              <Checkbox
+                                checked={customActive || hasCustomSelected}
+                                disabled={!discSelected || (!customActive && !hasCustomSelected && fwAtCap)}
+                                onCheckedChange={(checked) => {
+                                  const next = !!checked;
+                                  setCustomFrameworkActive(prev => ({ ...prev, [disc]: next }));
+                                  if (!next && hasCustomSelected) {
+                                    setSelectedFrameworks(prev => prev.filter(f => !(f.discipline === disc && f.isCustom)));
+                                    setCustomFrameworkInputs(prev => ({ ...prev, [disc]: "" }));
+                                  }
+                                }}
+                                data-testid={`checkbox-fw-other-${disc}`}
+                              />
+                              <span className={`text-sm font-medium ${!discSelected ? "opacity-50" : ""}`}>
+                                {t("canonicalCase.otherFramework")}
+                              </span>
+                            </div>
+                            {discSelected && (customActive || hasCustomSelected) && !hasCustomSelected && (
+                              <div className="pl-8 pb-1">
+                                <Input
+                                  value={customFrameworkInputs[disc] ?? ""}
+                                  onChange={(e) => setCustomFrameworkInputs(prev => ({ ...prev, [disc]: e.target.value }))}
+                                  onBlur={() => commitCustomFramework(disc)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      commitCustomFramework(disc);
+                                    }
+                                  }}
+                                  placeholder={t("canonicalCase.otherFrameworkPlaceholder")}
+                                  disabled={selectedFrameworks.length >= MAX_FRAMEWORKS}
+                                  data-testid={`input-fw-other-${disc}`}
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -692,82 +767,95 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                   })}
                 </div>
 
-                {(() => {
-                  const crossDisc = crossDisciplineWarning();
-                  if (!crossDisc) return null;
-                  const discNames = crossDisc
-                    .map(d => DISCIPLINE_LABELS_MAP[d]?.[language] ?? d)
-                    .join(", ");
-                  return (
-                    <div
-                      className="flex items-start gap-2 p-3 rounded-md border-l-4 text-xs mt-2 bg-yellow-50 dark:bg-yellow-950/30 border-yellow-500 dark:border-yellow-600"
-                      data-testid="warning-cross-discipline"
-                    >
-                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-500" />
-                      <p>
-                        {language === "en"
-                          ? `Cross-discipline selection \u2014 you've picked frameworks from ${discNames}. The AI will generate a case that spans them, but it may not match a single course cleanly. Continue if intentional.`
-                          : `Selección multidisciplinaria \u2014 has elegido frameworks de ${discNames}. La IA generará un caso que los integra, pero puede no encajar en un curso específico. Continúa si es intencional.`}
-                      </p>
-                    </div>
-                  );
-                })()}
+                {selectedFrameworks.length >= MAX_FRAMEWORKS && (
+                  <p className="text-xs text-muted-foreground mt-1" data-testid="text-frameworks-at-cap">
+                    {t("canonicalCase.frameworksAtCap")}
+                  </p>
+                )}
 
-                {pickerSelections.length > 0 && registryData && (
+                {(selectedDisciplines.length > 0 || selectedFrameworks.length > 0) && registryData && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {pickerSelections.map((sel) => {
-                      if (sel.type === "discipline") {
-                        const label = DISCIPLINE_LABELS_MAP[sel.id]?.[language] ?? sel.id;
-                        return (
-                          <Badge key={`d-${sel.id}`} variant="secondary" className="gap-1 pr-1">
-                            {label}
-                            <button
-                              type="button"
-                              onClick={() => togglePickerSelection(sel)}
-                              className="ml-1 rounded-full p-0.5"
-                              data-testid={`button-remove-discipline-${sel.id}`}
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        );
-                      }
-                      const fw = registryData.find(r => r.canonicalId === sel.id);
-                      if (!fw) return null;
-                      const truncDesc = fw.conceptualDescription.length > 120
+                    {selectedDisciplines.map((disc) => {
+                      const label = DISCIPLINE_LABELS_MAP[disc]?.[language] ?? disc;
+                      return (
+                        <Badge key={`d-${disc}`} variant="secondary" className="gap-1 pr-1">
+                          {label}
+                          <button
+                            type="button"
+                            onClick={() => toggleDiscipline(disc)}
+                            className="ml-1 rounded-full p-0.5"
+                            data-testid={`button-remove-discipline-${disc}`}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                    {selectedFrameworks.map((sel) => {
+                      const fw = !sel.isCustom ? registryData.find(r => r.canonicalId === sel.canonicalId) : null;
+                      const truncDesc = fw && fw.conceptualDescription.length > 120
                         ? fw.conceptualDescription.slice(0, 117) + "..."
-                        : fw.conceptualDescription;
+                        : fw?.conceptualDescription ?? "";
                       return (
                         <Card
-                          key={`f-${sel.id}`}
+                          key={`f-${sel.canonicalId}`}
                           className="p-3 space-y-1 w-full"
-                          data-testid={`preview-card-${sel.id}`}
+                          data-testid={`preview-card-${sel.canonicalId}`}
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-medium">{fw.canonicalName}</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-sm font-medium truncate">{sel.name}</span>
+                              {sel.isCustom && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  {t("canonicalCase.customLabel")}
+                                </Badge>
+                              )}
+                            </div>
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
-                              onClick={() => togglePickerSelection(sel)}
-                              data-testid={`button-remove-picker-${sel.id}`}
+                              onClick={() => removeFramework(sel.canonicalId)}
+                              data-testid={`button-remove-picker-${sel.canonicalId}`}
                             >
                               <X className="w-3 h-3" />
                             </Button>
                           </div>
-                          <p className="text-xs text-muted-foreground">{truncDesc}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {fw.coreConcepts.slice(0, 4).map((c, i) => (
-                              <Badge key={i} variant="outline" className="text-[10px] px-1.5 py-0">
-                                {c}
-                              </Badge>
-                            ))}
-                          </div>
+                          {fw && (
+                            <>
+                              <p className="text-xs text-muted-foreground">{truncDesc}</p>
+                              <div className="flex flex-wrap gap-1">
+                                {fw.coreConcepts.slice(0, 4).map((c, i) => (
+                                  <Badge key={i} variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {c}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </>
+                          )}
                         </Card>
                       );
                     })}
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="professor-notes" className="text-sm font-semibold">
+                  {t("canonicalCase.professorNotes")}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {t("canonicalCase.professorNotesHelp")}
+                </p>
+                <Textarea
+                  id="professor-notes"
+                  value={professorNotes}
+                  onChange={(e) => setProfessorNotes(e.target.value.slice(0, 500))}
+                  rows={3}
+                  maxLength={500}
+                  className="resize-none"
+                  data-testid="input-professor-notes"
+                />
               </div>
 
               <div className="space-y-2">
@@ -901,7 +989,7 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
             <div className="pt-4">
               <Button
                 onClick={() => generateMutation.mutate()}
-                disabled={!topic.trim() || !teachingGoal.trim() || generateMutation.isPending}
+                disabled={!topic.trim() || !teachingGoal.trim() || selectedDisciplines.length === 0 || generateMutation.isPending}
                 className="w-full h-12 text-base"
                 data-testid="button-generate-draft"
               >
@@ -936,8 +1024,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
               setDraftId(null);
               setTopic("");
               setTeachingGoal("");
-              setIntentFrameworks([]);
-              setPickerSelections([]);
+              setSelectedDisciplines([]);
+              setSelectedFrameworks([]);
+              setCustomFrameworkActive({});
+              setCustomFrameworkInputs({});
+              setProfessorNotes("");
               setIntentCompetencies([]);
               setIntentDimensions([]);
               setCourseContext("");

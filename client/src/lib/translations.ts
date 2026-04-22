@@ -702,6 +702,16 @@ const translations = {
     markAllReviewed: { es: "Marcar todas como revisadas", en: "Mark all reviewed" },
     markingReviewed: { es: "Marcando…", en: "Marking…" },
     couldNotMarkReviewed: { es: "No se pudieron marcar las decisiones como revisadas.", en: "Could not mark decisions as reviewed." },
+    disciplineCounter: { es: "Disciplinas", en: "Disciplines" },
+    frameworkCounter: { es: "Marcos", en: "Frameworks" },
+    pickerHelp: { es: "Elige 1 o 2 disciplinas y luego hasta 3 marcos de esas disciplinas.", en: "Pick 1 or 2 disciplines, then choose up to 3 frameworks from those disciplines." },
+    otherFramework: { es: "Otro", en: "Other" },
+    otherFrameworkPlaceholder: { es: "Escribe un marco…", en: "Type a framework name…" },
+    selectDisciplineFirst: { es: "Selecciona esta disciplina primero", en: "Select this discipline first" },
+    professorNotes: { es: "Notas para la IA (opcional)", en: "Notes for the AI (optional)" },
+    professorNotesHelp: { es: "Cualquier cosa que la IA deba saber — áreas a enfatizar, cosas a evitar, qué deberían practicar tus estudiantes.", en: "Anything the AI should know — focus areas, things to avoid, what your students should practice." },
+    customLabel: { es: "Personalizado", en: "Custom" },
+    frameworksAtCap: { es: "Has alcanzado el límite de 3 marcos. Quita uno para añadir otro.", en: "3 framework limit reached. Remove one to add another." },
   },
 
   scenarioObjectives: {

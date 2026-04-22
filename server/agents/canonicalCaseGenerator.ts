@@ -591,6 +591,10 @@ function buildIntentBlock(
       lines.push("");
       lines.push(`COURSE CONTEXT: ${intent.courseContext}`);
     }
+    if (intent.professorNotes) {
+      lines.push("");
+      lines.push(`PROFESSOR NOTES — additional guidance from the professor (treat as a soft preference): ${intent.professorNotes}`);
+    }
     return lines.join("\n");
   }
   // Spanish
@@ -627,6 +631,10 @@ function buildIntentBlock(
   if (intent.courseContext) {
     lines.push("");
     lines.push(`CONTEXTO DEL CURSO: ${intent.courseContext}`);
+  }
+  if (intent.professorNotes) {
+    lines.push("");
+    lines.push(`NOTAS DEL PROFESOR — orientación adicional del profesor (preferencia suave): ${intent.professorNotes}`);
   }
   return lines.join("\n");
 }
