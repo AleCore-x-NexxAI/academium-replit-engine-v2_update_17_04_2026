@@ -1,0 +1,54 @@
+FIX 3 — Complete B3: per-option dimension tooltips + remove duplicated string constant
+Context
+Task B3 was meant to let professors see what each academic dimension means BEFORE they pick it. Current implementation only shows a tooltip next to the "Primary dimension *" label after a dimension has been selected. The packet spec asked for per-option hover inside SelectContent. Secondary dimension also has no tooltip. Additionally, the dimension explanations are duplicated — they exist in both client/src/lib/translations.ts (under decisionDimensions.tooltip*) and as a local DIMENSION_TOOLTIP_KEYS constant in DecisionDimensionsEditor.tsx. The component uses the local const; the translations.ts entries are orphaned. Future edits to translations.ts silently have no effect.
+Do
+Step 1: Remove the local constant
+In client/src/components/DecisionDimensionsEditor.tsx, delete the DIMENSION_TOOLTIP_KEYS constant (around lines 43-64). The translations exist in translations.ts under decisionDimensions.tooltipAnalytical, tooltipStrategic, tooltipStakeholder, tooltipEthical, tooltipTradeoff.
+Step 2: Wire the existing label tooltip to translations
+The current tooltip at line 176 reads DIMENSION_TOOLTIP_KEYS[entry.primaryDimension][language]. Replace with t(\decisionDimensions.tooltip${capitalize(entry.primaryDimension)}` as const)— use a small helperconst capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);at the top of the component file, OR build a static map of{analytical: "tooltipAnalytical", ...}` inline.
+Make sure the existing useTranslation() hook is imported and destructured at the top of the component. If it isn't, add import { useTranslation } from "@/contexts/LanguageContext"; and const { t } = useTranslation(); in the component body.
+Step 3: Add per-option tooltips on the primary dimension SelectItems
+Inside <SelectContent> at line 188-194, wrap each <SelectItem> with a tooltip that renders the dimension's description when the user hovers. Use shadcn's HoverCard rather than Tooltip to avoid portal conflicts with the native select dropdown:
+tsx<SelectContent>
+  {DIMENSIONS.map((d) => (
+    <HoverCard key={d} openDelay={200} closeDelay={0}>
+      <HoverCardTrigger asChild>
+        <SelectItem value={d}>
+          {dimensionLabel(d, language)}
+        </SelectItem>
+      </HoverCardTrigger>
+      <HoverCardContent side="right" className="max-w-xs text-xs">
+        <p className="font-semibold mb-1">{dimensionLabel(d, language)}</p>
+        <p>{t(tooltipKeyFor(d))}</p>
+      </HoverCardContent>
+    </HoverCard>
+  ))}
+</SelectContent>
+where tooltipKeyFor(d) returns the appropriate translation key (e.g. d === "analytical" → "decisionDimensions.tooltipAnalytical").
+Add HoverCard, HoverCardContent, HoverCardTrigger imports from @/components/ui/hover-card.
+If the HoverCard conflicts with the Select's own focus/click handling (Radix selects can be finicky with nested portals), use the fallback pattern instead: render a small <HelpCircle> icon outside each SelectItem's row — not inside — and attach the tooltip to the icon. This is uglier but guaranteed to work with Radix select portals. If you take the fallback, note the visual difference in your report.
+Step 4: Add tooltip to secondary dimension select as well
+Mirror the same per-option tooltip on the <SelectContent> for secondary dimension (currently around line 217+). Also add a small help-icon tooltip next to the "Secondary dimension (optional)" label, parallel to what already exists for the primary label at lines 166-178. Use the same translation keys — there's no separate secondary-specific text needed; "analytical as secondary" means the same thing as "analytical as primary."
+Step 5: Drop the now-dead translation key if any got missed
+After the refactor, verify every t("decisionDimensions.tooltip*") call resolves. Grep the component file for any remaining reference to DIMENSION_TOOLTIP_KEYS — there should be zero.
+Preserve
+
+The existing help text under each dimension row ("Primary is the main reasoning..." at line 113-117) — keep it. These tooltips are additive.
+All FIX 1 and FIX 2 changes.
+dashboardCache TTL, Porter regression, no .github/workflows/, the full preserve list from prior tasks.
+The dimensionLabel() helper function — only the DIMENSION_TOOLTIP_KEYS const gets deleted.
+
+Gate
+
+Open the scenario wizard. Open the DecisionDimensionsEditor. Click "Add dimension" — dimension row appears.
+Click the primary dimension dropdown to open SelectContent. Hover each of the 5 options. Each shows its own tooltip with the correct description (Analytical, Strategic, Stakeholder, Ethical, Tradeoff). Descriptions differ between options.
+Toggle UI to Spanish. Same test — all 5 tooltips render in Spanish.
+Close and reopen — SelectContent tooltips persist.
+Secondary dimension dropdown: same behavior.
+Click the small help icon next to "Primary dimension *" label — still shows the tooltip for the currently-selected dimension (existing behavior preserved).
+Click the small help icon next to "Secondary dimension (optional)" label — shows tooltip for currently-selected secondary. If no secondary selected, shows a neutral instruction or hides the icon.
+grep -n "DIMENSION_TOOLTIP_KEYS" client/src/ returns zero matches.
+npx tsc --noEmit clean.
+
+Report
+Screenshots: primary dropdown open with one option's tooltip visible (EN and ES), secondary dropdown open with one option's tooltip visible. Confirmation of zero DIMENSION_TOOLTIP_KEYS references. Diff stats.
