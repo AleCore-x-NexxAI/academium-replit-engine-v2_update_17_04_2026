@@ -1,0 +1,100 @@
+FIX 4 — Small cleanups: tsc error, registry comment, topic validation, nested tooltip
+Context
+Four low-severity items from the deep review, batched into one small task:
+
+A: server/scripts/validateRegistry.ts:9 has a TypeScript error (string where the discipline literal union is expected). The script runs anyway, but npx tsc --noEmit is no longer clean, which breaks any CI that runs tsc.
+B: server/agents/frameworkRegistry.ts:2 comment says "42 entries" but the array has 41 entries. Packet's 42 double-counted Balanced Scorecard (it's a single entry with disciplines: ["strategy", "business"], not two entries).
+C: topic field in the wizard has no inline validation error. Button click with blank topic = silent no-op. Low-impact in practice; easy fix.
+D: CanonicalCaseCreator.tsx has a nested <Tooltip> at line 722-746 — the outer "already selected elsewhere" wraps the whole row; the inner HelpCircle description tooltip is inside the row. Hovering the HelpCircle triggers both tooltips at once. Functional but noisy.
+
+Do
+A. Fix validateRegistry.ts type error
+In server/scripts/validateRegistry.ts, find line 9. The fix depends on what's there — likely something like for (const disc of entry.disciplines) { ... entry.disciplineDescriptions?.[disc] }. The issue is disc is inferred as string but indexing disciplineDescriptions expects a discipline literal.
+Option 1 (preferred): assert the narrowing:
+tsfor (const disc of entry.disciplines as Array<keyof typeof entry.disciplineDescriptions>) {
+or just cast at access time:
+tsconst dd = entry.disciplineDescriptions?.[disc as keyof typeof entry.disciplineDescriptions];
+Option 2: loosen the disciplineDescriptions type in FrameworkRegistryEntry to Record<string, {en: string; es: string}> — but this weakens the public API; prefer Option 1.
+Verify: npx tsc --noEmit exits 0.
+B. Fix registry comment
+In server/agents/frameworkRegistry.ts:2, change:
+
+Was: // 42 entries across 6 disciplines (expanded from 13 strategy-focused entries in Task #75).
+Now: // 41 entries across 6 disciplines (expanded from 13 strategy-focused entries in Task #75). Note: Balanced Scorecard spans two disciplines (strategy + business) as a single entry, not two.
+
+C. Add topic-field inline validation
+In client/src/components/CanonicalCaseCreator.tsx:
+
+The button click handler at line 1030 already checks topic.trim().length > 0 but there's no inline error next to the topic input.
+Find the topic <Input> (grep for setTopic). Below it, add a validation error block following the exact same pattern as the teachingGoal error at lines 628-630:
+
+tsx{showValidation && topic.trim().length === 0 && (
+  <p className="text-xs text-destructive mt-1" data-testid="error-topic">
+    {t("canonicalCase.validationTopicRequired")}
+  </p>
+)}
+
+In client/src/lib/translations.ts, add new key canonicalCase.validationTopicRequired:
+
+EN: "Topic is required."
+ES: "El tema es obligatorio."
+
+
+
+Add server-side validation in server/routes.ts at the POST /api/canonical-case/generate handler, matching the pattern at lines 1929-1941:
+tsif (!topic || topic.trim().length === 0) {
+  fieldErrors.topic = "canonicalCase.validationTopicRequired";
+}
+Place BEFORE the other field checks so it appears first in the errors object.
+D. Fix the nested-Tooltip collision in the cross-discipline picker
+In client/src/components/CanonicalCaseCreator.tsx at the framework row rendering (around lines 707-748), the current structure is:
+outer <Tooltip> for "selected elsewhere" (wraps the full row)
+  <row>
+    <inner Tooltip> for the framework description (wraps the HelpCircle)
+Hovering the HelpCircle triggers both simultaneously — the description AND the "already selected elsewhere" tooltips appear at once.
+Fix by moving the "selected elsewhere" trigger away from the whole row: attach it only to the disabled checkbox or to the framework-name span, NOT to the entire row containing the HelpCircle.
+Specifically:
+
+When selectedElsewhere is true, wrap ONLY the <span> with the framework name in the outer tooltip, not the whole div.
+Leave the HelpCircle with its own description tooltip untouched.
+
+Example shape:
+tsx<div className={`flex items-center gap-2 py-1 ${selectedElsewhere ? "opacity-40" : ""}`}>
+  <Checkbox ... disabled={disabled} />
+  {selectedElsewhere ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="text-sm flex-1 cursor-help">{fw.canonicalName}</span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs text-xs">
+        {t("canonicalCase.frameworkAlreadySelectedElsewhere", { discipline: otherDiscLabel })}
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    <span className="text-sm flex-1">{fw.canonicalName}</span>
+  )}
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0 cursor-help" />
+    </TooltipTrigger>
+    <TooltipContent>...</TooltipContent>
+  </Tooltip>
+</div>
+Now hovering the framework name shows ONLY the "already selected elsewhere" tooltip. Hovering the HelpCircle shows ONLY the framework description.
+Preserve
+
+All FIX 1, FIX 2, FIX 3 changes.
+All behavior from Tasks A, B, C.
+The t() function's replacement-argument signature (used in fix D).
+Every other preserve item from prior tasks.
+
+Gate
+
+npx tsc --noEmit exits with code 0. No TypeScript errors anywhere.
+Registry comment reads "41 entries" with the Balanced Scorecard note.
+Wizard with blank topic → clicking Generate shows inline error under topic field; button click is still blocked server-side (400 with errors.topic).
+Cross-discipline picker: hover SWOT name (disabled because selected in another discipline) — only the "already selected under Strategy" tooltip appears. Hover the HelpCircle next to it — only the framework description tooltip appears. Never both at once.
+All existing tests still pass.
+
+Report
+Confirmation npx tsc --noEmit clean. Screenshot or description of the hover behavior showing each tooltip appears alone. Diff stats.

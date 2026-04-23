@@ -741,6 +741,7 @@ const translations = {
     customLabel: { es: "Personalizado", en: "Custom" },
     frameworksAtCap: { es: "Has alcanzado el límite de 3 marcos. Quita uno para añadir otro.", en: "3 framework limit reached. Remove one to add another." },
     frameworkAlreadySelectedElsewhere: { es: "Ya seleccionado bajo {discipline}. Quítalo allí primero para añadirlo aquí.", en: "Already selected under {discipline}. Remove it there first to add it here." },
+    validationTopicRequired: { es: "El tema es obligatorio.", en: "Topic is required." },
     validationTeachingGoalRequired: { es: "El objetivo de enseñanza debe tener al menos 20 caracteres.", en: "Teaching goal must be at least 20 characters." },
     validationDisciplineRequired: { es: "Selecciona al menos una disciplina.", en: "Select at least one discipline." },
     validationCourseContextRequired: { es: "El contexto del curso debe tener al menos 20 caracteres.", en: "Course context must be at least 20 characters." },

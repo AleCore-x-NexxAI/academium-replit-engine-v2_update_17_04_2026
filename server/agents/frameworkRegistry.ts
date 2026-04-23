@@ -1,5 +1,6 @@
 // Phase 2 (v3.0 §4.5 / Apéndice D.4) — canonical framework registry.
-// 42 entries across 6 disciplines (expanded from 13 strategy-focused entries in Task #75).
+// 41 entries across 6 disciplines (expanded from 13 strategy-focused entries in Task #75).
+// Note: Balanced Scorecard spans two disciplines (strategy + business) as a single entry, not two.
 import type { CaseFramework, FrameworkPrimaryDimension } from "@shared/schema";
 
 export interface FrameworkRegistryEntry {

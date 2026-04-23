@@ -1928,6 +1928,9 @@ Proporciona una pista de andamiaje que ayude al estudiante a reflexionar sobre e
       const { topic, additionalContext, tradeoffFocus, customTradeoff, stepCount, language: caseLang, pedagogicalIntent } = parseResult.data;
 
       const fieldErrors: Record<string, string> = {};
+      if (!topic || topic.trim().length === 0) {
+        fieldErrors.topic = "canonicalCase.validationTopicRequired";
+      }
       if (!pedagogicalIntent.teachingGoal || pedagogicalIntent.teachingGoal.trim().length < 20) {
         fieldErrors.teachingGoal = "canonicalCase.validationTeachingGoalRequired";
       }

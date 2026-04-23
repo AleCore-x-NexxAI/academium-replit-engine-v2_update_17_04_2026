@@ -704,7 +704,14 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                               const truncDesc = rawDesc.length > 140
                                 ? rawDesc.slice(0, 137) + "..."
                                 : rawDesc;
-                              const row = (
+                              const otherDisc = selectedElsewhere
+                                ? selectedFrameworks.find(f => f.canonicalId === fw.canonicalId && f.discipline !== disc)?.discipline ?? ""
+                                : "";
+                              const otherDiscLabel = selectedElsewhere
+                                ? (DISCIPLINE_LABELS_MAP[otherDisc]?.[language] ?? otherDisc)
+                                : "";
+                              const nameSpanClass = `text-sm flex-1 ${disabled && !selectedInThisDiscipline ? "opacity-50" : ""}`;
+                              return (
                                 <div
                                   key={fw.canonicalId}
                                   className={`flex items-center gap-2 py-1 ${selectedElsewhere ? "opacity-40" : ""}`}
@@ -716,9 +723,22 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                                     onCheckedChange={() => toggleFramework(fw, disc)}
                                     data-testid={`checkbox-fw-${fw.canonicalId}`}
                                   />
-                                  <span className={`text-sm flex-1 ${disabled && !selectedInThisDiscipline ? "opacity-50" : ""}`}>
-                                    {fw.canonicalName}
-                                  </span>
+                                  {selectedElsewhere ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className={`${nameSpanClass} cursor-help`}>
+                                          {fw.canonicalName}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-xs text-xs">
+                                        {t("canonicalCase.frameworkAlreadySelectedElsewhere", { discipline: otherDiscLabel })}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    <span className={nameSpanClass}>
+                                      {fw.canonicalName}
+                                    </span>
+                                  )}
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <HelpCircle className="w-4 h-4 text-muted-foreground shrink-0 cursor-help" data-testid={`tooltip-fw-info-${fw.canonicalId}`} />
@@ -732,21 +752,6 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                                   </Tooltip>
                                 </div>
                               );
-                              if (selectedElsewhere) {
-                                const otherDisc = selectedFrameworks.find(f => f.canonicalId === fw.canonicalId && f.discipline !== disc)?.discipline ?? "";
-                                const otherDiscLabel = DISCIPLINE_LABELS_MAP[otherDisc]?.[language] ?? otherDisc;
-                                return (
-                                  <Tooltip key={fw.canonicalId}>
-                                    <TooltipTrigger asChild>
-                                      {row}
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-xs text-xs">
-                                      {t("canonicalCase.frameworkAlreadySelectedElsewhere", { discipline: otherDiscLabel })}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                );
-                              }
-                              return row;
                             })}
 
                             {/* Other / Otro row */}
@@ -971,6 +976,11 @@ const CanonicalCaseCreator = forwardRef<CanonicalCaseCreatorRef, CanonicalCaseCr
                 className="min-h-[100px] text-base"
                 data-testid="input-case-topic"
               />
+              {showValidation && topic.trim().length === 0 && (
+                <p className="text-xs text-destructive mt-1" data-testid="error-topic">
+                  {t("canonicalCase.validationTopicRequired")}
+                </p>
+              )}
             </div>
 
             <div className="space-y-3">

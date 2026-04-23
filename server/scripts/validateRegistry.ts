@@ -6,7 +6,7 @@ for (const entry of FRAMEWORK_REGISTRY) {
   const id = entry.canonicalId;
 
   for (const disc of entry.disciplines) {
-    if (!FRAMEWORK_DISCIPLINES.includes(disc)) {
+    if (!(FRAMEWORK_DISCIPLINES as readonly string[]).includes(disc)) {
       console.error(`[${id}] unknown discipline "${disc}"`);
       errors++;
     }
@@ -19,7 +19,7 @@ for (const entry of FRAMEWORK_REGISTRY) {
   }
 
   for (const disc of entry.disciplines) {
-    const pair = entry.disciplineDescriptions[disc];
+    const pair = entry.disciplineDescriptions[disc as keyof typeof entry.disciplineDescriptions];
     if (!pair) {
       console.error(`[${id}] missing disciplineDescriptions.${disc}`);
       errors++;
@@ -39,7 +39,7 @@ for (const entry of FRAMEWORK_REGISTRY) {
   }
 
   for (const disc of Object.keys(entry.disciplineDescriptions)) {
-    if (!entry.disciplines.includes(disc)) {
+    if (!(entry.disciplines as readonly string[]).includes(disc)) {
       console.error(`[${id}] disciplineDescriptions has key "${disc}" not in disciplines array`);
       errors++;
     }
